@@ -347,19 +347,38 @@ function Props.buildPark(folder, rng)
 	end
 end
 
-function Props.buildRiver(folder)
-	-- Promenade, railing and an invisible wall so nobody walks into the river.
+-- gaps: list of { minZ, maxZ } where a road crosses the river (no railing or wall).
+function Props.buildRiver(folder, gaps)
+	gaps = gaps or {}
+	-- Railing and invisible wall run in pieces between the gaps.
+	local pieces = {}
+	local z = Util.MIN_Z
+	table.sort(gaps, function(a, b)
+		return a.minZ < b.minZ
+	end)
+	for _, gap in ipairs(gaps) do
+		table.insert(pieces, { z, gap.minZ })
+		z = gap.maxZ
+	end
+	table.insert(pieces, { z, Util.MAX_Z })
+	-- Promenade along the water's edge.
 	Util.solid(folder, V3(10, 1, Util.MAX_Z - Util.MIN_Z), CFrame.new(Util.RIVER_X - 3, -0.25, 0), Color3.fromRGB(150, 144, 134), M.Pavement)
-	Util.solid(folder, V3(0.4, 3.4, Util.MAX_Z - Util.MIN_Z), CFrame.new(Util.RIVER_X + 1.6, 1.9, 0), Color3.fromRGB(40, 44, 42), M.Metal)
-	local wall = Util.solid(folder, V3(2, 80, Util.MAX_Z - Util.MIN_Z), CFrame.new(Util.RIVER_X + 3, 40, 0), Color3.new(), M.SmoothPlastic)
-	wall.Transparency = 1
-	Util.solid(folder, V3(40, 6, Util.MAX_Z - Util.MIN_Z), CFrame.new(Util.RIVER_X + 22, -5, 0), Color3.fromRGB(96, 90, 82), M.Concrete) -- embankment
+	for _, piece in ipairs(pieces) do
+		local length = piece[2] - piece[1]
+		if length > 1 then
+			local mid = (piece[1] + piece[2]) / 2
+			Util.solid(folder, V3(0.4, 3.4, length), CFrame.new(Util.RIVER_X + 1.6, 1.9, mid), Color3.fromRGB(40, 44, 42), M.Metal)
+			local wall = Util.solid(folder, V3(2, 80, length), CFrame.new(Util.RIVER_X + 3, 40, mid), Color3.new(), M.SmoothPlastic)
+			wall.Transparency = 1
+			Util.solid(folder, V3(40, 6, length), CFrame.new(Util.RIVER_X + 22, -5, mid), Color3.fromRGB(96, 90, 82), M.Concrete) -- embankment
+		end
+	end
 	-- Piers.
-	for _, z in ipairs({ -480, -140, 220, 520 }) do
-		Util.deco(folder, V3(120, 1, 26), CFrame.new(Util.RIVER_X + 70, 0.2, z), Color3.fromRGB(110, 92, 70), M.WoodPlanks)
+	for _, pierZ in ipairs({ -480, -140, 220, 520 }) do
+		Util.deco(folder, V3(120, 1, 26), CFrame.new(Util.RIVER_X + 70, 0.2, pierZ), Color3.fromRGB(110, 92, 70), M.WoodPlanks)
 		for x = 20, 120, 25 do
-			Util.cylinder(folder, 14, 1.2, CFrame.new(Util.RIVER_X + x, -6, z - 12), Color3.fromRGB(70, 60, 50), M.Wood, false)
-			Util.cylinder(folder, 14, 1.2, CFrame.new(Util.RIVER_X + x, -6, z + 12), Color3.fromRGB(70, 60, 50), M.Wood, false)
+			Util.cylinder(folder, 14, 1.2, CFrame.new(Util.RIVER_X + x, -6, pierZ - 12), Color3.fromRGB(70, 60, 50), M.Wood, false)
+			Util.cylinder(folder, 14, 1.2, CFrame.new(Util.RIVER_X + x, -6, pierZ + 12), Color3.fromRGB(70, 60, 50), M.Wood, false)
 		end
 	end
 end

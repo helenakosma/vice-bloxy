@@ -27,6 +27,10 @@ Layout.DOME = Vector2.new(533, -1140) -- stadium
 Layout.MALL = Vector2.new(-985, -1370) -- shopping centre
 Layout.NY_PARK = { minX = -1085, maxX = -865, minZ = -1700, maxZ = -1550 }
 
+-- Vice Causeway: a street-level bridge from downtown's waterfront drive straight
+-- across the river to Vice Beach (passes under the Harbor Freeway).
+Layout.CAUSEWAY_Z = 150
+
 -- Downtown's north-shore road runs underneath the Harbor Freeway.
 Layout.DOWNTOWN_SHORE_Z = -712
 

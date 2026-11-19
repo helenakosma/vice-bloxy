@@ -309,6 +309,17 @@ local function bridgeDetails(folder, road, mid, dir, length)
 		Util.solid(folder, Vector3.new(0.8, 3.4, length), Util.groundCF(p, dir, 0.25 + 1.7), Color3.fromRGB(70, 74, 72), Enum.Material.Metal)
 	end
 	Util.deco(folder, Vector3.new(road.width + road.walk * 2, 4, length), Util.groundCF(mid, dir, -2.6), Color3.fromRGB(58, 64, 62), Enum.Material.Metal)
+	-- Piers down to the riverbed wherever the bridge is over water.
+	local start = mid - dir * (length / 2)
+	for t = 30, length - 30, 60 do
+		local p = start + dir * t
+		if Util.get(p.X, p.Y) == Util.WATER or Util.get(p.X, p.Y) == Util.ROAD then
+			for _, side in ipairs({ -1, 1 }) do
+				local q = p + normal * side * road.width * 0.3
+				Util.solid(folder, Vector3.new(6, 12, 6), CFrame.new(q.X, -9, q.Y), Color3.fromRGB(120, 116, 108), Enum.Material.Concrete)
+			end
+		end
+	end
 end
 
 -- Draws road surfaces, sidewalks and markings for the given roads.

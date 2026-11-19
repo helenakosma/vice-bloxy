@@ -60,6 +60,22 @@ function ViceBeach.layout(ctx)
 		Vector2.new(OCEAN_DRIVE_X, landing.Z),
 	}))
 
+	-- Vice Causeway: from downtown's waterfront drive across the river to Bay Road.
+	local cz = Layout.CAUSEWAY_Z
+	local waterfrontX = Util.RIVER_X - 36
+	for _, road in ipairs(ctx.shared.downtownRoads) do
+		if road.kind == "waterfront" then
+			for i = 1, #road.points - 1 do
+				local a, c = road.points[i], road.points[i + 1]
+				if cz >= a.Y and cz <= c.Y then
+					waterfrontX = a.X + (c.X - a.X) * (cz - a.Y) / (c.Y - a.Y)
+				end
+			end
+		end
+	end
+	table.insert(roads, Roads.add("bridge", { Vector2.new(waterfrontX, cz), Vector2.new(b.minX + 4, cz) }))
+	table.insert(roads, Roads.add("avenue", { Vector2.new(b.minX, cz), Vector2.new(BAY_X, cz) }))
+
 	-- Marina docks on the bay side: keep the sea wall open where they meet land.
 	for _, z in ipairs({ 0, 320 }) do
 		Util.markRect(b.minX - 22, b.minX, z - 6, z + 6, Util.PARK)

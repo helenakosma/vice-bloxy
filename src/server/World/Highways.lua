@@ -444,7 +444,8 @@ local function render(folder, hw)
 					span(folder, pa, pb, 1.2, 2.8, 1.4, CONCRETE, M.Concrete, true)
 				end
 			end
-			if hw.median then
+			-- The median also stops where this road runs onto another deck (merges).
+			if hw.median and not onOtherDeck(hw, (a + b) / 2) then
 				span(folder, a, b, MEDIAN * 2 - 0.4, 2.4, 1.2, CONCRETE, M.Concrete, true)
 				if i % 5 == 0 then
 					local pole = CFrame.lookAt(a, b)

@@ -61,7 +61,8 @@ function Downtown.build(ctx)
 
 	Roads.render(ctx.makeFolder(folder, "Roads"), roads)
 	Props.buildPark(ctx.makeFolder(folder, "Park"), rng)
-	Props.buildRiver(ctx.makeFolder(folder, "River"))
+	local cz = Layout.CAUSEWAY_Z
+	Props.buildRiver(ctx.makeFolder(folder, "River"), { { minZ = cz - 45, maxZ = cz + 45 } })
 	Util.seawall(ctx.makeFolder(folder, "Seawall"), Downtown.bounds, { east = true })
 
 	local buildings = ctx.makeFolder(folder, "Buildings")
