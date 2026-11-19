@@ -21,11 +21,13 @@ local C = Color3.fromRGB
 local KEYS = {
 	{
 		time = 0, name = "night",
-		brightness = 0.8, ambient = C(40, 46, 70), outdoor = C(52, 60, 92), shift = C(120, 132, 190), exposure = -0.1,
-		atmo = { density = 0.38, color = C(60, 68, 100), decay = C(22, 24, 44), glare = 0, haze = 1.2 },
-		bloom = { intensity = 0.45, size = 18, threshold = 1.5 },
-		grade = { brightness = -0.02, contrast = 0.14, saturation = 0.12, tint = C(214, 224, 255) },
-		rays = 0, clouds = C(70, 76, 100),
+		-- A city never gets truly dark: the haze glows sodium-orange from the street
+		-- lights below, and that glow fills every street (warm ambient, lifted exposure).
+		brightness = 1.4, ambient = C(92, 84, 96), outdoor = C(118, 108, 128), shift = C(150, 150, 210), exposure = 0.35,
+		atmo = { density = 0.3, color = C(150, 112, 100), decay = C(70, 56, 80), glare = 0, haze = 1.6 },
+		bloom = { intensity = 0.55, size = 24, threshold = 1.35 },
+		grade = { brightness = 0.03, contrast = 0.1, saturation = 0.14, tint = C(236, 230, 255) },
+		rays = 0, clouds = C(118, 96, 104),
 	},
 	{ time = 5.4, name = "night" },
 	{

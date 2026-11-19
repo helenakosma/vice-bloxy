@@ -3,6 +3,7 @@
 -- buildings are simpler; cheap filler fills the gaps inside blocks.
 local Util = require(script.Parent.Util)
 local Stores = require(script.Parent.Stores)
+local Billboards = require(script.Parent.Billboards)
 
 local Buildings = {}
 
@@ -420,6 +421,9 @@ function Buildings.placeFrontage(folder, roads, rng, opts)
 									opts.hero.build(model, cf, w, depth, road, center, side)
 								else
 									Styles[style](model, cf, w, depth, ctx)
+									if road.main and opts.ads ~= false then
+										Billboards.maybe(model, cf, w, depth, center)
+									end
 								end
 								placed = placed + 1
 								done = true

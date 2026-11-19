@@ -1,5 +1,5 @@
 -- Street furniture and landmarks: streetlights, traffic signals, trees, hydrants,
--- subway entrances, steam stacks, the park, the river and parked cars.
+-- steam stacks, the park, the river and parked cars.
 local Util = require(script.Parent.Util)
 local Roads = require(script.Parent.Roads)
 
@@ -28,9 +28,9 @@ local function streetlight(folder, p, towardRoad)
 	if lightCount % 2 == 0 then
 		local light = Instance.new("SpotLight")
 		light.Face = Enum.NormalId.Bottom
-		light.Range = 40
-		light.Angle = 110
-		light.Brightness = 1.6
+		light.Range = 60 -- wide, soft pools that overlap into a continuous glow
+		light.Angle = 150
+		light.Brightness = 2.4
 		light.Color = LAMP_COLOR
 		light.Parent = head
 	end
@@ -88,18 +88,6 @@ end
 local function newsBox(folder, p, dir, rng)
 	local colors = { Color3.fromRGB(30, 60, 140), Color3.fromRGB(180, 40, 40), Color3.fromRGB(220, 200, 40) }
 	Util.solid(folder, V3(2, 3.6, 1.8), Util.groundCF(p, dir, 0.25) * CFrame.new(0, 1.8, 0), Util.pick(rng, colors), M.Metal)
-end
-
-local function subwayEntrance(folder, p, dir)
-	local cf = Util.groundCF(p, dir, 0.25)
-	Util.deco(folder, V3(5, 0.3, 9), cf * CFrame.new(0, 0.02, 0), Color3.fromRGB(20, 20, 20), M.Concrete)
-	for _, x in ipairs({ -2.7, 2.7 }) do
-		Util.solid(folder, V3(0.3, 3.2, 9), cf * CFrame.new(x, 1.6, 0), Color3.fromRGB(40, 70, 50), M.Metal)
-		Util.deco(folder, V3(1.1, 1.1, 1.1), cf * CFrame.new(x, 4, -4.3), Color3.fromRGB(70, 220, 110), M.Neon, Enum.PartType.Ball)
-	end
-	Util.solid(folder, V3(5.6, 3.2, 0.3), cf * CFrame.new(0, 1.6, 4.5), Color3.fromRGB(40, 70, 50), M.Metal)
-	local sign = Util.deco(folder, V3(4.6, 1, 0.2), cf * CFrame.new(0, 3.6, -4.5), Color3.fromRGB(20, 20, 20), M.SmoothPlastic)
-	Util.sign(sign, Enum.NormalId.Front, "SUBWAY", Color3.fromRGB(255, 255, 255), Enum.Font.Gotham)
 end
 
 local function steamStack(folder, p)
@@ -187,7 +175,6 @@ end
 ---------------------------------------------------------------------------
 local function placeFurniture(folder, inRoad, rng, roads, opts)
 	local tropical = opts.tropical == true
-	local placedSubway = 0
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
 		if road.kind == "alley" then
 			return
@@ -224,9 +211,6 @@ local function placeFurniture(folder, inRoad, rng, roads, opts)
 					trashCan(folder, kerbSide)
 				elseif r < 0.64 and onSidewalk(kerbSide) then
 					newsBox(folder, kerbSide, towardRoad, rng)
-				elseif not tropical and road.main and r < 0.67 and placedSubway < 14 and onSidewalk(midWalk) then
-					subwayEntrance(folder, midWalk, dir)
-					placedSubway = placedSubway + 1
 				elseif road.main and r < 0.7 and onSidewalk(midWalk) then
 					busStop(folder, midWalk, towardRoad)
 				end
@@ -268,7 +252,7 @@ local function placeFurniture(folder, inRoad, rng, roads, opts)
 	end
 end
 
--- opts.tropical: palms instead of street trees, no subway or steam stacks.
+-- opts.tropical: palms instead of street trees, no steam stacks.
 -- opts.signals: also place traffic signals at downtown's avenue crossings.
 -- opts.skip(point) -> true: no clutter there (streetlights still go in).
 function Props.placeStreetFurniture(folder, rng, roads, opts)

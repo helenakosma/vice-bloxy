@@ -3,7 +3,7 @@
 -- Line 1 runs straight along x = LINE_X from Finch (North York) south through
 -- Queen and Union, under the channel, through downtown (Harbour, Central), then
 -- climbs out through an open cut onto a viaduct to the elevated Portlands terminal
--- in the industrial district. Underground stations have a street pavilion, stairs
+-- in the industrial district. Underground stations have sidewalk entrances, stairs
 -- down to a ticket concourse just under the street, and stairs to an island
 -- platform between the two tracks.
 --
@@ -120,25 +120,93 @@ end
 ---------------------------------------------------------------------------
 -- Layout: profile, holes in the ground, reserved land
 ---------------------------------------------------------------------------
-local function findPavilionSpot(station)
-	-- A free lot close to the north end of the station (the concourse end).
-	local target = Vector2.new(LINE_X, station.z - STATION_HALF + 20)
+-- Street entrances: an open stairwell with steel railings and a TTC sign over the
+-- way in (like the sidewalk entrances downtown), set in the lot right behind a sidewalk so you walk
+-- straight off the pavement into it. sz = +1: you enter on the north (-z) side and
+-- the stairs go down toward +z; sz = -1 is the mirror image. The passage at the
+-- bottom leaves sideways (along x) toward the line.
+local ENTRANCE_W, ENTRANCE_D = 18, 36
+
+-- When the side you walk in from touches a sidewalk across the full width, returns
+-- how far out the sidewalk starts; otherwise nil.
+local function frontsSidewalk(c, sz)
+	local reach = 0
+	for _, dx in ipairs({ -4, 0, 4 }) do
+		local found = nil
+		for d = 17, 27, 2 do
+			local cell = Util.get(c.X + dx, c.Y - sz * d)
+			if cell == Util.WALK then
+				found = d
+				break
+			elseif cell ~= Util.FREE then
+				return nil
+			end
+		end
+		if not found then
+			return nil
+		end
+		reach = math.max(reach, found)
+	end
+	return reach
+end
+
+-- Keeps the ground between the entrance and the sidewalk clear of buildings.
+local function claimApron(c, sz)
+	for dx = -8, 8, 2 do
+		for d = 15, 27, 2 do
+			if Util.get(c.X + dx, c.Y - sz * d) == Util.FREE then
+				Util.set(c.X + dx, c.Y - sz * d, Util.BUILT)
+			end
+		end
+	end
+end
+
+-- Up to two entrances per station (one each side of the line where possible),
+-- close to the concourse at the station's north end.
+local function findEntrances(station)
+	local cz0 = station.z - STATION_HALF
+	local cz1 = cz0 + 44
+	local target = Vector2.new(LINE_X, cz0 + 20)
 	local fwd, right = Vector2.new(0, -1), Vector2.new(1, 0)
-	local best = nil
-	for r = 0, 160, 8 do
-		for _, dx in ipairs({ r, -r }) do
-			for dz = -r, r, 8 do
-				local c = target + Vector2.new(dx, dz)
-				if (not best) and Util.rectFree(c, fwd, right, 28, 34) then
-					best = c
+	local best = {} -- side -> { c, sz, dist }
+	for x = target.X - 260, target.X + 260, 4 do
+		if math.abs(x - LINE_X) >= 24 then
+			for z = target.Y - 260, target.Y + 200, 4 do
+				for _, sz in ipairs({ 1, -1 }) do
+					local passZ = z + 12 * sz
+					local passOk = passZ <= cz0 - 8 or (passZ >= cz0 + 8 and passZ <= cz0 + 30) -- clear of the booth
+					if passOk then
+						local c = Vector2.new(x, z)
+						local side = x < LINE_X and -1 or 1
+						local dist = (c - target).Magnitude
+						local current = best[side]
+						if not current or dist < current.dist then
+							local reach = frontsSidewalk(c, sz)
+							if reach and Util.rectFree(c, fwd, right, ENTRANCE_W, ENTRANCE_D) then
+								best[side] = { c = c, sz = sz, dist = dist, reach = reach }
+							end
+						end
+					end
 				end
 			end
 		end
-		if best then
-			break
+	end
+	local found = {}
+	local northTaken = false -- only one passage can come in along the line from the north
+	for _, side in ipairs({ -1, 1 }) do
+		local b = best[side]
+		local north = b and (b.c.Y + 12 * b.sz) <= cz0
+		if b and b.dist < 300 and not (north and northTaken) then
+			northTaken = northTaken or north
+			-- The other side's pick may overlap this one: check again before claiming.
+			if Util.rectFree(b.c, fwd, right, ENTRANCE_W, ENTRANCE_D) then
+				Util.rectMark(b.c, fwd, right, ENTRANCE_W, ENTRANCE_D, Util.BUILT)
+				claimApron(b.c, b.sz)
+				table.insert(found, b)
+			end
 		end
 	end
-	return best
+	return found, cz0, cz1
 end
 
 function Transit.layout(shared)
@@ -188,7 +256,7 @@ function Transit.layout(shared)
 		hole(V3(LINE_X - HALF - 1, math.min(railAt(z), railAt(z + 10)) - 2, z), V3(LINE_X + HALF + 1, top, z + 10))
 	end
 
-	state.pavilions = {}
+	state.entrances = {}
 	for _, station in ipairs(STATIONS) do
 		if not station.elevated then
 			local zc = station.z
@@ -196,21 +264,28 @@ function Transit.layout(shared)
 			-- Concourse over the north end, and the stairwell down to the platform.
 			local cz0, cz1 = zc - STATION_HALF, zc - STATION_HALF + 44
 			hole(V3(LINE_X - 13, CONCOURSE - 1, cz0), V3(LINE_X + 13, CONCOURSE_TOP + 0.5, cz1))
-			hole(V3(LINE_X - 4, RAIL - 2, zc - STATION_HALF + 2), V3(LINE_X + 4, CONCOURSE_TOP + 0.5, zc - STATION_HALF + 22))
-			-- Street pavilion, its stair shaft, and the passage to the concourse.
-			local spot = findPavilionSpot(station)
-			if spot then
-				Util.rectMark(spot, Vector2.new(0, -1), Vector2.new(1, 0), 28, 34, Util.BUILT)
-				hole(V3(spot.X - 6, CONCOURSE - 1, spot.Y - 15), V3(spot.X + 6, 2, spot.Y + 15))
-				local passZ = spot.Y + 12
-				local x0, x1 = math.min(spot.X, LINE_X), math.max(spot.X, LINE_X)
-				hole(V3(x0 - 5, CONCOURSE - 1, passZ - 5), V3(x1 + 5, CONCOURSE_TOP + 0.5, passZ + 5))
-				local z0, z1 = math.min(passZ, cz0 + 20), math.max(passZ, cz0 + 20)
-				hole(V3(LINE_X - 5, CONCOURSE - 1, z0 - 5), V3(LINE_X + 5, CONCOURSE_TOP + 0.5, z1 + 5))
-				table.insert(state.pavilions, { station = station, spot = spot, passZ = passZ })
-			else
+			hole(V3(LINE_X - 4, RAIL - 2, zc - STATION_HALF + 8), V3(LINE_X + 4, CONCOURSE_TOP + 0.5, zc - STATION_HALF + 28))
+			-- Street entrances, their stair shafts, and the passages to the concourse.
+			local list = {}
+			for _, e in ipairs((findEntrances(station))) do
+				local spot, sz = e.c, e.sz
+				local passZ = spot.Y + 12 * sz
+				local side = spot.X < LINE_X and -1 or 1
+				-- Into the concourse's side wall, or along the line into its north end.
+				local inside = passZ > cz0
+				local endX = inside and (LINE_X + side * 13.5) or LINE_X
+				hole(V3(spot.X - 7, CONCOURSE - 1, spot.Y - 16), V3(spot.X + 7, 2, spot.Y + 16))
+				hole(V3(math.min(spot.X, endX) - 5, CONCOURSE - 1, passZ - 5), V3(math.max(spot.X, endX) + 5, CONCOURSE_TOP + 0.5, passZ + 5))
+				if not inside then
+					hole(V3(LINE_X - 5, CONCOURSE - 1, passZ - 5), V3(LINE_X + 5, CONCOURSE_TOP + 0.5, cz0 + 1))
+				end
+				table.insert(list, { spot = spot, sz = sz, reach = e.reach, passZ = passZ, side = side, inside = inside, endX = endX })
+				print(string.format("[Transit] %s station entrance at x=%.0f, z=%.0f", station.name, spot.X, spot.Y))
+			end
+			if #list == 0 then
 				warn("[Transit] no space for a street entrance at " .. station.name)
 			end
+			state.entrances[station] = list
 		end
 	end
 	state.holes = holes
@@ -274,6 +349,36 @@ local function nameSign(folder, cf, size, text, colour, textColour)
 	local gui = Util.sign(plate, Front, text, textColour or Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
 	gui.LightInfluence = 0.2
 	return plate
+end
+
+-- Floating map marker (seen through buildings, like a GTA map icon) so players
+-- can find stations and stops from a distance.
+local function marker(part, text, colour, maxDistance)
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "Marker"
+	gui.AlwaysOnTop = true
+	gui.MaxDistance = maxDistance or 1200
+	gui.Size = UDim2.fromOffset(170, 34)
+	gui.StudsOffset = Vector3.new(0, 10, 0)
+	gui.LightInfluence = 0
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundColor3 = colour
+	label.BackgroundTransparency = 0.1
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.Font = Enum.Font.GothamBlack
+	label.TextScaled = true
+	label.Text = text
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = label
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 6)
+	pad.PaddingRight = UDim.new(0, 6)
+	pad.Parent = label
+	label.Parent = gui
+	gui.Parent = part
+	return gui
 end
 
 -- A wall along x (alongX) or z between a and b at fixed other coordinate, from y0
@@ -406,7 +511,7 @@ end
 ---------------------------------------------------------------------------
 -- Underground stations
 ---------------------------------------------------------------------------
-local function buildStation(folder, station, pavilion)
+local function buildStation(folder, station, entrances)
 	local zc = station.z
 	local platformTop = RAIL + FLOOR_UP
 	local z0, z1 = zc - STATION_HALF, zc + STATION_HALF
@@ -427,7 +532,7 @@ local function buildStation(folder, station, pavilion)
 		end
 	end
 	-- Ceiling with light strips (opening over the stairs at the north end).
-	local stairZ0, stairZ1 = z0 + 2, z0 + 22
+	local stairZ0, stairZ1 = z0 + 8, z0 + 28 -- an 8-stud landing in front of the top step
 	local ceilY = STATION_TOP + 0.5
 	Util.solid(folder, V3(HALF * 2 + 2, 1, z1 - stairZ1), CFrame.new(LINE_X, ceilY, (stairZ1 + z1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
 	for _, side in ipairs({ -1, 1 }) do
@@ -445,10 +550,12 @@ local function buildStation(folder, station, pavilion)
 	-- Island platform with a yellow edge, columns, benches and signs.
 	Util.solid(folder, V3(12, platformTop - RAIL + 1, STATION_HALF * 2 - 4), CFrame.new(LINE_X, (RAIL - 1 + platformTop) / 2, zc), Color3.fromRGB(190, 186, 178), M.Concrete)
 	for _, side in ipairs({ -1, 1 }) do
-		Util.deco(folder, V3(1, 0.05, STATION_HALF * 2 - 4), CFrame.new(LINE_X + side * 5.5, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
+		Util.deco(folder, V3(1.8, 0.06, STATION_HALF * 2 - 4), CFrame.new(LINE_X + side * 5.1, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
 	end
 	for k = -3, 3 do
-		Util.solid(folder, V3(1.6, STATION_TOP - platformTop, 1.6), CFrame.new(LINE_X, (platformTop + STATION_TOP) / 2, zc + k * 18 + 9), Util.shade(tile, 0.85), M.CeramicTiles)
+		if zc + k * 18 + 9 > stairZ1 + 4 then -- keep the foot of the stairs clear
+			Util.solid(folder, V3(1.6, STATION_TOP - platformTop, 1.6), CFrame.new(LINE_X, (platformTop + STATION_TOP) / 2, zc + k * 18 + 9), Util.shade(tile, 0.85), M.CeramicTiles)
+		end
 		if k % 2 == 0 then
 			Util.solid(folder, V3(1.6, 1.6, 6), CFrame.new(LINE_X + 2.6, platformTop + 0.8, zc + k * 18), Color3.fromRGB(120, 86, 56), M.Wood)
 		end
@@ -472,18 +579,16 @@ local function buildStation(folder, station, pavilion)
 	end
 	local ceiling = Util.deco(folder, V3(26, 0.4, 44), CFrame.new(LINE_X, CONCOURSE_TOP - 0.2, (cz0 + cz1) / 2), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
 	light(ceiling, Enum.NormalId.Bottom, 16, 1.2)
-	-- Walls, with openings where the passage from the street comes in.
+	-- Landing between the north wall and the top of the platform stairs.
+	Util.solid(folder, V3(8, 1, stairZ0 - cz0), CFrame.new(LINE_X, floorY, (cz0 + stairZ0) / 2), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
+	-- Walls, with openings where the passages from the street come in.
 	local sideGaps = { [-1] = {}, [1] = {} }
 	local northGaps, southGaps = {}, {}
-	if pavilion then
-		local passZ = pavilion.passZ
-		local fromSide = pavilion.spot.X < LINE_X and -1 or 1
-		if passZ > cz0 and passZ < cz1 and math.abs(pavilion.spot.X - LINE_X) > 1 then
-			table.insert(sideGaps[fromSide], { passZ - 5, passZ + 5 })
-		elseif passZ <= cz0 then
+	for _, e in ipairs(entrances) do
+		if e.inside then
+			table.insert(sideGaps[e.side], { e.passZ - 5, e.passZ + 5 })
+		elseif #northGaps == 0 then
 			table.insert(northGaps, { LINE_X - 5, LINE_X + 5 })
-		else
-			table.insert(southGaps, { LINE_X - 5, LINE_X + 5 })
 		end
 	end
 	for _, side in ipairs({ -1, 1 }) do
@@ -500,54 +605,89 @@ local function buildStation(folder, station, pavilion)
 	booth.Transparency = 0.4
 	nameSign(folder, CFrame.new(LINE_X, CONCOURSE_TOP - 1.4, cz0 + 32), V3(14, 1.6, 0.2), station.name .. " STATION", TTC_RED)
 
-	-- Passage from the street pavilion, and the pavilion itself.
-	if pavilion then
-		local spot, passZ = pavilion.spot, pavilion.passZ
-		local function corridor(a, b, alongX)
-			local length = alongX and math.abs(b.X - a.X) or math.abs(b.Z - a.Z)
-			local mid = (a + b) / 2
-			if length < 1 then
-				return
-			end
-			local size = alongX and V3(length + 10, 1, 10) or V3(10, 1, length + 10)
-			Util.solid(folder, size, CFrame.new(mid.X, CONCOURSE - 0.5, mid.Z), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
-			local roof = Util.deco(folder, alongX and V3(length + 10, 0.4, 10) or V3(10, 0.4, length + 10), CFrame.new(mid.X, CONCOURSE_TOP - 0.2, mid.Z), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
-			light(roof, Enum.NormalId.Bottom, 12, 0.9)
-			-- Side walls stop short of both ends so the corners stay open.
-			local wallLen = length - 11
-			if wallLen > 0.5 then
-				for _, side in ipairs({ -1, 1 }) do
-					local off = alongX and V3(0, 0, side * 5.5) or V3(side * 5.5, 0, 0)
-					local wsize = alongX and V3(wallLen, CONCOURSE_TOP - CONCOURSE, 1) or V3(1, CONCOURSE_TOP - CONCOURSE, wallLen)
-					Util.solid(folder, wsize, CFrame.new(mid.X + off.X, (CONCOURSE + CONCOURSE_TOP) / 2, mid.Z + off.Z), tile, M.CeramicTiles)
-				end
+	-- Passages from the street entrances, and the entrances themselves.
+	local function corridor(a, b, alongX)
+		local length = alongX and math.abs(b.X - a.X) or math.abs(b.Z - a.Z)
+		local mid = (a + b) / 2
+		if length < 1 then
+			return
+		end
+		local size = alongX and V3(length + 10, 1, 10) or V3(10, 1, length + 10)
+		Util.solid(folder, size, CFrame.new(mid.X, CONCOURSE - 0.5, mid.Z), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
+		local roof = Util.deco(folder, alongX and V3(length + 10, 0.4, 10) or V3(10, 0.4, length + 10), CFrame.new(mid.X, CONCOURSE_TOP - 0.2, mid.Z), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
+		light(roof, Enum.NormalId.Bottom, 12, 0.9)
+		-- Side walls stop short of both ends so the corners stay open.
+		local wallLen = length - 11
+		if wallLen > 0.5 then
+			for _, side in ipairs({ -1, 1 }) do
+				local off = alongX and V3(0, 0, side * 5.5) or V3(side * 5.5, 0, 0)
+				local wsize = alongX and V3(wallLen, CONCOURSE_TOP - CONCOURSE, 1) or V3(1, CONCOURSE_TOP - CONCOURSE, wallLen)
+				Util.solid(folder, wsize, CFrame.new(mid.X + off.X, (CONCOURSE + CONCOURSE_TOP) / 2, mid.Z + off.Z), tile, M.CeramicTiles)
 			end
 		end
-		corridor(V3(spot.X, 0, passZ), V3(LINE_X, 0, passZ), true)
-		corridor(V3(LINE_X, 0, passZ), V3(LINE_X, 0, cz0 + 20), false)
+	end
+	local RAILING = Color3.fromRGB(70, 72, 76)
+	local kerb = Util.WALK_TOP
+	for _, e in ipairs(entrances) do
+		local spot, sz, passZ = e.spot, e.sz, e.passZ
+		local function at(x, y, dz)
+			return CFrame.new(spot.X + x, y, spot.Y + dz * sz)
+		end
+		corridor(V3(spot.X, 0, passZ), V3(e.endX, 0, passZ), true)
+		if not e.inside then
+			corridor(V3(LINE_X, 0, passZ), V3(LINE_X, 0, cz0 - 5), false)
+		end
 
-		-- Pavilion: glass walls on a stone base, a flat roof with the SUBWAY sign,
-		-- and the stair shaft inside going down toward the passage.
-		local kerb = Util.WALK_TOP
-		Util.solid(folder, V3(28, 1, 4), CFrame.new(spot.X, kerb - 0.5, spot.Y - 16), CONCRETE, M.Concrete)
+		-- Paved apron from the sidewalk to the top step, and the landing at the top.
+		local apron = e.reach - 15
+		Util.solid(folder, V3(16, 1, apron), at(0, kerb - 0.52, -(16 + apron / 2)), Color3.fromRGB(150, 146, 138), M.Concrete)
+		Util.solid(folder, V3(12, 1, 3), at(0, kerb - 0.5, -14.5), CONCRETE, M.Concrete)
+		stairs(folder, V3(spot.X, kerb, spot.Y - 13 * sz), V3(spot.X, CONCOURSE, spot.Y + 2 * sz), 11)
+		Util.solid(folder, V3(12, 1, 14), at(0, CONCOURSE - 0.5, 9), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
+
+		-- Tiled shaft walls below ground (open toward the passage), and the end wall.
 		for _, side in ipairs({ -1, 1 }) do
-			local wall = Util.solid(folder, V3(1, 12, 30), CFrame.new(spot.X + side * 6.5, kerb + 6, spot.Y), Color3.fromRGB(200, 220, 228), M.Glass)
-			wall.Transparency = 0.45
-			Util.solid(folder, V3(1.2, 12, 1.2), CFrame.new(spot.X + side * 6.5, kerb + 6, spot.Y - 15), DARK, M.Metal)
-			-- Walls of the shaft below ground, open toward the passage.
-			local towardLine = (LINE_X - spot.X) * side > 0 and math.abs(LINE_X - spot.X) > 1
-			local gaps = towardLine and { { passZ - 5, passZ + 5 } } or {}
-			wallWithGaps(folder, false, spot.Y - 15, spot.Y + 15, spot.X + side * 6.5, CONCOURSE, kerb, gaps, tile, M.CeramicTiles)
+			local gaps = side == -e.side and { { passZ - 5, passZ + 5 } } or {} -- the wall facing the line
+			wallWithGaps(folder, false, spot.Y - 16, spot.Y + 16, spot.X + side * 6.5, CONCOURSE, kerb, gaps, tile, M.CeramicTiles)
 		end
-		Util.solid(folder, V3(12, 1, 3), CFrame.new(spot.X, kerb - 0.5, spot.Y - 14), CONCRETE, M.Concrete)
-		Util.solid(folder, V3(14, 12, 1), CFrame.new(spot.X, kerb + 6, spot.Y + 15.5), Color3.fromRGB(200, 220, 228), M.Glass).Transparency = 0.45
-		local roof = Util.solid(folder, V3(16, 1, 32), CFrame.new(spot.X, kerb + 12.5, spot.Y), DARK, M.Metal)
-		light(roof, Enum.NormalId.Bottom, 14, 1)
-		local sign = nameSign(folder, CFrame.new(spot.X, kerb + 14.5, spot.Y - 16), V3(14, 2.6, 0.4), "SUBWAY", TTC_RED)
-		sign.CastShadow = false
-		nameSign(folder, CFrame.new(spot.X, kerb + 10.5, spot.Y - 15.6), V3(10, 1.4, 0.2), station.name, Color3.fromRGB(20, 20, 24))
-		stairs(folder, V3(spot.X, kerb, spot.Y - 13), V3(spot.X, CONCOURSE, spot.Y + 2), 11)
-		Util.solid(folder, V3(12, 1, 12), CFrame.new(spot.X, CONCOURSE - 0.5, spot.Y + 9), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
+		Util.solid(folder, V3(14, kerb - CONCOURSE, 1), at(0, (kerb + CONCOURSE) / 2, 16.5), tile, M.CeramicTiles)
+		local lamp = Util.deco(folder, V3(10, 0.3, 1), at(0, CONCOURSE + 8, 15.8), Color3.fromRGB(255, 246, 226), M.Neon)
+		light(lamp, Enum.NormalId.Bottom, 18, 1.2, Color3.fromRGB(255, 240, 214))
+
+		-- Above ground: stone coping, green railings round three sides.
+		for _, side in ipairs({ -1, 1 }) do
+			Util.solid(folder, V3(1.4, 0.3, 33), at(side * 6.5, kerb + 0.15, 0.5), CONCRETE, M.Concrete)
+			Util.solid(folder, V3(0.3, 3.4, 31), at(side * 6.5, kerb + 2, 1), RAILING, M.Metal)
+			Util.deco(folder, V3(0.6, 0.3, 31), at(side * 6.5, kerb + 3.8, 1), RAILING, M.Metal)
+		end
+		Util.solid(folder, V3(13.6, 0.3, 1.4), at(0, kerb + 0.15, 16.5), CONCRETE, M.Concrete)
+		Util.solid(folder, V3(13, 3.4, 0.3), at(0, kerb + 2, 16.5), RAILING, M.Metal)
+
+		-- TTC sign over the way in: posts, a white board with the red TTC logo, and the
+		-- station name on a black band under it (lit from below at night).
+		for _, side in ipairs({ -1, 1 }) do
+			Util.solid(folder, V3(0.5, 8.6, 0.5), at(side * 6.5, kerb + 4.3, -15.5), RAILING, M.Metal)
+		end
+		local turn = sz > 0 and CFrame.identity or CFrame.Angles(0, math.pi, 0)
+		local board = Util.deco(folder, V3(13.4, 2, 0.4), at(0, kerb + 8.6, -15.5) * turn, Color3.fromRGB(245, 245, 242), M.SmoothPlastic)
+		board.CastShadow = false
+		for _, face in ipairs({ Front, Enum.NormalId.Back }) do
+			Util.sign(board, face, "TTC  SUBWAY", TTC_RED, Enum.Font.GothamBlack).LightInfluence = 0
+		end
+		marker(board, "🚇 " .. station.name, TTC_RED)
+		local band = Util.deco(folder, V3(13.4, 1.2, 0.35), at(0, kerb + 7, -15.5) * turn, Color3.fromRGB(18, 18, 20), M.SmoothPlastic)
+		band.CastShadow = false
+		for _, face in ipairs({ Front, Enum.NormalId.Back }) do
+			Util.sign(band, face, station.name, Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold).LightInfluence = 0
+		end
+		light(band, Enum.NormalId.Bottom, 14, 1.2, Color3.fromRGB(255, 244, 226))
+		-- Tall red TTC pylon at the corner so the entrance stands out down the street.
+		local pylon = Util.solid(folder, V3(1.2, 16, 3), at(-8.6, kerb + 8, -17), TTC_RED, M.SmoothPlastic)
+		for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right, Front, Enum.NormalId.Back }) do
+			Util.sign(pylon, face, "TTC", Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack).LightInfluence = 0
+		end
+		local cap = Util.deco(folder, V3(1.6, 1, 3.4), at(-8.6, kerb + 16.5, -17), Color3.fromRGB(255, 70, 70), M.Neon)
+		cap.CastShadow = false
 	end
 end
 
@@ -559,7 +699,7 @@ local function buildElevatedStation(folder, station)
 	local platformTop = ELEVATED + FLOOR_UP
 	Util.solid(folder, V3(12, FLOOR_UP + 1, PORT_HALF * 2 - 2), CFrame.new(LINE_X, ELEVATED + (FLOOR_UP - 1) / 2, zc), Color3.fromRGB(190, 186, 178), M.Concrete)
 	for _, side in ipairs({ -1, 1 }) do
-		Util.deco(folder, V3(1, 0.05, PORT_HALF * 2 - 2), CFrame.new(LINE_X + side * 5.5, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
+		Util.deco(folder, V3(1.8, 0.06, PORT_HALF * 2 - 2), CFrame.new(LINE_X + side * 5.1, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
 	end
 	-- Canopy on columns.
 	for k = -3, 3 do
@@ -582,7 +722,8 @@ local function buildElevatedStation(folder, station)
 	for _, side in ipairs({ -1, 1 }) do
 		span(folder, top + V3(side * 3.6, -4, 0), bottom + V3(side * 3.6, 0, 0), 0.8, 8, 0, CONCRETE, M.Concrete, true)
 	end
-	nameSign(folder, CFrame.new(LINE_X, Util.WALK_TOP + 9, zc + PORT_HALF + 24) * CFrame.Angles(0, math.rad(180), 0), V3(10, 2.4, 0.3), "SUBWAY", TTC_RED)
+	local streetSign = nameSign(folder, CFrame.new(LINE_X, Util.WALK_TOP + 9, zc + PORT_HALF + 24) * CFrame.Angles(0, math.rad(180), 0), V3(10, 2.4, 0.3), "SUBWAY", TTC_RED)
+	marker(streetSign, "🚇 " .. station.name, TTC_RED)
 end
 
 ---------------------------------------------------------------------------
@@ -593,16 +734,21 @@ local CAR_LEN, CAR_W, CAR_GAP = 44, 9, 2
 -- Builds a car model around the origin (floor top at y = 0, forward = -Z).
 -- Door panels are named "Door" with attributes Side (+1/-1 = local x side) and
 -- Slide (studs along local z to open).
-local function makeCar(parent, name, kind)
+-- kind: "subway", "streetcar" or "bus"; dest is the destination sign text.
+local function makeCar(parent, name, kind, dest)
 	local model = Instance.new("Model")
 	model.Name = name
 	pcall(function()
 		model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	end)
 	local subway = kind == "subway"
-	local body = subway and Color3.fromRGB(196, 198, 202) or TTC_RED
-	local upper = subway and Color3.fromRGB(196, 198, 202) or Color3.fromRGB(236, 236, 230)
-	local h = subway and 9.5 or 8.5
+	local bus = kind == "bus"
+	local silver = Color3.fromRGB(196, 198, 202)
+	local white = Color3.fromRGB(240, 240, 236)
+	local body = subway and silver or (bus and white or TTC_RED)
+	local upper = subway and silver or white
+	local stripe = (subway or bus) and TTC_RED or white
+	local h = subway and 9.5 or (bus and 9 or 8.5)
 	local half = CAR_LEN / 2
 	local function part(size, pos, colour, material, collide)
 		local p = Instance.new("Part")
@@ -646,7 +792,7 @@ local function makeCar(parent, name, kind)
 			local window = part(V3(0.3, 3.8, len), V3(x, 5.5, mid), Color3.fromRGB(30, 36, 44), M.Glass)
 			window.Transparency = 0.35
 			part(V3(0.4, h - 7.4, len), V3(x, (7.4 + h) / 2, mid), upper, M.Metal)
-			part(V3(0.45, 0.6, len), V3(x, 3.7, mid), subway and TTC_RED or Color3.fromRGB(236, 236, 230), M.SmoothPlastic, false)
+			part(V3(0.45, 0.6, len), V3(x, 3.7, mid), stripe, M.SmoothPlastic, false)
 		end
 		for _, dz in ipairs(doorsZ) do
 			part(V3(0.4, h - 8, doorW), V3(x, (8 + h) / 2, dz), upper, M.Metal)
@@ -677,8 +823,8 @@ local function makeCar(parent, name, kind)
 		glass.Transparency = 0.2
 		part(V3(1, 0.6, 0.5), V3(-3, 2.2, z), Color3.fromRGB(255, 246, 220), M.Neon, false)
 		part(V3(1, 0.6, 0.5), V3(3, 2.2, z), Color3.fromRGB(255, 246, 220), M.Neon, false)
-		local dest = part(V3(5, 1, 0.5), V3(0, h - 1, z), Color3.fromRGB(16, 16, 18), M.SmoothPlastic, false)
-		Util.sign(dest, s < 0 and Front or Enum.NormalId.Back, subway and "1  LINE 1" or "504 KING", Color3.fromRGB(255, 200, 60), Enum.Font.Code).LightInfluence = 0
+		local destSign = part(V3(5, 1, 0.5), V3(0, h - 1, z), Color3.fromRGB(16, 16, 18), M.SmoothPlastic, false)
+		Util.sign(destSign, s < 0 and Front or Enum.NormalId.Back, dest or "1  LINE 1", Color3.fromRGB(255, 200, 60), Enum.Font.Code).LightInfluence = 0
 	end
 	-- Grab poles.
 	for _, z in ipairs({ -7, 7 }) do
@@ -691,7 +837,24 @@ local function makeCar(parent, name, kind)
 		pole.Material = M.Metal
 		pole.Parent = model
 	end
-	if not subway then
+	if bus then
+		-- Wheels and a roof pod.
+		for _, z in ipairs({ -14, 14 }) do
+			for _, x in ipairs({ -CAR_W / 2 + 0.6, CAR_W / 2 - 0.6 }) do
+				local wheel = Instance.new("Part")
+				wheel.Anchored = true
+				wheel.CanCollide = false
+				wheel.Shape = Enum.PartType.Cylinder
+				wheel.Size = V3(1.2, 3, 3)
+				wheel.CFrame = CFrame.new(x, -0.3, z)
+				wheel.Color = Color3.fromRGB(24, 24, 24)
+				wheel.Material = M.Rubber
+				wheel.Parent = model
+			end
+		end
+		part(V3(CAR_W - 3, 1.4, 12), V3(0, h + 1.5, 6), white, M.Metal, false)
+	end
+	if kind == "streetcar" then
 		local a = V3(0, h + 0.8, 4)
 		local b = V3(0, h + 6.5, -4)
 		local arm = Instance.new("Part")
@@ -778,19 +941,13 @@ local function subwayRoutes(vehicles)
 end
 
 -- King St: eastbound in one inner lane, westbound in the other, with U-turns.
-local function streetcarRoute(vehicles, folder)
-	local king = nil
-	for _, road in ipairs(Roads.list) do
-		if road.kind == "arterial" and math.abs(road.points[1].Y - Layout.NY_CROSS_Z[1]) < 1 then
-			king = road
-		end
-	end
-	if not king then
-		return nil
-	end
-	local lane = king.width / 8
+-- A vehicle loop along a road: out in one lane, U-turn, back in the other lane,
+-- U-turn. spec = { name, kind, lane (offset from the centre line), stopEvery,
+-- signText, markerText, markerColour, count, speed, accel, dwell, dest, shelters }
+local function roadLoopRoute(vehicles, folder, road, spec)
+	local lane = spec.lane
 	local y = Util.ROAD_TOP + 1.2
-	local pts = king.points
+	local pts = road.points
 	local loop = {}
 	local function offsetPoint(i, side)
 		local a = pts[math.max(1, i - 1)]
@@ -803,7 +960,6 @@ local function streetcarRoute(vehicles, folder)
 	for i = 1, #pts do
 		table.insert(loop, (offsetPoint(i, 1)))
 	end
-	-- U-turn at the east end, then back west in the other lane, U-turn at the west end.
 	local function uturn(i, fromSide)
 		local centre = pts[i]
 		local _, d = offsetPoint(i, 1)
@@ -825,10 +981,10 @@ local function streetcarRoute(vehicles, folder)
 	local s = lengths(loop)
 	local total = s[#s]
 	local stops = {}
-	for d = 140, total - 60, 260 do
+	for d = spec.stopEvery * 0.5, total - 60, spec.stopEvery do
 		table.insert(stops, d)
 	end
-	-- TTC stop poles at the kerb next to each stop.
+	-- A stop pole (and maybe a shelter) on the kerb next to each stop.
 	for _, stop in ipairs(stops) do
 		for i = 1, #loop - 1 do
 			if s[i] <= stop and s[i + 1] >= stop then
@@ -836,35 +992,107 @@ local function streetcarRoute(vehicles, folder)
 				local p = a:Lerp(b, (stop - s[i]) / math.max(s[i + 1] - s[i], 1e-3))
 				local dir = (b - a).Unit
 				local right = V3(-dir.Z, 0, dir.X)
-				local kerb = p + right * (king.width / 2 - lane + 2)
+				local kerb = p + right * (road.width / 2 - lane + 2)
 				Util.cylinder(folder, 9, 0.3, CFrame.new(kerb.X, Util.WALK_TOP + 4.5, kerb.Z), Color3.fromRGB(220, 220, 220), M.Metal, true)
 				local flag = Util.deco(folder, V3(0.15, 1.8, 2.4), CFrame.new(kerb.X, Util.WALK_TOP + 8.2, kerb.Z), TTC_RED, M.SmoothPlastic)
 				for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right }) do
-					Util.sign(flag, face, "TTC 504", Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
+					Util.sign(flag, face, spec.signText, Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
+				end
+				marker(flag, spec.markerText, spec.markerColour, 500)
+				if spec.shelters then
+					-- Shelter a little further from the kerb, its open side to the road.
+					local shelterAt = p + right * (road.width / 2 - lane + road.walk * 0.6)
+					if Util.get(shelterAt.X, shelterAt.Z) == Util.WALK then
+						local towardRoad = Vector2.new(-right.X, -right.Z)
+						local base = Util.groundCF(Vector2.new(shelterAt.X, shelterAt.Z), towardRoad, Util.WALK_TOP)
+						Util.deco(folder, V3(10, 0.3, 4), base * CFrame.new(0, 8, 0), Color3.fromRGB(50, 50, 52), M.Metal)
+						local back = Util.solid(folder, V3(10, 7.5, 0.2), base * CFrame.new(0, 4, 1.9), Color3.fromRGB(180, 200, 205), M.Glass)
+						back.Transparency = 0.6
+						Util.solid(folder, V3(7, 0.4, 1.4), base * CFrame.new(0, 2, 1.1), Color3.fromRGB(60, 60, 62), M.Metal)
+						for _, x in ipairs({ -4.9, 4.9 }) do
+							Util.deco(folder, V3(0.3, 8, 0.3), base * CFrame.new(x, 4, 1.8), Color3.fromRGB(50, 50, 52), M.Metal)
+						end
+					end
 				end
 				break
 			end
 		end
 	end
 	local cars = {}
-	for c = 1, 2 do
-		table.insert(cars, makeCar(vehicles, "Streetcar_" .. c, "streetcar").Name)
+	for c = 1, spec.count do
+		table.insert(cars, makeCar(vehicles, spec.name .. "_" .. c, spec.kind, spec.dest).Name)
 	end
 	return {
-		name = "King504",
-		kind = "streetcar",
+		name = spec.name,
+		kind = spec.kind,
 		loop = true,
 		points = encodePoints(loop),
 		stops = stops,
 		cars = cars,
 		carLength = CAR_LEN,
 		carGap = 0,
-		singleCars = true, -- each car runs on its own, half a cycle apart
-		speed = 34,
-		accel = 6,
-		dwell = 7,
+		singleCars = true, -- each vehicle runs on its own, spread evenly round the loop
+		speed = spec.speed,
+		accel = spec.accel,
+		dwell = spec.dwell,
 		offset = 0,
 	}
+end
+
+local function findRoad(test)
+	for _, road in ipairs(Roads.list) do
+		if test(road) then
+			return road
+		end
+	end
+	return nil
+end
+
+-- King St streetcar and the bus routes.
+local function surfaceRoutes(vehicles, folder)
+	local routes = {}
+	local king = findRoad(function(road)
+		return road.kind == "arterial" and math.abs(road.points[1].Y - Layout.NY_CROSS_Z[1]) < 1
+	end)
+	if king then
+		table.insert(routes, roadLoopRoute(vehicles, folder, king, {
+			name = "King504", kind = "streetcar", lane = king.width / 8, stopEvery = 260,
+			signText = "TTC 504", markerText = "🚋 504 KING", markerColour = Color3.fromRGB(150, 20, 30),
+			count = 2, speed = 34, accel = 6, dwell = 7, dest = "504 KING",
+		}))
+	end
+	-- Buses run in the lane next to the centre line, clear of cars parked at the kerb.
+	local bay = findRoad(function(road)
+		return road.kind == "avenue" and math.abs(road.points[1].X - 20) < 40 and math.abs(road.points[1].Y - Util.MIN_Z) < 1
+	end)
+	if bay then
+		table.insert(routes, roadLoopRoute(vehicles, folder, bay, {
+			name = "Bus6", kind = "bus", lane = bay.width / 8, stopEvery = 230,
+			signText = "TTC 6 BAY", markerText = "🚌 6 BAY", markerColour = Color3.fromRGB(190, 40, 40),
+			count = 3, speed = 40, accel = 7, dwell = 6, dest = "6 BAY", shelters = true,
+		}))
+	end
+	local yonge = findRoad(function(road)
+		return road.kind == "arterial" and math.abs(road.points[1].X - 20) < 45 and math.abs(road.points[1].Y - (Layout.NORTH_YORK.maxZ - 5)) < 1
+	end)
+	if yonge then
+		table.insert(routes, roadLoopRoute(vehicles, folder, yonge, {
+			name = "Bus97", kind = "bus", lane = yonge.width / 8, stopEvery = 240,
+			signText = "TTC 97 YONGE", markerText = "🚌 97 YONGE", markerColour = Color3.fromRGB(190, 40, 40),
+			count = 2, speed = 40, accel = 7, dwell = 6, dest = "97 YONGE", shelters = true,
+		}))
+	end
+	local ocean = findRoad(function(road)
+		return road.kind == "boulevard"
+	end)
+	if ocean then
+		table.insert(routes, roadLoopRoute(vehicles, folder, ocean, {
+			name = "BusBeach", kind = "bus", lane = ocean.width / 4, stopEvery = 220,
+			signText = "BEACH SHUTTLE", markerText = "🚌 BEACH", markerColour = Color3.fromRGB(230, 100, 140),
+			count = 2, speed = 36, accel = 7, dwell = 6, dest = "C BEACH", shelters = true,
+		}))
+	end
+	return routes
 end
 
 ---------------------------------------------------------------------------
@@ -875,10 +1103,6 @@ function Transit.build(folder)
 	line.Name = "Line1"
 	line.Parent = folder
 	buildLine(line)
-	local pavilionFor = {}
-	for _, p in ipairs(state.pavilions) do
-		pavilionFor[p.station] = p
-	end
 	for _, station in ipairs(STATIONS) do
 		local f = Instance.new("Folder")
 		f.Name = station.name
@@ -886,7 +1110,7 @@ function Transit.build(folder)
 		if station.elevated then
 			buildElevatedStation(f, station)
 		else
-			buildStation(f, station, pavilionFor[station])
+			buildStation(f, station, state.entrances[station] or {})
 		end
 	end
 
@@ -895,16 +1119,48 @@ function Transit.build(folder)
 	vehicles.Parent = folder
 	local routes = subwayRoutes(vehicles)
 	local stops = Instance.new("Folder")
-	stops.Name = "StreetcarStops"
+	stops.Name = "SurfaceStops"
 	stops.Parent = folder
-	local king = streetcarRoute(vehicles, stops)
-	if king then
-		table.insert(routes, king)
+	for _, route in ipairs(surfaceRoutes(vehicles, stops)) do
+		table.insert(routes, route)
 	end
+	-- Street entrances (where you step onto the top stair), for the HUD guide.
+	local entranceList = {}
+	for _, station in ipairs(STATIONS) do
+		for _, e in ipairs(state.entrances[station] or {}) do
+			table.insert(entranceList, { name = station.name, x = e.spot.X, y = Util.WALK_TOP, z = e.spot.Y - 15 * e.sz })
+		end
+		if station.elevated then
+			table.insert(entranceList, { name = station.name, x = LINE_X, y = Util.WALK_TOP, z = station.z + PORT_HALF + 21 })
+		end
+	end
+	local entranceData = Instance.new("StringValue")
+	entranceData.Name = "SubwayEntrances"
+	entranceData.Value = HttpService:JSONEncode(entranceList)
+	entranceData.Parent = ReplicatedStorage
+
 	local data = Instance.new("StringValue")
 	data.Name = "TransitRoutes"
 	data.Value = HttpService:JSONEncode(routes)
 	data.Parent = ReplicatedStorage
+
+	-- Startup self-check: can a player walk from each street entrance down to the
+	-- platform? Prints one line per entrance in Output.
+	task.delay(6, function()
+		local PathfindingService = game:GetService("PathfindingService")
+		for _, station in ipairs(STATIONS) do
+			for i, e in ipairs(state.entrances[station] or {}) do
+				local from = V3(e.spot.X, Util.WALK_TOP + 3, e.spot.Y - 18 * e.sz)
+				local to = V3(LINE_X + 3, RAIL + FLOOR_UP + 3, station.z)
+				local path = PathfindingService:CreatePath({ AgentRadius = 1.5, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 6 })
+				local ok, err = pcall(function()
+					path:ComputeAsync(from, to)
+				end)
+				local status = ok and path.Status.Name or ("error: " .. tostring(err))
+				print(string.format("[Transit] path check %s entrance %d -> platform: %s", station.name, i, status))
+			end
+		end
+	end)
 
 	-- Spaces underground where players are allowed (not "in the water").
 	local zones = {}

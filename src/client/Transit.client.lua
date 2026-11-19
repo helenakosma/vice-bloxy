@@ -176,6 +176,12 @@ for _, data in ipairs(HttpService:JSONDecode(routesValue.Value)) do
 	table.insert(routes, r)
 end
 
+local carCount = 0
+for _, r in ipairs(routes) do
+	carCount = carCount + #r.carModels
+end
+print(string.format("[Transit] client running %d routes, %d vehicles", #routes, carCount))
+
 ---------------------------------------------------------------------------
 -- Every frame
 ---------------------------------------------------------------------------
