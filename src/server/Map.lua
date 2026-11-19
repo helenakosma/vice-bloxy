@@ -40,11 +40,12 @@ local function part(parent, name, size, cframe, color, material, collide)
 end
 
 local function setupLighting()
-	Lighting.ClockTime = 18.3
-	Lighting.Brightness = 2
-	Lighting.Ambient = Color3.fromRGB(110, 70, 140)
-	Lighting.OutdoorAmbient = Color3.fromRGB(150, 100, 170)
-	Lighting.ColorShift_Top = Color3.fromRGB(255, 120, 170)
+	Lighting.ClockTime = 17 -- golden hour: low sun, still bright
+	Lighting.Brightness = 3
+	Lighting.Ambient = Color3.fromRGB(170, 120, 190)
+	Lighting.OutdoorAmbient = Color3.fromRGB(200, 150, 210)
+	Lighting.ColorShift_Top = Color3.fromRGB(255, 150, 190)
+	Lighting.ExposureCompensation = 0.4
 
 	local atmo = Instance.new("Atmosphere")
 	atmo.Density = 0.3
@@ -69,7 +70,7 @@ end
 
 local function buildTerrain(folder)
 	local width = LAND_MAX - LAND_MIN
-	part(folder, "Ground", Vector3.new(width, 2, DEPTH), CFrame.new((LAND_MIN + LAND_MAX) / 2, -1, 0), Color3.fromRGB(70, 70, 85))
+	part(folder, "Ground", Vector3.new(width, 2, DEPTH), CFrame.new((LAND_MIN + LAND_MAX) / 2, -1, 0), Color3.fromRGB(120, 110, 140))
 	part(folder, "Sand", Vector3.new(SAND_END - LAND_MAX, 2, DEPTH), CFrame.new((LAND_MAX + SAND_END) / 2, -1, 0), Color3.fromRGB(255, 225, 175), Enum.Material.Sand)
 
 	local seaSize = Vector3.new(SEA_END - SAND_END, 2, DEPTH + 400)
@@ -96,7 +97,7 @@ local function buildTerrain(folder)
 end
 
 local function buildRoads(folder)
-	local asphalt = Color3.fromRGB(35, 35, 45)
+	local asphalt = Color3.fromRGB(70, 70, 88)
 	local lineColor = Color3.fromRGB(255, 220, 90)
 	local xLength = LAND_MAX - LAND_MIN
 	for _, r in ipairs(ROADS) do
@@ -132,12 +133,33 @@ local function buildPalm(folder, x, z, rng)
 end
 
 local function buildBuilding(folder, cx, cz, sx, sz, height, color, rng)
-	part(folder, "Building", Vector3.new(sx, height, sz), CFrame.new(cx, height / 2 + 0.5, cz), color, Enum.Material.Concrete)
 	local trim = TRIMS[rng:NextInteger(1, #TRIMS)]
+	part(folder, "Building", Vector3.new(sx, height, sz), CFrame.new(cx, height / 2 + 0.5, cz), color, Enum.Material.SmoothPlastic)
+
+	-- Window bands: dark glass strips every few floors with a warm lit strip beside each.
+	local y = 6
+	while y < height - 4 do
+		local band = part(folder, "Windows", Vector3.new(sx + 0.3, 2.2, sz + 0.3), CFrame.new(cx, y + 0.5, cz), Color3.fromRGB(35, 45, 85), Enum.Material.Glass, false)
+		band.Transparency = 0.15
+		if rng:NextNumber() < 0.35 then
+			part(folder, "LitWindows", Vector3.new(sx + 0.4, 1.2, sz + 0.4), CFrame.new(cx, y + 0.5, cz), Color3.fromRGB(255, 220, 140), Enum.Material.Neon, false)
+		end
+		y += 6
+	end
+
+	-- Vertical neon corner strips.
+	for _, sxSign in ipairs({ -1, 1 }) do
+		for _, szSign in ipairs({ -1, 1 }) do
+			part(folder, "NeonEdge", Vector3.new(0.6, height, 0.6), CFrame.new(cx + sxSign * sx / 2, height / 2 + 0.5, cz + szSign * sz / 2), trim, Enum.Material.Neon, false)
+		end
+	end
+
+	-- Roof trim plus a smaller upper tier on taller towers.
 	part(folder, "NeonRoof", Vector3.new(sx + 1, 1, sz + 1), CFrame.new(cx, height + 1, cz), trim, Enum.Material.Neon, false)
-	part(folder, "NeonStripe", Vector3.new(sx + 0.4, 1, sz + 0.4), CFrame.new(cx, height * 0.55, cz), trim, Enum.Material.Neon, false)
-	local glass = part(folder, "Windows", Vector3.new(sx + 0.2, height * 0.3, sz + 0.2), CFrame.new(cx, height * 0.75, cz), Color3.fromRGB(40, 50, 80), Enum.Material.Glass, false)
-	glass.Transparency = 0.2
+	if height > 50 then
+		part(folder, "Tier", Vector3.new(sx * 0.6, 14, sz * 0.6), CFrame.new(cx, height + 8, cz), color, Enum.Material.SmoothPlastic)
+		part(folder, "TierTrim", Vector3.new(sx * 0.6 + 1, 1, sz * 0.6 + 1), CFrame.new(cx, height + 15.5, cz), trim, Enum.Material.Neon, false)
+	end
 end
 
 local function buildBlocks(folder, rng)

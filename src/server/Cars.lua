@@ -82,18 +82,48 @@ function Cars.spawn(position)
 	seat.Parent = model
 	model.PrimaryPart = seat
 
-	-- Cabin so it looks like a car.
-	local cabin = Instance.new("Part")
-	cabin.Name = "Cabin"
-	cabin.Size = Vector3.new(5, 2, 5)
-	cabin.Color = Color3.fromRGB(38, 224, 255)
-	cabin.Material = Enum.Material.Glass
-	cabin.CFrame = seat.CFrame * CFrame.new(0, 1.5, 0.5)
-	cabin.Massless = true
-	cabin.Parent = model
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0, weld.Part1 = seat, cabin
-	weld.Parent = cabin
+	-- A dense chassis stops motor torque from flipping the car.
+	seat.CustomPhysicalProperties = PhysicalProperties.new(6, 0.3, 0, 1, 1)
+
+	-- Cosmetic parts: massless, non-colliding, welded to the seat.
+	local function trim(name, size, offset, color, material)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.Color = color
+		p.Material = material or Enum.Material.SmoothPlastic
+		p.CFrame = seat.CFrame * CFrame.new(offset)
+		p.Massless = true
+		p.CanCollide = false
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = model
+		local w = Instance.new("WeldConstraint")
+		w.Part0, w.Part1 = seat, p
+		w.Parent = p
+		return p
+	end
+	trim("Body", Vector3.new(6.4, 1.2, 12.4), Vector3.new(0, 1.1, 0), Config.Color)
+	trim("Cabin", Vector3.new(5, 1.6, 5.5), Vector3.new(0, 2.5, 0.8), Color3.fromRGB(30, 40, 70), Enum.Material.Glass)
+	trim("Roof", Vector3.new(5.2, 0.3, 5.7), Vector3.new(0, 3.4, 0.8), Config.Color)
+	local neon = Enum.Material.Neon
+	trim("HeadlightL", Vector3.new(1.2, 0.6, 0.3), Vector3.new(-2.2, 1.3, -6.3), Color3.fromRGB(255, 245, 190), neon)
+	trim("HeadlightR", Vector3.new(1.2, 0.6, 0.3), Vector3.new(2.2, 1.3, -6.3), Color3.fromRGB(255, 245, 190), neon)
+	trim("TaillightL", Vector3.new(1.2, 0.5, 0.3), Vector3.new(-2.2, 1.3, 6.3), Color3.fromRGB(255, 30, 60), neon)
+	trim("TaillightR", Vector3.new(1.2, 0.5, 0.3), Vector3.new(2.2, 1.3, 6.3), Color3.fromRGB(255, 30, 60), neon)
+	trim("Underglow", Vector3.new(5, 0.2, 10), Vector3.new(0, -0.6, 0), Color3.fromRGB(38, 224, 255), neon)
+
+	-- Arcade anti-flip: keep the chassis upright (allows yaw, resists pitch and roll).
+	local upAttachment = attachment(seat, "UpAttachment", CFrame.Angles(0, 0, math.rad(90))) -- its X (primary) axis points up
+	local keepUpright = Instance.new("AlignOrientation")
+	keepUpright.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	keepUpright.Attachment0 = upAttachment
+	keepUpright.PrimaryAxisOnly = true
+	keepUpright.PrimaryAxis = Vector3.new(0, 1, 0) -- world up
+	keepUpright.RigidityEnabled = false
+	keepUpright.MaxTorque = 1e6
+	keepUpright.Responsiveness = 25
+	keepUpright.Parent = seat
 
 	local driven, steers = {}, {}
 	local x, front, back = 3.5, -4, 4 -- forward is -Z for a VehicleSeat

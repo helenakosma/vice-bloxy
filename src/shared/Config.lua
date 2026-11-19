@@ -6,7 +6,7 @@ return {
 
 	Car = {
 		MaxSpeed = 90, -- studs/second at full throttle
-		Torque = 40000, -- motor torque per driven wheel
+		Torque = 8000, -- motor torque per driven wheel (chassis is heavy, see Cars.lua)
 		MaxSteerAngle = 30, -- degrees
 		SteerSpeed = 3, -- how fast the wheels turn
 		WheelRadius = 1.5,
