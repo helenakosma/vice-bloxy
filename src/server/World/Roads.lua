@@ -1,0 +1,279 @@
+-- Road network: wandering avenues, irregular cross streets (some ending at T-junctions),
+-- a diagonal Broadway-style boulevard, a waterfront drive, alleys and crooked lanes.
+local Util = require(script.Parent.Util)
+
+local Roads = {}
+
+Roads.KINDS = {
+	avenue = { width = 34, walk = 9, main = true },
+	broadway = { width = 30, walk = 9, main = true },
+	waterfront = { width = 30, walk = 9, main = true },
+	street = { width = 22, walk = 7 },
+	lane = { width = 16, walk = 5 },
+	alley = { width = 10, walk = 0 },
+}
+
+Roads.list = {}
+Roads.intersections = {}
+
+-- Park: no roads cross it.
+Roads.PARK = { minX = -650, maxX = -395, minZ = 300, maxZ = 600 }
+
+local ASPHALT = Color3.fromRGB(62, 62, 64)
+local ALLEY_ASPHALT = Color3.fromRGB(52, 50, 48)
+local SIDEWALK = Color3.fromRGB(158, 154, 146)
+local YELLOW = Color3.fromRGB(214, 170, 40)
+local WHITE = Color3.fromRGB(222, 222, 218)
+
+local function inPark(p, margin)
+	margin = margin or 0
+	local r = Roads.PARK
+	return p.X > r.minX - margin and p.X < r.maxX + margin and p.Y > r.minZ - margin and p.Y < r.maxZ + margin
+end
+
+-- X position (and direction) of a north-south road at a given z.
+local function xAt(road, z)
+	local pts = road.points
+	for i = 1, #pts - 1 do
+		local a, b = pts[i], pts[i + 1]
+		if z >= a.Y and z <= b.Y then
+			local t = (z - a.Y) / (b.Y - a.Y)
+			return a.X + (b.X - a.X) * t, (b - a).Unit
+		end
+	end
+	local n = #pts
+	return pts[n].X, (pts[n] - pts[n - 1]).Unit
+end
+
+-- Splits a polyline wherever a segment enters the park.
+local function clipToPark(points)
+	local pieces, current = {}, {}
+	for i = 1, #points - 1 do
+		local a, b = points[i], points[i + 1]
+		local blocked = inPark(a) or inPark(b) or inPark((a + b) / 2)
+		if blocked then
+			if #current >= 2 then
+				table.insert(pieces, current)
+			end
+			current = {}
+		else
+			if #current == 0 then
+				table.insert(current, a)
+			end
+			table.insert(current, b)
+		end
+	end
+	if #current >= 2 then
+		table.insert(pieces, current)
+	end
+	return pieces
+end
+
+function Roads.generate(rng)
+	local raw = {} -- { kind, points, clip }
+	local function add(kind, points, clip)
+		local entry = { kind = kind, points = points, clip = clip }
+		table.insert(raw, entry)
+		return entry
+	end
+
+	-- Avenues run north-south and wander a little.
+	local avenueX = { -560, -360, -170, 20, 210, 400 }
+	local verticals = {}
+	for _, ax in ipairs(avenueX) do
+		local pts = {}
+		local x = ax + rng:NextNumber(-12, 12)
+		for z = Util.MIN_Z, Util.MAX_Z, 70 do
+			x = math.clamp(x + rng:NextNumber(-5, 5), ax - 26, ax + 26)
+			table.insert(pts, Vector2.new(x, z))
+		end
+		table.insert(verticals, add("avenue", pts, true))
+	end
+
+	local waterfrontPts = {}
+	for z = Util.MIN_Z, Util.MAX_Z, 100 do
+		table.insert(waterfrontPts, Vector2.new(558 + rng:NextNumber(-5, 5), z))
+	end
+	table.insert(verticals, add("waterfront", waterfrontPts, false))
+
+	-- Cross streets: irregular spacing, small bends, some stop at an avenue.
+	local streetZs = {}
+	local z = Util.MIN_Z + 55
+	while z < Util.MAX_Z - 45 do
+		table.insert(streetZs, z)
+		local first, last = 0, #verticals -- 0 = start at the west edge of the map
+		if rng:NextNumber() < 0.3 then
+			first = rng:NextInteger(1, #verticals - 2)
+			last = rng:NextInteger(first + 1, #verticals)
+		end
+		local pts = {}
+		if first == 0 then
+			table.insert(pts, Vector2.new(Util.MIN_X, z + rng:NextNumber(-4, 4)))
+			first = 1
+		end
+		for vi = first, last do
+			local zz = z + rng:NextNumber(-7, 7)
+			local x, dir = xAt(verticals[vi], zz)
+			local p = Vector2.new(x, zz)
+			table.insert(pts, p)
+			if not inPark(p, 20) then
+				table.insert(Roads.intersections, {
+					position = p,
+					mainDir = dir,
+					mainWidth = Roads.KINDS[verticals[vi].kind].width,
+					crossWidth = Roads.KINDS.street.width,
+				})
+			end
+		end
+		add("street", pts, true)
+		z = z + rng:NextNumber(95, 135)
+	end
+
+	-- Alleys halfway between some pairs of streets, from one avenue to the next.
+	for s = 1, #streetZs - 1 do
+		local zm = (streetZs[s] + streetZs[s + 1]) / 2
+		for vi = 1, #verticals - 1 do
+			if rng:NextNumber() < 0.45 then
+				local xa = xAt(verticals[vi], zm)
+				local xb = xAt(verticals[vi + 1], zm)
+				add("alley", { Vector2.new(xa, zm), Vector2.new(xb, zm + rng:NextNumber(-3, 3)) }, true)
+			end
+		end
+	end
+
+	-- Crooked lanes linking neighbouring streets mid-block.
+	for _ = 1, 9 do
+		local s = rng:NextInteger(1, #streetZs - 1)
+		local vi = rng:NextInteger(1, #verticals - 1)
+		local x0 = (xAt(verticals[vi], streetZs[s]) + xAt(verticals[vi + 1], streetZs[s])) / 2 + rng:NextNumber(-30, 30)
+		local x1 = x0 + rng:NextNumber(-28, 28)
+		local zA, zB = streetZs[s], streetZs[s + 1]
+		add("lane", { Vector2.new(x0, zA), Vector2.new((x0 + x1) / 2 + rng:NextNumber(-8, 8), (zA + zB) / 2), Vector2.new(x1, zB) }, true)
+	end
+
+	-- A long diagonal boulevard that cuts across the grid.
+	local bw = {}
+	local from, to = Vector2.new(-330, Util.MAX_Z), Vector2.new(360, Util.MIN_Z)
+	local perp = Vector2.new(-(to - from).Y, (to - from).X).Unit
+	for i = 0, 14 do
+		local t = i / 14
+		table.insert(bw, from:Lerp(to, t) + perp * math.sin(t * math.pi * 1.4) * 38)
+	end
+	add("broadway", bw, false)
+
+	-- Register roads (clipped around the park) with ids.
+	for _, entry in ipairs(raw) do
+		local pieces = { entry.points }
+		if entry.clip then
+			pieces = clipToPark(entry.points)
+		end
+		for _, pts in ipairs(pieces) do
+			local kind = Roads.KINDS[entry.kind]
+			table.insert(Roads.list, {
+				id = #Roads.list + 1,
+				kind = entry.kind,
+				width = kind.width,
+				walk = kind.walk,
+				main = kind.main == true,
+				points = pts,
+			})
+		end
+	end
+end
+
+-- Records road and sidewalk cells in the occupancy grid.
+function Roads.rasterize()
+	for _, road in ipairs(Roads.list) do
+		for i = 1, #road.points - 1 do
+			Util.markSegment(road.points[i], road.points[i + 1], road.width / 2, Util.ROAD, road.id, false)
+		end
+	end
+	for _, road in ipairs(Roads.list) do
+		if road.walk > 0 then
+			for i = 1, #road.points - 1 do
+				Util.markSegment(road.points[i], road.points[i + 1], road.width / 2 + road.walk, Util.WALK, nil, true)
+			end
+		end
+	end
+end
+
+-- Iterates every segment: fn(road, a, b, dir, normal, length).
+function Roads.eachSegment(fn)
+	for _, road in ipairs(Roads.list) do
+		for i = 1, #road.points - 1 do
+			local a, b = road.points[i], road.points[i + 1]
+			local delta = b - a
+			local length = delta.Magnitude
+			if length > 0.5 then
+				local dir = delta.Unit
+				fn(road, a, b, dir, Vector2.new(-dir.Y, dir.X), length)
+			end
+		end
+	end
+end
+
+-- Draws a painted line along a segment, broken wherever it crosses another road.
+local function paintLine(folder, a, dir, length, offset, normal, width, color, dashLength, gap)
+	local step = 2
+	local runStart = nil
+	local function flush(endT)
+		if runStart and endT - runStart > 1 then
+			local midT = (runStart + endT) / 2
+			local p = a + dir * midT + normal * offset
+			Util.deco(folder, Vector3.new(width, 0.04, endT - runStart), Util.groundCF(p, dir, 0.33), color, Enum.Material.SmoothPlastic)
+		end
+		runStart = nil
+	end
+	local t = 0
+	while t <= length do
+		local p = a + dir * t + normal * offset
+		local ok = not Util.isJunction(p.X, p.Y)
+			and not Util.isJunction(p.X + dir.X * 5, p.Y + dir.Y * 5)
+			and not Util.isJunction(p.X - dir.X * 5, p.Y - dir.Y * 5)
+		if dashLength then
+			local phase = t % (dashLength + gap)
+			ok = ok and phase < dashLength
+		end
+		if ok then
+			runStart = runStart or t
+		else
+			flush(t)
+		end
+		t = t + step
+	end
+	flush(length)
+end
+
+function Roads.render(folder)
+	for _, road in ipairs(Roads.list) do
+		local yTop = 0.3 + (road.id % 7) * 0.004 -- tiny offsets stop overlapping roads flickering
+		local color = road.kind == "alley" and ALLEY_ASPHALT or ASPHALT
+		for i = 1, #road.points - 1 do
+			local a, b = road.points[i], road.points[i + 1]
+			local delta = b - a
+			local length = delta.Magnitude
+			if length > 0.5 then
+				local dir = delta.Unit
+				local mid = (a + b) / 2
+				local extra = road.width * 0.5 -- overlap at joints so bends have no gaps
+				Util.solid(folder, Vector3.new(road.width, 1, length + extra), Util.groundCF(mid, dir, yTop - 0.5), color, Enum.Material.Asphalt)
+				if road.walk > 0 then
+					Util.solid(folder, Vector3.new(road.width + road.walk * 2, 1, length + extra), Util.groundCF(mid, dir, 0.25 - 0.5), SIDEWALK, Enum.Material.Pavement)
+				end
+			end
+		end
+	end
+
+	-- Lane markings on the big roads.
+	Roads.eachSegment(function(road, a, _, dir, normal, length)
+		if road.main then
+			paintLine(folder, a, dir, length, 0.35, normal, 0.3, YELLOW)
+			paintLine(folder, a, dir, length, -0.35, normal, 0.3, YELLOW)
+			for _, side in ipairs({ -1, 1 }) do
+				paintLine(folder, a, dir, length, side * road.width / 4, normal, 0.35, WHITE, 8, 22)
+			end
+		end
+	end)
+end
+
+return Roads
