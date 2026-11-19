@@ -110,7 +110,7 @@ function World.build(Cars)
 	end
 	Util.beginDistrict("Highways")
 	local highwayStart = os.clock()
-	Highways.layout()
+	Highways.layout(sharedState)
 
 	-- 2. Build: buildings and props per district, then highways and the skyline.
 	local info = { carSpawns = {}, jobCFrame = nil }

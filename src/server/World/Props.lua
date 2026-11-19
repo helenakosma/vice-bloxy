@@ -36,6 +36,8 @@ local function streetlight(folder, p, towardRoad)
 	end
 end
 
+Props.streetlight = streetlight
+
 local function tree(folder, p, rng, scale)
 	scale = scale or 1
 	local h = rng:NextNumber(8, 12) * scale
@@ -47,6 +49,32 @@ local function tree(folder, p, rng, scale)
 	local s2 = s1 * 0.75
 	Util.deco(folder, V3(s2, s2, s2), CFrame.new(p.X + rng:NextNumber(-2, 2), h + s1 * 0.55, p.Y + rng:NextNumber(-2, 2)), Util.shade(leaf, 1.1), M.LeafyGrass, Enum.PartType.Ball)
 end
+
+-- Palm tree with a gently curving trunk and drooping fronds.
+local function palm(folder, p, rng, scale)
+	scale = scale or 1
+	local height = rng:NextNumber(18, 28) * scale
+	local angle = rng:NextNumber(0, math.pi * 2)
+	local lean = V3(math.cos(angle), 0, math.sin(angle))
+	local curve = rng:NextNumber(0.15, 0.35) * height
+	local base = V3(p.X, 0.2, p.Y)
+	local prev = base
+	for k = 1, 4 do
+		local f = k / 4
+		local point = base + V3(0, height * f, 0) + lean * (curve * f * f)
+		Util.beam(folder, prev, point, 1.5 - 0.15 * k, Color3.fromRGB(132, 104, 76), M.Wood)
+		prev = point
+	end
+	local top = prev
+	local leaf = Color3.fromRGB(rng:NextInteger(56, 76), rng:NextInteger(128, 150), rng:NextInteger(60, 74))
+	for i = 1, 8 do
+		local yaw = i / 8 * math.pi * 2 + rng:NextNumber(-0.2, 0.2)
+		local droop = math.rad(rng:NextNumber(20, 42))
+		local cf = CFrame.new(top) * CFrame.Angles(0, yaw, 0) * CFrame.Angles(-droop, 0, 0) * CFrame.new(0, 0, -5.5 * scale)
+		Util.deco(folder, V3(1.8 * scale, 0.3, 11 * scale), cf, leaf, M.LeafyGrass)
+	end
+end
+Props.palm = palm
 
 local function hydrant(folder, p)
 	Util.cylinder(folder, 2.4, 1, CFrame.new(p.X, 1.45, p.Y), Color3.fromRGB(170, 40, 30), M.Metal, true)
@@ -157,7 +185,11 @@ end
 ---------------------------------------------------------------------------
 -- Placement
 ---------------------------------------------------------------------------
-function Props.placeStreetFurniture(folder, rng, roads)
+-- opts.tropical: palms instead of street trees, no subway or steam stacks.
+-- opts.signals: also place traffic signals at downtown's avenue crossings.
+function Props.placeStreetFurniture(folder, rng, roads, opts)
+	opts = opts or {}
+	local tropical = opts.tropical == true
 	local placedSubway = 0
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
 		if road.kind == "alley" then
@@ -182,7 +214,9 @@ function Props.placeStreetFurniture(folder, rng, roads)
 				local kerbSide = a + dir * t + normal * side * (half + 2)
 				local midWalk = a + dir * t + normal * side * (half + road.walk * 0.55)
 				local r = rng:NextNumber()
-				if not road.main and r < 0.35 and onSidewalk(midWalk) then
+				if tropical and r < 0.4 and onSidewalk(midWalk) then
+					palm(folder, midWalk, rng, 0.8)
+				elseif not tropical and not road.main and r < 0.35 and onSidewalk(midWalk) then
 					tree(folder, midWalk, rng)
 				elseif r < 0.45 and onSidewalk(kerbSide) then
 					hydrant(folder, kerbSide)
@@ -190,7 +224,7 @@ function Props.placeStreetFurniture(folder, rng, roads)
 					trashCan(folder, kerbSide)
 				elseif r < 0.64 and onSidewalk(kerbSide) then
 					newsBox(folder, kerbSide, towardRoad, rng)
-				elseif road.main and r < 0.67 and placedSubway < 14 and onSidewalk(midWalk) then
+				elseif not tropical and road.main and r < 0.67 and placedSubway < 14 and onSidewalk(midWalk) then
 					subwayEntrance(folder, midWalk, dir)
 					placedSubway = placedSubway + 1
 				elseif road.main and r < 0.7 and onSidewalk(midWalk) then
@@ -200,6 +234,10 @@ function Props.placeStreetFurniture(folder, rng, roads)
 			end
 		end
 	end, roads)
+
+	if tropical then
+		return
+	end
 
 	-- Steam stacks in the middle of a few avenues.
 	local stacks = 0
@@ -213,7 +251,10 @@ function Props.placeStreetFurniture(folder, rng, roads)
 		end
 	end, roads)
 
-	-- One signal per avenue crossing, on a corner, hanging over the avenue.
+	-- One signal per downtown avenue crossing, on a corner, hanging over the avenue.
+	if not opts.signals then
+		return
+	end
 	for _, x in ipairs(Roads.intersections) do
 		local mainDir = x.mainDir
 		local mainNormal = Vector2.new(-mainDir.Y, mainDir.X)

@@ -5,6 +5,7 @@ local Util = require(World.Util)
 local Roads = require(World.Roads)
 local Buildings = require(World.Buildings)
 local Props = require(World.Props)
+local Layout = require(World.Layout)
 
 local Downtown = {
 	name = "Downtown",
@@ -37,6 +38,9 @@ function Downtown.layout(ctx)
 	Util.land(ctx.folder, b.minX, b.maxX, b.minZ, b.maxZ)
 
 	local roads = Roads.generate(ctx.rng)
+	-- North-shore road along the channel, underneath the Harbor Freeway.
+	local shoreZ = Layout.DOWNTOWN_SHORE_Z
+	table.insert(roads, Roads.add("industrial", { Vector2.new(Util.MIN_X, shoreZ), Vector2.new(Util.RIVER_X - 30, shoreZ) }))
 	local park = Roads.PARK
 	Util.markRect(park.minX, park.maxX, park.minZ, park.maxZ, Util.PARK)
 	Util.markRect(Util.RIVER_X - 10, Util.MAX_X, Util.MIN_Z, Util.MAX_Z, Util.WATER)
@@ -58,12 +62,13 @@ function Downtown.build(ctx)
 	Roads.render(ctx.makeFolder(folder, "Roads"), roads)
 	Props.buildPark(ctx.makeFolder(folder, "Park"), rng)
 	Props.buildRiver(ctx.makeFolder(folder, "River"))
+	Util.seawall(ctx.makeFolder(folder, "Seawall"), Downtown.bounds, { east = true })
 
 	local buildings = ctx.makeFolder(folder, "Buildings")
 	local placed = Buildings.placeFrontage(buildings, roads, rng)
 	local filled = Buildings.fillGaps(buildings, rng)
 
-	Props.placeStreetFurniture(ctx.makeFolder(folder, "Street"), rng, roads)
+	Props.placeStreetFurniture(ctx.makeFolder(folder, "Street"), rng, roads, { signals = true })
 	Props.startSignals()
 	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars, roads)
 	print(string.format("[Downtown] %d frontage buildings, %d filler, %d parked cars", placed, filled, parked))

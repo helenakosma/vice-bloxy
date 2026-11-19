@@ -252,6 +252,57 @@ function Util.land(parent, minX, maxX, minZ, maxZ, color, material)
 	return Util.solid(parent, size, cf, color or Color3.fromRGB(96, 93, 88), material or Enum.Material.Concrete)
 end
 
+-- Low sea wall along the edges of a land rectangle wherever water lies beyond.
+-- Where a road carries on over the water (a bridge) the cells beyond are road,
+-- not water, so the wall leaves an opening there.
+-- skip = { north = true, ... } leaves whole sides open.
+function Util.seawall(parent, b, skip)
+	skip = skip or {}
+	local step = 8
+	local color = Color3.fromRGB(118, 114, 106)
+	local function side(name, from, to, fixed, horizontal, outward)
+		if skip[name] then
+			return
+		end
+		local runStart = nil
+		local function flush(endT)
+			if runStart and endT - runStart >= step then
+				local mid = (runStart + endT) / 2
+				local length = endT - runStart
+				local cf, size
+				if horizontal then
+					cf = CFrame.new(mid, 1.6, fixed)
+					size = Vector3.new(length, 3.2, 1.2)
+				else
+					cf = CFrame.new(fixed, 1.6, mid)
+					size = Vector3.new(1.2, 3.2, length)
+				end
+				Util.solid(parent, size, cf, color, Enum.Material.Concrete)
+			end
+			runStart = nil
+		end
+		local t = from
+		while t < to do
+			local cx = horizontal and t + step / 2 or fixed
+			local cz = horizontal and fixed or t + step / 2
+			local ox = horizontal and cx or cx + outward * 6
+			local oz = horizontal and cz + outward * 6 or cz
+			local wanted = Util.get(ox, oz) == Util.WATER
+			if wanted then
+				runStart = runStart or t
+			else
+				flush(t)
+			end
+			t = t + step
+		end
+		flush(to)
+	end
+	side("north", b.minX, b.maxX, b.minZ + 0.6, true, -1)
+	side("south", b.minX, b.maxX, b.maxZ - 0.6, true, 1)
+	side("west", b.minZ, b.maxZ, b.minX + 0.6, false, -1)
+	side("east", b.minZ, b.maxZ, b.maxX - 0.6, false, 1)
+end
+
 -- Thin straight piece between two 3D points (cables, rails, ladders).
 function Util.beam(parent, a, b, thickness, color, material)
 	local length = (b - a).Magnitude

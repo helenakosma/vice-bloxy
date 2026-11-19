@@ -264,8 +264,21 @@ local function furnish(folder, base, w, d, storeType, rng)
 end
 
 -- Enterable shop: hollow ground floor with walls, glass front, door gap and furniture.
-function Stores.interior(folder, base, w, d, groundH, rng)
-	local storeType = Util.pick(rng, STORE_TYPES)
+-- kinds (optional): list of store kinds to choose from, e.g. { "bar", "coffee" }.
+function Stores.interior(folder, base, w, d, groundH, rng, kinds)
+	local choices = STORE_TYPES
+	if kinds then
+		choices = {}
+		for _, storeType in ipairs(STORE_TYPES) do
+			if table.find(kinds, storeType.kind) then
+				table.insert(choices, storeType)
+			end
+		end
+		if #choices == 0 then
+			choices = STORE_TYPES
+		end
+	end
+	local storeType = Util.pick(rng, choices)
 	local storeName = Util.pick(rng, storeType.names)
 	local fz = -d / 2
 	local wallColor = Util.pick(rng, { Color3.fromRGB(226, 220, 205), Color3.fromRGB(205, 196, 180), Color3.fromRGB(180, 170, 155) })

@@ -4,19 +4,20 @@ local Util = require(script.Parent.Util)
 
 local Roads = {}
 
+-- Lanes are about 15 studs (roughly twice a car's width).
 Roads.KINDS = {
-	avenue = { width = 34, walk = 9, main = true },
-	broadway = { width = 30, walk = 9, main = true },
-	waterfront = { width = 30, walk = 9, main = true },
-	street = { width = 22, walk = 7 },
-	lane = { width = 16, walk = 5 },
-	alley = { width = 10, walk = 0 },
+	avenue = { width = 60, walk = 10, main = true }, -- 4 lanes
+	broadway = { width = 56, walk = 10, main = true },
+	waterfront = { width = 56, walk = 10, main = true },
+	street = { width = 32, walk = 8 }, -- 2 lanes
+	lane = { width = 22, walk = 5 },
+	alley = { width = 14, walk = 0 },
 	-- Outer districts
-	arterial = { width = 36, walk = 8, main = true },
-	boulevard = { width = 30, walk = 12, main = true },
-	bridge = { width = 34, walk = 5, main = true },
-	residential = { width = 20, walk = 6 },
-	industrial = { width = 26, walk = 3 },
+	arterial = { width = 64, walk = 10, main = true },
+	boulevard = { width = 44, walk = 14, main = true },
+	bridge = { width = 60, walk = 6, main = true },
+	residential = { width = 30, walk = 7 },
+	industrial = { width = 36, walk = 4 },
 }
 
 Roads.list = {} -- every road in the world
@@ -44,7 +45,7 @@ function Roads.add(kind, points)
 end
 
 -- Park: no roads cross it.
-Roads.PARK = { minX = -650, maxX = -395, minZ = 300, maxZ = 600 }
+Roads.PARK = { minX = -650, maxX = -430, minZ = 300, maxZ = 600 }
 
 local ASPHALT = Color3.fromRGB(62, 62, 64)
 local ALLEY_ASPHALT = Color3.fromRGB(52, 50, 48)
@@ -153,7 +154,7 @@ function Roads.generate(rng)
 			end
 		end
 		add("street", pts, true)
-		z = z + rng:NextNumber(95, 135)
+		z = z + rng:NextNumber(130, 170)
 	end
 
 	-- Alleys halfway between some pairs of streets, from one avenue to the next.

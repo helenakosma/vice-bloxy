@@ -127,6 +127,7 @@ end
 -- Styles
 ---------------------------------------------------------------------------
 local Styles = {}
+Buildings.Styles = Styles -- other modules (e.g. ViceStyles) add their own styles here
 
 function Styles.walkup(folder, cf, w, d, ctx)
 	local rng = ctx.rng
@@ -341,10 +342,17 @@ local function chooseStyle(rng, road, center)
 	return "loft"
 end
 
-local maxInteriors = 40
+local maxInteriors = 60
 
 -- Walks both sides of every road placing buildings that face it.
-function Buildings.placeFrontage(folder, roads, rng)
+-- opts (all optional):
+--   chooseStyle(rng, road, center) -> style name in Buildings.Styles
+--   interiorChance / facadeChance  -> per-road chances for walk-in shops / shopfronts
+--   heightFactor(center)           -> multiplier for building height
+function Buildings.placeFrontage(folder, roads, rng, opts)
+	opts = opts or {}
+	local choose = opts.chooseStyle or chooseStyle
+	local getHeight = opts.heightFactor or heightFactor
 	-- Main roads first so they claim the corners.
 	local ordered = {}
 	for _, road in ipairs(roads) do
@@ -387,16 +395,18 @@ function Buildings.placeFrontage(folder, roads, rng)
 							if Util.rectFree(center, front, right, w, depth) then
 								Util.rectMark(center, front, right, w, depth, Util.BUILT)
 								local cf = Util.groundCF(center, front, 0)
-								local style = chooseStyle(rng, road, center)
+								local style = choose(rng, road, center)
 								local ctx = {
 									rng = rng,
 									detailed = road.main,
-									heightFactor = heightFactor(center),
+									heightFactor = getHeight(center),
 								}
 								local shopRoll = rng:NextNumber()
-								if road.main and w >= 20 and depth >= 24 and Stores.count < maxInteriors and shopRoll < 0.22 then
+								local interiorChance = opts.interiorChance or (road.main and 0.22 or 0)
+								local facadeChance = opts.facadeChance or (road.main and 0.85 or 0.4)
+								if road.main and w >= 20 and depth >= 24 and Stores.count < maxInteriors and shopRoll < interiorChance then
 									ctx.shop = "interior"
-								elseif shopRoll < (road.main and 0.85 or 0.4) then
+								elseif shopRoll < facadeChance then
 									ctx.shop = "facade"
 								end
 								Styles[style](folder, cf, w, depth, ctx)
@@ -418,10 +428,12 @@ function Buildings.placeFrontage(folder, roads, rng)
 end
 
 -- Fills any open ground left inside blocks with simple buildings.
-function Buildings.fillGaps(folder, rng)
+-- bounds defaults to downtown.
+function Buildings.fillGaps(folder, rng, bounds)
+	local b = bounds or { minX = Util.MIN_X, maxX = Util.RIVER_X, minZ = Util.MIN_Z, maxZ = Util.MAX_Z }
 	local count = 0
-	for x = Util.MIN_X + 10, Util.RIVER_X - 20, 10 do
-		for z = Util.MIN_Z + 10, Util.MAX_Z - 10, 10 do
+	for x = b.minX + 10, b.maxX - 20, 10 do
+		for z = b.minZ + 10, b.maxZ - 10, 10 do
 			if Util.get(x, z) == Util.FREE then
 				for _, size in ipairs({ 30, 20, 13 }) do
 					local c = Vector2.new(x + size / 2 - 5, z + size / 2 - 5)
