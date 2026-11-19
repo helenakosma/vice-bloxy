@@ -134,6 +134,33 @@ local function onPurchase(player, storeType, storeName)
 	end
 end
 
+-- Puts a purchase prompt for a store type ("bodega", "coffee", ...) on a part,
+-- using the same prices and effects as every other shop.
+function Stores.attachPurchase(part, kind, storeName)
+	for _, storeType in ipairs(STORE_TYPES) do
+		if storeType.kind == kind then
+			local prompt = Instance.new("ProximityPrompt")
+			if storeType.price > 0 then
+				prompt.ActionText = string.format("Buy %s ($%d)", storeType.item, storeType.price)
+			else
+				prompt.ActionText = "Collect " .. storeType.item
+			end
+			prompt.ObjectText = storeName
+			prompt.KeyboardKeyCode = Enum.KeyCode.E
+			prompt.HoldDuration = 0.3
+			prompt.MaxActivationDistance = 9
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = part
+			prompt.Triggered:Connect(function(player)
+				onPurchase(player, storeType, storeName)
+			end)
+			Stores.count = Stores.count + 1
+			return prompt
+		end
+	end
+	return nil
+end
+
 -- Sign board above the shop with the store name.
 local function signBoard(folder, cf, width, name, rng)
 	local board = Util.deco(folder, V3(width, 2.6, 0.4), cf, Util.pick(rng, AWNINGS), M.SmoothPlastic)

@@ -6,6 +6,7 @@ local Roads = require(World.Roads)
 local Buildings = require(World.Buildings)
 local Props = require(World.Props)
 local Layout = require(World.Layout)
+local HeroStreet = require(World.HeroStreet)
 
 local Downtown = {
 	name = "Downtown",
@@ -59,17 +60,22 @@ function Downtown.build(ctx)
 	local folder = ctx.folder
 	local roads = ctx.roads
 
-	Roads.render(ctx.makeFolder(folder, "Roads"), roads)
+	-- The hero block around the spawn is built to the full detail standard.
+	local hero = ctx.spawnRoad and HeroStreet.new(ctx.spawnRoad, rng) or nil
+	Roads.render(ctx.makeFolder(folder, "Roads"), roads, { ramps = hero and hero.contains })
 	Props.buildPark(ctx.makeFolder(folder, "Park"), rng)
 	local cz = Layout.CAUSEWAY_Z
 	Props.buildRiver(ctx.makeFolder(folder, "River"), { { minZ = cz - 45, maxZ = cz + 45 } })
 	Util.seawall(ctx.makeFolder(folder, "Seawall"), Downtown.bounds, { east = true })
 
 	local buildings = ctx.makeFolder(folder, "Buildings")
-	local placed = Buildings.placeFrontage(buildings, roads, rng)
+	local placed = Buildings.placeFrontage(buildings, roads, rng, { hero = hero })
 	local filled = Buildings.fillGaps(buildings, rng)
 
-	Props.placeStreetFurniture(ctx.makeFolder(folder, "Street"), rng, roads, { signals = true })
+	Props.placeStreetFurniture(ctx.makeFolder(folder, "Street"), rng, roads, { signals = true, skip = hero and hero.contains })
+	if hero then
+		hero.streetscape(ctx.makeFolder(folder, "HeroBlock"))
+	end
 	Props.startSignals()
 	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars, roads)
 	print(string.format("[Downtown] %d frontage buildings, %d filler, %d parked cars", placed, filled, parked))

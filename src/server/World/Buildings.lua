@@ -409,7 +409,15 @@ function Buildings.placeFrontage(folder, roads, rng, opts)
 								elseif shopRoll < facadeChance then
 									ctx.shop = "facade"
 								end
-								Styles[style](folder, cf, w, depth, ctx)
+								-- Each building is its own Model so streaming can swap in a
+								-- low-detail version far away. The hero block gets hand-built kits.
+								local model = Util.buildingModel(folder, style)
+								if opts.hero and opts.hero.contains(center) then
+									model.Name = "Hero"
+									opts.hero.build(model, cf, w, depth, road, center, side)
+								else
+									Styles[style](model, cf, w, depth, ctx)
+								end
 								placed = placed + 1
 								done = true
 								t = t + w
@@ -441,7 +449,7 @@ function Buildings.fillGaps(folder, rng, bounds)
 					if Util.rectFree(c, fwd, right, size, size) then
 						Util.rectMark(c, fwd, right, size, size, Util.BUILT)
 						local h = rng:NextNumber(30, 70) * heightFactor(c)
-						Buildings.filler(folder, Util.groundCF(c, fwd, 0), size, size, h, rng, true)
+						Buildings.filler(Util.buildingModel(folder, "Filler"), Util.groundCF(c, fwd, 0), size, size, h, rng, true)
 						count = count + 1
 						break
 					end
@@ -462,7 +470,7 @@ function Buildings.background(folder, rng)
 			local c = Vector2.new(rng:NextNumber(minX, maxX), rng:NextNumber(minZ, maxZ))
 			local w = rng:NextNumber(30, 80)
 			local d = rng:NextNumber(30, 80)
-			Buildings.filler(folder, Util.groundCF(c, Vector2.new(0, -1), 0), w, d, rng:NextNumber(hMin, hMax), rng, false)
+			Buildings.filler(Util.buildingModel(folder, "Skyline"), Util.groundCF(c, Vector2.new(0, -1), 0), w, d, rng:NextNumber(hMin, hMax), rng, false)
 		end
 	end
 	-- Each ring is kept under 2048 studs across (the Roblox part size limit).
@@ -472,5 +480,7 @@ function Buildings.background(folder, rng)
 	ring(-250, 900, G.minZ - 800, G.minZ - 450, 40, 60, 260)
 	ring(-1600, 300, G.maxZ + 450, G.maxZ + 800, 60, 30, 140) -- far south
 end
+
+Buildings.waterTower = waterTower
 
 return Buildings
