@@ -4,6 +4,9 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Cars = require(script.Parent.Cars)
+local Map = require(script.Parent.Map)
+
+Map.build()
 
 -- Leaderboard stats (the built-in Roblox leaderboard shows anything in "leaderstats").
 Players.PlayerAdded:Connect(function(player)
