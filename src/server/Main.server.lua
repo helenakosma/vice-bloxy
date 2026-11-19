@@ -24,6 +24,7 @@ end
 
 Cars.init()
 local info = World.build(Cars)
+require(script.Parent.World.Atmosphere).startCycle()
 
 -- Courier job marker near spawn: a glowing cylinder like a mission marker.
 local function makeJobMarker(cframe)

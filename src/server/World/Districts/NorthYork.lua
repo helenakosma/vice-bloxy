@@ -9,6 +9,8 @@ local Layout = require(World.Layout)
 local Buildings = require(World.Buildings)
 local Props = require(World.Props)
 local TorontoStyles = require(World.TorontoStyles)
+local TorontoLandmarks = require(World.TorontoLandmarks)
+local Mall = require(World.Mall)
 
 local NorthYork = {
 	name = "NorthYork",
@@ -63,8 +65,16 @@ function NorthYork.layout(ctx)
 	for _, z in ipairs(Layout.NY_CROSS_Z) do
 		table.insert(roads, Roads.add("arterial", Roads.path(rng, Vector2.new(west, z), Vector2.new(east, z), 120, 4)))
 	end
+	-- Side streets stop at the City Hall site (it gets its own square instead):
+	-- one that would cross it becomes two streets ending on either side.
+	local hall = Layout.CITY_HALL
 	for _, z in ipairs(Layout.NY_SIDE_STREETS_Z) do
-		table.insert(roads, Roads.add("street", Roads.path(rng, Vector2.new(west, z), Vector2.new(east, z), 110, 4)))
+		if z > hall.minZ and z < hall.maxZ then
+			table.insert(roads, Roads.add("street", Roads.path(rng, Vector2.new(west, z), Vector2.new(hall.minX - 20, z), 110, 3)))
+			table.insert(roads, Roads.add("street", Roads.path(rng, Vector2.new(hall.maxX + 20, z), Vector2.new(east, z), 110, 3)))
+		else
+			table.insert(roads, Roads.add("street", Roads.path(rng, Vector2.new(west, z), Vector2.new(east, z), 110, 4)))
+		end
 	end
 	for _, x in ipairs(Layout.NY_SIDE_STREETS_X) do
 		table.insert(roads, Roads.add("street", Roads.path(rng, Vector2.new(x, south), Vector2.new(x, north), 110, 4)))
@@ -79,6 +89,12 @@ function NorthYork.layout(ctx)
 	end
 	reserveCircle(Layout.NEEDLE, NEEDLE_RADIUS)
 	reserveCircle(Layout.DOME, DOME_RADIUS + 6)
+	Util.markRect(Layout.UNION.X - 50, Layout.UNION.X + 50, Layout.UNION.Y - 32, Layout.UNION.Y + 30, Util.BUILT)
+	Util.markRect(hall.minX, hall.maxX, hall.minZ, hall.maxZ, Util.BUILT)
+	Util.markRect(Layout.ROM.X - 34, Layout.ROM.X + 34, Layout.ROM.Y - 44, Layout.ROM.Y + 44, Util.BUILT)
+	for _, t in ipairs(Layout.TWIN_TOWERS) do
+		reserveCircle(t, 26)
+	end
 	local m = Layout.MALL
 	Util.markRect(m.X - MALL_SIZE.X / 2, m.X + MALL_SIZE.X / 2, m.Y - MALL_SIZE.Y / 2, m.Y + MALL_SIZE.Y / 2, Util.BUILT)
 	local p = Layout.NY_PARK
@@ -170,33 +186,19 @@ local function dome(folder, c)
 	Util.sign(sign, Enum.NormalId.Front, "THE DOME", Color3.fromRGB(240, 240, 240), Enum.Font.GothamBlack)
 end
 
--- Shopping centre: big low box with glass entrances and skylights in a parking lot.
+-- Yorkgate Centre: the walkable mall (World/Mall.lua) with a parking lot in front.
 local function mall(folder, c, rng, Cars)
-	local x, z = c.X, c.Y
 	local w, d = MALL_SIZE.X, MALL_SIZE.Y
-	Util.deco(folder, V3(w, 0.06, d), CFrame.new(x, 0.32, z), Color3.fromRGB(56, 56, 58), M.Asphalt)
-	local bw, bd, h = w * 0.7, d * 0.5, 26
-	local bz = z + d * 0.18
-	Util.solid(folder, V3(bw, h, bd), CFrame.new(x, h / 2, bz), Color3.fromRGB(196, 190, 180), M.Concrete)
-	Util.deco(folder, V3(bw + 1, 3, bd + 1), CFrame.new(x, h + 1.5, bz), Color3.fromRGB(120, 116, 110), M.Concrete)
-	for i = -1, 1 do
-		local sky = Util.deco(folder, V3(bw * 0.2, 5, bd * 0.6), CFrame.new(x + i * bw * 0.3, h + 2.5, bz), Color3.fromRGB(150, 180, 190), M.Glass)
-		sky.Transparency = 0.2
-	end
-	for _, ex in ipairs({ -bw * 0.3, 0, bw * 0.3 }) do
-		local entrance = Util.deco(folder, V3(16, 16, 6), CFrame.new(x + ex, 8, bz - bd / 2 - 3), Color3.fromRGB(110, 140, 150), M.Glass)
-		entrance.Reflectance = 0.3
-	end
-	local sign = Util.deco(folder, V3(46, 6, 0.6), CFrame.new(x, h - 5, bz - bd / 2 - 0.4), Color3.fromRGB(240, 238, 232), M.SmoothPlastic)
-	Util.sign(sign, Enum.NormalId.Front, "YORKGATE CENTRE", Color3.fromRGB(150, 30, 40), Enum.Font.GothamBlack)
-	-- Parked cars in rows in front.
-	local rowZ = z - d / 2 + 18
-	for row = 0, 1 do
-		for px = x - w / 2 + 12, x + w / 2 - 12, 13 do
-			if rng:NextNumber() < 0.55 then
-				local car = Cars.spawnParked(CFrame.new(px, 0.3, rowZ + row * 26) * CFrame.Angles(0, math.rad(row == 0 and 0 or 180), 0), folder, rng)
-				Util.tick(#car:GetChildren())
-			end
+	local info = Mall.build(folder, c, rng)
+	local lotFrom = info.southWallZ + 2
+	local lotTo = c.Y + d / 2 - 2
+	local lotZ = (lotFrom + lotTo) / 2
+	Util.deco(folder, V3(w, 0.06, lotTo - lotFrom), CFrame.new(c.X, 0.32, lotZ), Color3.fromRGB(56, 56, 58), M.Asphalt)
+	for px = c.X - w / 2 + 8, c.X + w / 2 - 8, 13 do
+		Util.deco(folder, V3(0.3, 0.05, 12), CFrame.new(px - 6.5, 0.36, lotZ + 8), Color3.fromRGB(220, 220, 214), M.SmoothPlastic)
+		if math.abs(px - c.X) > 10 and rng:NextNumber() < 0.6 then
+			local car = Cars.spawnParked(CFrame.new(px, 0.3, lotZ + 8) * CFrame.Angles(0, math.rad(180), 0), folder, rng)
+			Util.tick(#car:GetChildren())
 		end
 	end
 end
@@ -234,6 +236,17 @@ function NorthYork.build(ctx)
 	needle(landmarks, Layout.NEEDLE)
 	dome(landmarks, Layout.DOME)
 	mall(landmarks, Layout.MALL, rng, ctx.Cars)
+	TorontoLandmarks.cityHall(landmarks, Layout.CITY_HALL)
+	TorontoLandmarks.union(landmarks, Layout.UNION)
+	TorontoLandmarks.museum(landmarks, Layout.ROM)
+	TorontoLandmarks.twistingTower(landmarks, Layout.TWIN_TOWERS[1], 30, 0)
+	TorontoLandmarks.twistingTower(landmarks, Layout.TWIN_TOWERS[2], 34, 1.3)
+	-- Streetcar line along King St (the southern cross arterial).
+	for _, road in ipairs(ctx.roads) do
+		if road.kind == "arterial" and math.abs(road.points[1].Y - Layout.NY_CROSS_Z[1]) < 1 then
+			TorontoLandmarks.streetcarLine(landmarks, road, rng)
+		end
+	end
 	park(ctx.makeFolder(folder, "Park"), Layout.NY_PARK, rng)
 
 	local buildings = ctx.makeFolder(folder, "Buildings")

@@ -87,6 +87,7 @@ function ViceStyles.decoHotel(folder, cf, w, d, ctx)
 		local y = groundH + f * floorH
 		local band = Util.deco(folder, V3(w * 0.78, floorH * 0.45, 0.3), cf * CFrame.new(0, y + floorH * 0.5, -d / 2 - 0.1), GLASS, M.Glass)
 		band.Reflectance = 0.25
+		Util.nightWindow(band, 0.4)
 		Util.deco(folder, V3(w + 0.6, 0.5, 2.2), cf * CFrame.new(0, y + floorH * 0.82, -d / 2 - 1), WHITE, M.Concrete)
 	end
 	Util.deco(folder, V3(w, 0.35, 0.35), cf * CFrame.new(0, groundH - 0.4, -d / 2 - 2.2), neon, M.Neon)
@@ -161,6 +162,7 @@ function ViceStyles.pastelLowrise(folder, cf, w, d, ctx)
 	for f = 0, floors - 1 do
 		local band = Util.deco(folder, V3(w + 0.3, floorH * 0.42, d + 0.3), cf * CFrame.new(0, groundH + f * floorH + floorH * 0.5, 0), GLASS, M.Glass)
 		band.Reflectance = 0.2
+		Util.nightWindow(band, 0.4)
 	end
 	Util.deco(folder, V3(w + 0.8, 1.4, d + 0.8), cf * CFrame.new(0, h + 0.7, 0), WHITE, M.Concrete)
 	if rng:NextNumber() < 0.35 then

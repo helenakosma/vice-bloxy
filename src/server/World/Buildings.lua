@@ -46,9 +46,11 @@ local function windows(folder, cf, w, d, y0, floors, floorH, wallColor, wallMat,
 		if opts.wrap then
 			local band = Util.deco(folder, V3(w + 0.3, bandH, d + 0.3), cf * CFrame.new(0, yc, 0), opts.glass or WINDOW, M.Glass)
 			band.Reflectance = 0.18
+			Util.nightWindow(band, 0.3)
 		else
 			local band = Util.deco(folder, V3(w - 1, bandH, 0.3), cf * CFrame.new(0, yc, -d / 2 - 0.1), opts.glass or WINDOW, M.Glass)
 			band.Reflectance = 0.18
+			Util.nightWindow(band, 0.3)
 		end
 	end
 	if opts.pierSpacing and floors > 0 then
@@ -309,6 +311,7 @@ function Buildings.filler(folder, cf, w, d, h, rng, collide)
 	for b = 1, bands do
 		local band = Util.deco(folder, V3(w + 0.3, floorH * 0.45, d + 0.3), cf * CFrame.new(0, b * step * floorH - floorH * 0.4, 0), WINDOW, M.Glass)
 		band.CastShadow = false
+		Util.nightWindow(band, 0.25)
 	end
 	local top = Util.deco(folder, V3(w + 1, 1.2, d + 1), cf * CFrame.new(0, h + 0.6, 0), Util.shade(color, 0.7), M.Concrete)
 	top.CastShadow = false

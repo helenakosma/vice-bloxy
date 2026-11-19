@@ -5,6 +5,7 @@
 local Util = require(script.Parent.Util)
 local Stores = require(script.Parent.Stores)
 local Buildings = require(script.Parent.Buildings)
+local Layout = require(script.Parent.Layout)
 
 local TorontoStyles = {}
 
@@ -48,6 +49,7 @@ function TorontoStyles.torontoCondo(folder, cf, w, d, ctx)
 	for f = 0, podiumFloors - 1 do
 		local band = Util.deco(folder, V3(w + 0.3, floorH * 0.55, d + 0.3), cf * CFrame.new(0, groundH + f * floorH + floorH * 0.5, 0), WINDOW, M.Glass)
 		band.Reflectance = 0.2
+		Util.nightWindow(band, 0.35)
 	end
 
 	-- Tower set back on the podium, toward the back of the lot.
@@ -84,6 +86,7 @@ function TorontoStyles.torontoMidrise(folder, cf, w, d, ctx)
 	for f = 0, floors - 1 do
 		local band = Util.deco(folder, V3(w + 0.3, floorH * 0.5, d + 0.3), cf * CFrame.new(0, groundH + f * floorH + floorH * 0.5, 0), WINDOW, M.Glass)
 		band.Reflectance = 0.25
+		Util.nightWindow(band, 0.35)
 	end
 	local n = math.max(2, math.floor(w / 8))
 	for j = 0, n do
@@ -133,6 +136,60 @@ function TorontoStyles.stripPlaza(folder, cf, w, d, ctx)
 	end
 end
 
+-- Financial-district bank tower: black, gold, white or red-granite, with dense
+-- vertical fins that make it read tall and sharp from a distance.
+local BANKS = {
+	{ body = Color3.fromRGB(28, 30, 34), frame = Color3.fromRGB(14, 14, 16), reflect = 0.35, material = M.Glass },
+	{ body = Color3.fromRGB(200, 160, 72), frame = Color3.fromRGB(150, 118, 56), reflect = 0.6, material = M.Glass },
+	{ body = Color3.fromRGB(120, 130, 140), frame = Color3.fromRGB(238, 238, 234), reflect = 0.25, material = M.Glass },
+	{ body = Color3.fromRGB(150, 56, 52), frame = Color3.fromRGB(110, 40, 38), reflect = 0.15, material = M.Granite },
+}
+
+function TorontoStyles.bankTower(folder, cf, w, d, ctx)
+	local rng = ctx.rng
+	local bank = Util.pick(rng, BANKS)
+	local lobbyH, floorH = 22, 11
+	local floors = math.floor(rng:NextInteger(18, 26) * math.min(1.3, ctx.heightFactor))
+	local h = lobbyH + floors * floorH
+	-- Granite base with a recessed glass lobby.
+	Util.solid(folder, V3(w, lobbyH, d - 6), cf * CFrame.new(0, lobbyH / 2, 3), Color3.fromRGB(40, 40, 42), M.Granite)
+	local lobby = Util.deco(folder, V3(w - 4, lobbyH - 4, 0.3), cf * CFrame.new(0, lobbyH / 2, -d / 2 + 5.8), Color3.fromRGB(200, 180, 140), M.Glass)
+	lobby.Transparency = 0.25
+	Util.nightWindow(lobby, 1)
+	local tower = Util.solid(folder, V3(w, h - lobbyH, d), cf * CFrame.new(0, lobbyH + (h - lobbyH) / 2, 0), bank.body, bank.material)
+	tower.Reflectance = bank.reflect
+	-- Vertical fins on all four faces.
+	local shaft = h - lobbyH
+	local function fins(length, across, alongX)
+		local n = math.max(3, math.floor(length / 4))
+		for j = 0, n do
+			local u = -length / 2 + length * j / n
+			for _, side in ipairs({ -1, 1 }) do
+				local pos = alongX and V3(u, lobbyH + shaft / 2, side * (across / 2 + 0.3)) or V3(side * (across / 2 + 0.3), lobbyH + shaft / 2, u)
+				Util.deco(folder, V3(0.5, shaft, 0.6), cf * CFrame.new(pos), bank.frame, M.Metal)
+			end
+		end
+	end
+	fins(w, d, true)
+	fins(d, w, false)
+	for f = 3, floors, 3 do
+		local line = Util.deco(folder, V3(w + 0.4, 0.5, d + 0.4), cf * CFrame.new(0, lobbyH + f * floorH, 0), bank.frame, M.Metal)
+		line.CastShadow = false
+	end
+	-- Lit floors at night (a band every few floors) and a crown.
+	for f = 2, floors, 2 do
+		local band = Util.deco(folder, V3(w + 0.1, floorH * 0.5, d + 0.1), cf * CFrame.new(0, lobbyH + f * floorH - floorH * 0.5, 0), bank.body, bank.material)
+		band.Transparency = 1
+		Util.nightWindow(band, 0.5)
+		if band:HasTag("NightWindow") then
+			band.Transparency = 0
+			band.Reflectance = bank.reflect
+		end
+	end
+	Util.deco(folder, V3(w * 0.7, 8, d * 0.7), cf * CFrame.new(0, h + 4, 0), bank.frame, M.Metal)
+	Util.deco(folder, V3(w * 0.72, 0.5, d * 0.72), cf * CFrame.new(0, h + 8.3, 0), Color3.fromRGB(255, 255, 255), M.Neon)
+end
+
 for name, fn in pairs(TorontoStyles) do
 	Buildings.Styles[name] = fn
 end
@@ -140,6 +197,9 @@ end
 function TorontoStyles.choose(rng, road, center, heightFactor)
 	local r = rng:NextNumber()
 	local hf = heightFactor(center)
+	if road.main and (center - Layout.FINANCIAL).Magnitude < 240 and r < 0.6 then
+		return "bankTower"
+	end
 	if road.main then
 		if r < 0.5 then
 			return "torontoCondo"

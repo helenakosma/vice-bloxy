@@ -13,18 +13,25 @@ Layout.VICE_BEACH = { minX = 1100, maxX = 2300, minZ = -300, maxZ = 1300 }
 -- Surface roads that several districts need to agree on
 ---------------------------------------------------------------------------
 -- North York: perimeter roads, cross arterials and side streets. The expressway is
--- at street level north of -1460, so -1500 meets it at a junction; -1020 passes under.
+-- at street level north of -1460, so -1500 meets it at a junction; -1100 passes under.
 Layout.NY_NORTH_Z = -1960
 Layout.NY_SOUTH_Z = -836
 Layout.NY_WEST_X = -1150
 Layout.NY_EAST_X = 640
-Layout.NY_CROSS_Z = { -1020, -1500 }
+Layout.NY_CROSS_Z = { -1100, -1500 } -- -1100 is "King St" (streetcar line)
 Layout.NY_SIDE_STREETS_Z = { -1240, -1740 }
 Layout.NY_SIDE_STREETS_X = { -560, 220 }
 Layout.NY_BRIDGE_AVENUES = { -360, 20, 400 } -- downtown avenues that cross the channel
-Layout.NEEDLE = Vector2.new(-170, -930) -- CN Tower-inspired landmark
-Layout.DOME = Vector2.new(533, -1140) -- stadium
-Layout.MALL = Vector2.new(-985, -1370) -- shopping centre
+
+-- Toronto landmarks (centres are Vector2 x, z; rects are min/max).
+Layout.NEEDLE = Vector2.new(-90, -955) -- CN Tower-inspired, on the waterfront
+Layout.DOME = Vector2.new(-225, -965) -- stadium right beside it, like the Rogers Centre
+Layout.UNION = Vector2.new(145, -968) -- Union Station-style colonnade
+Layout.CITY_HALL = { minX = -282, maxX = -70, minZ = -1340, maxZ = -1152 } -- towers + square
+Layout.ROM = Vector2.new(-667, -1360) -- museum with a crystal
+Layout.TWIN_TOWERS = { Vector2.new(120, -1640), Vector2.new(172, -1596) } -- Mississauga-style curves
+Layout.FINANCIAL = Vector2.new(210, -1300) -- bank towers cluster around here
+Layout.MALL = Vector2.new(-985, -1370) -- Yorkgate Centre (walkable)
 Layout.NY_PARK = { minX = -1085, maxX = -865, minZ = -1700, maxZ = -1550 }
 
 -- Vice Causeway: a street-level bridge from downtown's waterfront drive straight

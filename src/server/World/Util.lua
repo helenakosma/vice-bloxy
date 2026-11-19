@@ -369,6 +369,14 @@ function Util.buildingModel(parent, name)
 	return model
 end
 
+-- Marks a window part to light up at night (handled by the client's NightLights).
+function Util.nightWindow(part, chance)
+	if math.random() < (chance or 1) then
+		game:GetService("CollectionService"):AddTag(part, "NightWindow")
+	end
+	return part
+end
+
 -- Adds a SurfaceGui sign with text to one face of a part.
 function Util.sign(part, face, text, textColor, font)
 	local gui = Instance.new("SurfaceGui")

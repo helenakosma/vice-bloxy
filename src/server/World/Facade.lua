@@ -75,6 +75,7 @@ function Facade.upper(folder, cf, w, d, spec, rng)
 		for j = 0, bays - 1 do
 			local x = -w / 2 + pierW + windowW / 2 + j * (pierW + windowW)
 			local glass = Util.deco(folder, V3(windowW, windowH, 0.2), cf * CFrame.new(x, sillY + windowH / 2, front + recess - 0.1), GLASS, M.Glass)
+			Util.nightWindow(glass, 0.4)
 			glass.Reflectance = 0.15
 			local pick = WINDOWS[rng:NextInteger(1, #WINDOWS)]
 			if spec.lit and rng:NextNumber() < spec.lit then

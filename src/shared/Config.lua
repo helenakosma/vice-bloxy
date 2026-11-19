@@ -4,6 +4,12 @@ return {
 	JobPayout = 150,
 	JobCooldown = 10, -- seconds before the job marker can be used again by the same player
 
+	DayNight = {
+		Enabled = true,
+		StartTime = 17.0, -- golden hour
+		DayLengthMinutes = 24, -- a full day/night cycle in real minutes
+	},
+
 	Car = {
 		-- Engine and brakes (studs/s and studs/s^2). 1 stud/s is roughly 0.63 mph.
 		MaxSpeed = 140,
