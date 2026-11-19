@@ -357,6 +357,72 @@ function Kit.emergency(folder, cf)
 	Util.sign(label, Front, "EMERGENCY", C(200, 30, 30), Enum.Font.GothamBold)
 end
 
+-- Hanging departure board (both faces), on rods up to ceilingY. Tagged
+-- "DepartureBoard" with Station and Bound ("N"/"S") attributes; the timetable
+-- fills its Title / Next / Following / Status labels.
+function Kit.departureBoard(folder, cf, stationName, bound, ceilingY)
+	local board = Util.deco(folder, V3(6.4, 2.4, 0.5), cf, C(14, 14, 16), M.SmoothPlastic)
+	board.Name = "DepartureBoard"
+	board.CastShadow = false
+	board:SetAttribute("Station", stationName)
+	board:SetAttribute("Bound", bound)
+	local title = bound == "N" and "LINE 1 · NORTHBOUND · FINCH" or "LINE 1 · SOUTHBOUND · PORTLANDS"
+	for _, face in ipairs({ Front, Enum.NormalId.Back }) do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0
+		gui.Brightness = 1.4
+		local rows = {
+			{ "Title", title, C(255, 190, 40), 0.02, 0.26 },
+			{ "Next", "NEXT TRAIN      --:--", C(255, 214, 90), 0.3, 0.22 },
+			{ "Following", "FOLLOWING       --:--", C(255, 214, 90), 0.53, 0.2 },
+			{ "Status", "STATUS  ON TIME", C(120, 230, 120), 0.76, 0.2 },
+		}
+		for _, row in ipairs(rows) do
+			local label = Instance.new("TextLabel")
+			label.Name = row[1]
+			label.BackgroundTransparency = 1
+			label.Position = UDim2.fromScale(0.04, row[4])
+			label.Size = UDim2.fromScale(0.92, row[5])
+			label.Font = Enum.Font.Code
+			label.TextScaled = true
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.TextColor3 = row[3]
+			label.Text = row[2]
+			label.Parent = gui
+		end
+		gui.Parent = board
+	end
+	Util.deco(folder, V3(6.6, 0.3, 0.7), cf * CFrame.new(0, 1.35, 0), C(60, 62, 66), M.Metal)
+	local top = cf.Position.Y + 1.5
+	if ceilingY > top then
+		for _, x in ipairs({ -2.4, 2.4 }) do
+			local p = cf * CFrame.new(x, 0, 0)
+			Util.deco(folder, V3(0.15, ceilingY - top, 0.15), CFrame.new(p.X, (top + ceilingY) / 2, p.Z), Kit.DARK, M.Metal)
+		end
+	end
+	CollectionService:AddTag(board, "DepartureBoard")
+	return board
+end
+
+-- Railway signal on a mast: cf at the foot, Front facing approaching trains.
+-- Tagged "RailSignal"; shows green until the timetable drives it.
+function Kit.signal(folder, cf)
+	Util.solid(folder, V3(0.5, 7, 0.5), cf * CFrame.new(0, 3.5, 0), C(40, 40, 44), M.Metal)
+	local head = Util.solid(folder, V3(1.4, 3.4, 1), cf * CFrame.new(0, 7.6, 0), C(20, 20, 22), M.Metal)
+	CollectionService:AddTag(head, "RailSignal")
+	local lamps = { { "Red", 1, C(90, 20, 18) }, { "Green", -1, C(60, 255, 120) } }
+	for _, l in ipairs(lamps) do
+		local lamp = Util.deco(folder, V3(0.8, 0.8, 0.2), cf * CFrame.new(0, 7.6 + l[2] * 0.8, -0.55), l[3], l[1] == "Green" and M.Neon or M.SmoothPlastic)
+		lamp.Name = l[1]
+		lamp.CastShadow = false
+		lamp.Parent = head
+	end
+	Util.deco(folder, V3(1.8, 0.2, 0.6), cf * CFrame.new(0, 9.4, -0.4), C(20, 20, 22), M.Metal)
+end
+
 ---------------------------------------------------------------------------
 -- Passage: a straight tiled corridor with a ceiling, lights, ads and benches.
 -- alongX: runs along x from a0 to a1 at z = c (else along z at x = c).

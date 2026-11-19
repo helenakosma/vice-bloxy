@@ -28,11 +28,12 @@ local Front = Enum.NormalId.Front
 local LINE_X = 100
 local RAIL = -30 -- track bed underground
 local FLOOR_UP = 4 -- train floor above the track bed (= platform height)
-local TRACK = 10 -- track centres at LINE_X +- TRACK
-local HALF = 16 -- tunnel and station half-width
+local TRACK = 16 -- track centres at LINE_X +- TRACK
+local HALF = 25 -- tunnel and station half-width
+local PLAT_HALF = 11 -- island platform half-width
 local TUNNEL_TOP = 15 -- tunnel ceiling above the track bed
 local STATION_TOP = -14 -- station ceiling
-local STATION_HALF = 75 -- underground station half-length
+local STATION_HALF = 100 -- underground station half-length
 local CONCOURSE = -13 -- ticket hall, passages and entrance lobbies: floor
 local CONCOURSE_TOP = -1.5 -- ticket hall ceiling
 local PASSAGE_TOP = -2.5 -- passage and lobby ceiling
@@ -48,7 +49,7 @@ local STATIONS = {
 	{ name = "CENTRAL", z = 0, tile = Color3.fromRGB(190, 160, 200) },
 	{ name = "PORTLANDS", z = 925, elevated = true },
 }
-local LINE_START = STATIONS[1].z - STATION_HALF - 10
+local LINE_START = STATIONS[1].z - STATION_HALF - 40 -- tail tunnel past Finch
 local LINE_END = STATIONS[#STATIONS].z + PORT_HALF + 4
 
 local TTC_RED = Color3.fromRGB(206, 30, 40)
@@ -221,7 +222,7 @@ function Transit.layout(shared)
 	--    viaduct, high enough to clear the industrial north road.
 	local southZ = STATIONS[5].z + STATION_HALF
 	local northRoadZ = Layout.INDUSTRIAL_NORTH_Z
-	local lastUnder = southZ + 40
+	local lastUnder = southZ + 125
 	for _, c in ipairs(crossings(southZ, northRoadZ - 30)) do
 		lastUnder = math.max(lastUnder, c.z + c.pad + 2)
 	end
@@ -334,23 +335,26 @@ local function buildLine(folder)
 	local step = 20
 	local z = LINE_START
 	local n = 0
+	local BALLAST = Color3.fromRGB(70, 64, 58)
+	local SLEEPER = Color3.fromRGB(96, 92, 86)
+	local RAIL_STEEL = Color3.fromRGB(150, 150, 156)
 	while z < LINE_END - 0.1 do
 		local z2 = math.min(z + step, LINE_END)
 		local ya, yb = railAt(z), railAt(z2)
 		local a, b = V3(LINE_X, ya, z), V3(LINE_X, yb, z2)
+		local dir = (b - a).Unit
 		local midZ = (z + z2) / 2
 		local midY = (ya + yb) / 2
 		local station = inStation(midZ)
 		local elevated = math.min(ya, yb) >= 0
 		n = n + 1
 
-		-- Track bed, ballast and rails.
+		-- Track bed (viaduct deck with parapets and columns when elevated).
 		if elevated then
 			span(folder, a, b, HALF * 2 + 2, 1.6, -0.8, CONCRETE, M.Concrete, true)
 			for _, side in ipairs({ -1, 1 }) do
 				span(folder, a + V3(side * (HALF + 0.4), 0, 0), b + V3(side * (HALF + 0.4), 0, 0), 0.8, 3.6, 1.8, CONCRETE, M.Concrete, true)
 			end
-			-- Columns every few segments, not on roads.
 			if n % 2 == 0 then
 				for _, side in ipairs({ -1, 1 }) do
 					local cx = LINE_X + side * (HALF - 4)
@@ -366,31 +370,59 @@ local function buildLine(folder)
 		else
 			span(folder, a, b, HALF * 2, 1, -0.5, Color3.fromRGB(90, 88, 84), M.Concrete, true)
 		end
+
+		-- Each track: ballast, sleepers, two running rails and the power rail on
+		-- the outer side (with its yellow cover board).
+		local sleeperEvery = station and 4 or 20 / 3
 		for _, t in ipairs({ -TRACK, TRACK }) do
-			span(folder, a + V3(t, 0, 0), b + V3(t, 0, 0), 4.2, 0.3, 0.15, Color3.fromRGB(70, 64, 58), M.Slate, false)
+			span(folder, a + V3(t, 0, 0), b + V3(t, 0, 0), 6.5, 0.3, 0.15, BALLAST, M.Slate, false)
 			for _, r in ipairs({ -2.4, 2.4 }) do
-				span(folder, a + V3(t + r, 0, 0), b + V3(t + r, 0, 0), 0.35, 0.4, 0.45, Color3.fromRGB(150, 150, 156), M.Metal, false)
+				span(folder, a + V3(t + r, 0, 0), b + V3(t + r, 0, 0), 0.35, 0.4, 0.75, RAIL_STEEL, M.Metal, false)
+			end
+			local outer = t > 0 and 1 or -1
+			span(folder, a + V3(t + outer * 4, 0, 0), b + V3(t + outer * 4, 0, 0), 0.5, 0.5, 0.65, Color3.fromRGB(110, 110, 114), M.Metal, false)
+			span(folder, a + V3(t + outer * 4, 0, 0), b + V3(t + outer * 4, 0, 0), 1.1, 0.12, 1.0, Color3.fromRGB(214, 176, 60), M.SmoothPlastic, false)
+			local s = sleeperEvery / 2
+			while s < step do
+				local p = a + dir * s + V3(t, 0, 0)
+				local sleeper = Util.deco(folder, V3(6.6, 0.35, 0.9), CFrame.lookAt(p, p + dir) * CFrame.new(0, 0.45, 0), SLEEPER, M.Concrete)
+				sleeper.CastShadow = false
+				s = s + sleeperEvery
 			end
 		end
 
 		if not elevated and not station then
 			local covered = math.max(ya, yb) + TUNNEL_TOP <= -1
 			if covered then
-				-- Tunnel: walls, ceiling and wall lights.
+				local frame = CFrame.lookAt((a + b) / 2, b)
+				local len = (b - a).Magnitude + 0.2
 				for _, side in ipairs({ -1, 1 }) do
+					-- Walls, chamfered top corners, wall lamps.
 					local w = span(folder, a + V3(side * (HALF + 0.5), 0, 0), b + V3(side * (HALF + 0.5), 0, 0), 1, TUNNEL_TOP, TUNNEL_TOP / 2, CONCRETE, M.Concrete, true)
 					if w then
 						Util.texture(w, side < 0 and Enum.NormalId.Right or Enum.NormalId.Left, "concrete_stained", 14, 14)
 					end
+					Util.deco(folder, V3(5, 1, len), frame * CFrame.new(side * (HALF - 1.6), TUNNEL_TOP - 1.6, 0) * CFrame.Angles(0, 0, side * math.rad(45)), CONCRETE, M.Concrete)
 					if n % 2 == 0 then
-						local lamp = Util.deco(folder, V3(0.4, 0.6, 1.6), CFrame.new(LINE_X + side * HALF, midY + 10, midZ), Color3.fromRGB(255, 236, 200), M.Neon)
+						local lamp = Util.deco(folder, V3(0.4, 0.6, 1.6), CFrame.new(LINE_X + side * (HALF - 0.1), midY + 10.5, midZ), Color3.fromRGB(255, 236, 200), M.Neon)
 						lamp.CastShadow = false
+					end
+					-- Maintenance walkway along the wall, with a handrail.
+					span(folder, a + V3(side * (HALF - 1.75), 0, 0), b + V3(side * (HALF - 1.75), 0, 0), 3.5, 1.6, 0.8, Color3.fromRGB(120, 118, 112), M.Concrete, true)
+					span(folder, a + V3(side * (HALF - 3.4), 0, 0), b + V3(side * (HALF - 3.4), 0, 0), 0.15, 0.15, 5, Color3.fromRGB(230, 190, 40), M.Metal, false)
+					if n % 2 == 1 then
+						local post = a + dir * 2 + V3(side * (HALF - 3.4), 0, 0)
+						Util.deco(folder, V3(0.15, 3.4, 0.15), CFrame.new(post + V3(0, 3.3, 0)), Color3.fromRGB(230, 190, 40), M.Metal)
+					end
+					-- Cable trays.
+					for _, h in ipairs({ 8.5, 9.6 }) do
+						span(folder, a + V3(side * (HALF - 0.35), 0, 0), b + V3(side * (HALF - 0.35), 0, 0), 0.6, 0.25, h, Color3.fromRGB(46, 46, 50), M.Metal, false)
 					end
 				end
 				span(folder, a, b, HALF * 2 + 2, 1, TUNNEL_TOP + 0.5, CONCRETE, M.Concrete, true)
-				-- Centre columns between the tracks.
+				-- Columns between the tracks.
 				if n % 2 == 1 then
-					Util.solid(folder, V3(1.4, TUNNEL_TOP, 1.4), CFrame.new(LINE_X, midY + TUNNEL_TOP / 2, midZ), CONCRETE, M.Concrete)
+					Util.solid(folder, V3(2, TUNNEL_TOP, 2), CFrame.new(LINE_X, midY + TUNNEL_TOP / 2, midZ), CONCRETE, M.Concrete)
 				end
 			else
 				-- Open cut: retaining walls up to street level with a fence on top.
@@ -409,9 +441,11 @@ local function buildLine(folder)
 	for _, t in ipairs({ -TRACK, TRACK }) do
 		for _, info in ipairs({ { LINE_START + 2, railAt(LINE_START) }, { LINE_END - 2, railAt(LINE_END) } }) do
 			Util.solid(folder, V3(5, 3, 1.5), CFrame.new(LINE_X + t, info[2] + 1.5, info[1]), Color3.fromRGB(230, 190, 30), M.Metal)
+			local lamp = Util.deco(folder, V3(0.8, 0.8, 0.2), CFrame.new(LINE_X + t, info[2] + 3.4, info[1] + (info[1] < 0 and 0.85 or -0.85)), Color3.fromRGB(255, 40, 30), M.Neon)
+			lamp.CastShadow = false
 		end
 	end
-	-- End walls of the tunnel.
+	-- End wall of the tunnel.
 	Util.solid(folder, V3(HALF * 2 + 2, TUNNEL_TOP + 2, 1), CFrame.new(LINE_X, RAIL + TUNNEL_TOP / 2, LINE_START - 1), CONCRETE, M.Concrete)
 end
 
@@ -422,68 +456,153 @@ local function buildStation(folder, station, entrances)
 	local zc = station.z
 	local platformTop = RAIL + FLOOR_UP
 	local z0, z1 = zc - STATION_HALF, zc + STATION_HALF
+	local L = STATION_HALF * 2
 	local tile = station.tile
-
-	-- Walls with the station's tile colour and its name along them.
-	for _, side in ipairs({ -1, 1 }) do
-		local wall = Util.solid(folder, V3(1, STATION_TOP - RAIL, STATION_HALF * 2), CFrame.new(LINE_X + side * (HALF + 0.5), (RAIL + STATION_TOP) / 2, zc), tile, M.CeramicTiles)
-		wall.Name = "StationWall"
-		Util.deco(folder, V3(0.2, 1.2, STATION_HALF * 2), CFrame.new(LINE_X + side * HALF, platformTop + 9.5, zc), Util.shade(tile, 0.6), M.CeramicTiles)
-		for k = -2, 2 do
-			local face = side < 0 and math.rad(-90) or math.rad(90)
-			nameSign(folder, CFrame.new(LINE_X + side * (HALF - 0.1), platformTop + 6, zc + k * 28) * CFrame.Angles(0, face, 0), V3(16, 3, 0.1), station.name, Util.shade(tile, 1.1), Color3.fromRGB(20, 20, 24))
-			if k ~= 0 then
-				local poster = Util.deco(folder, V3(5, 7, 0.1), CFrame.new(LINE_X + side * (HALF - 0.1), platformTop + 4.5, zc + k * 28 + 12) * CFrame.Angles(0, face, 0), Color3.fromRGB(200, 60, 60), M.SmoothPlastic)
-				Util.decal(poster, Front, (k % 2 == 0) and "poster_cola" or "poster_radio")
-			end
-		end
-	end
-	-- Ceiling with light strips. Under the ticket hall its floor is the roof; a
-	-- lower finish layer hides it, open over the stairs up to the hall.
 	local cz0, cz1 = z0, z0 + HALL_LEN
 	local stairZ0, stairZ1 = z0 + 40, z0 + 64
-	local ceilY = STATION_TOP + 0.5
-	Util.solid(folder, V3(HALF * 2 + 2, 1, z1 - cz1), CFrame.new(LINE_X, ceilY, (cz1 + z1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
-	local finishY = STATION_TOP - 0.3
-	for _, side in ipairs({ -1, 1 }) do
-		Util.deco(folder, V3(HALF - 4.5, 0.4, cz1 - z0), CFrame.new(LINE_X + side * (4.5 + (HALF - 4.5) / 2), finishY, (z0 + cz1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
+	local function inStairs(z, pad)
+		return z > stairZ0 - pad and z < stairZ1 + pad
 	end
-	Util.deco(folder, V3(9, 0.4, stairZ0 - z0), CFrame.new(LINE_X, finishY, (z0 + stairZ0) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
-	Util.deco(folder, V3(9, 0.4, cz1 - stairZ1), CFrame.new(LINE_X, finishY, (stairZ1 + cz1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
-	for k = -3, 3 do
-		for _, x in ipairs({ -TRACK, 0, TRACK }) do
-			local sz = zc + k * 20
-			if not (x == 0 and sz + 7 > stairZ0 - 2 and sz - 7 < stairZ1 + 2) then
-				local strip = Util.deco(folder, V3(1.2, 0.2, 14), CFrame.new(LINE_X + x, finishY - 0.3, sz), Color3.fromRGB(250, 250, 255), M.Neon)
-				strip.CastShadow = false
-				if x == 0 and k % 2 == 0 then
-					light(strip, Enum.NormalId.Bottom, 18, 1.1)
+	local rng = Random.new(math.floor(zc) + 7)
+	local PAINT = Color3.fromRGB(226, 224, 218)
+	local bandTop = platformTop + 11 -- top of the tiled band on the track walls
+
+	-- Track walls: concrete below the platform level, the station's tiles with its
+	-- name and big ads in the band, paint above. Each wall faces one direction of
+	-- travel, so it carries that direction's header.
+	for _, side in ipairs({ -1, 1 }) do
+		local x = LINE_X + side * (HALF + 0.5)
+		Util.solid(folder, V3(1, FLOOR_UP, L), CFrame.new(x, RAIL + FLOOR_UP / 2, zc), CONCRETE, M.Concrete)
+		local band = Util.solid(folder, V3(1, bandTop - platformTop, L), CFrame.new(x, (platformTop + bandTop) / 2, zc), tile, M.CeramicTiles)
+		band.Name = "StationWall"
+		Util.solid(folder, V3(1, STATION_TOP - bandTop, L), CFrame.new(x, (bandTop + STATION_TOP) / 2, zc), PAINT, M.SmoothPlastic)
+		local inner = LINE_X + side * HALF
+		Util.deco(folder, V3(0.2, 0.5, L), CFrame.new(inner - side * 0.1, bandTop, zc), Util.shade(tile, 0.55), M.SmoothPlastic)
+		local facing = V3(-side, 0, 0)
+		local header = side > 0 and "LINE 1  ·  NORTHBOUND  ▸  FINCH" or "LINE 1  ·  SOUTHBOUND  ▸  PORTLANDS"
+		for k = -2, 2 do
+			local nz = zc + k * 40
+			local p = V3(inner - side * 0.06, platformTop + 6.5, nz)
+			nameSign(folder, CFrame.lookAt(p, p + facing), V3(20, 3.6, 0.1), station.name, Util.shade(tile, 1.18), Color3.fromRGB(20, 20, 24))
+			local h = V3(inner - side * 0.06, bandTop + 1.4, nz)
+			nameSign(folder, CFrame.lookAt(h, h + facing), V3(22, 1.5, 0.1), header, Color3.fromRGB(22, 22, 26))
+			if k < 2 then
+				local ap = V3(inner - side * 0.05, platformTop + 6.5, nz + 20)
+				if k == 0 then
+					Kit.mapBoard(folder, CFrame.lookAt(ap, ap + facing), 13, 6.4, "LINE 1 YONGE", { "FINCH", "QUEEN", "UNION", "HARBOUR", "CENTRAL", "PORTLANDS" }, station.name)
+				else
+					Kit.adPanel(folder, CFrame.lookAt(ap, ap + facing), 13, 6.4, rng)
 				end
 			end
 		end
 	end
-	-- Island platform with a yellow edge, columns, benches and signs.
-	Util.solid(folder, V3(12, platformTop - RAIL + 1, STATION_HALF * 2 - 4), CFrame.new(LINE_X, (RAIL - 1 + platformTop) / 2, zc), Color3.fromRGB(190, 186, 178), M.Concrete)
+
+	-- Ceiling. Under the ticket hall its floor is the roof; a lower finish layer
+	-- hides it, open over the stairs up to the hall. Beams across, light rows over
+	-- the platform edges and dimmer ones over the tracks.
+	local ceilY = STATION_TOP + 0.5
+	local CEIL = Color3.fromRGB(226, 226, 222)
+	Util.solid(folder, V3(HALF * 2 + 2, 1, z1 - cz1), CFrame.new(LINE_X, ceilY, (cz1 + z1) / 2), CEIL, M.SmoothPlastic)
+	local finishY = STATION_TOP - 0.3
 	for _, side in ipairs({ -1, 1 }) do
-		Util.deco(folder, V3(1.8, 0.06, STATION_HALF * 2 - 4), CFrame.new(LINE_X + side * 5.1, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
+		Util.deco(folder, V3(HALF - 4.5, 0.4, cz1 - z0), CFrame.new(LINE_X + side * (4.5 + (HALF - 4.5) / 2), finishY, (z0 + cz1) / 2), CEIL, M.SmoothPlastic)
 	end
-	for k = -3, 3 do
-		local cz = zc + k * 18 + 9
-		if cz < stairZ0 - 2 or cz > stairZ1 + 4 then -- keep the stairs clear
-			Util.solid(folder, V3(1.6, STATION_TOP - platformTop, 1.6), CFrame.new(LINE_X, (platformTop + STATION_TOP) / 2, zc + k * 18 + 9), Util.shade(tile, 0.85), M.CeramicTiles)
-		end
-		local bz = zc + k * 18
-		if k % 2 == 0 and (bz < stairZ0 - 4 or bz > stairZ1 + 4) then
-			Util.solid(folder, V3(1.6, 1.6, 6), CFrame.new(LINE_X + 2.6, platformTop + 0.8, bz), Color3.fromRGB(120, 86, 56), M.Wood)
+	Util.deco(folder, V3(9, 0.4, stairZ0 - z0), CFrame.new(LINE_X, finishY, (z0 + stairZ0) / 2), CEIL, M.SmoothPlastic)
+	Util.deco(folder, V3(9, 0.4, cz1 - stairZ1), CFrame.new(LINE_X, finishY, (stairZ1 + cz1) / 2), CEIL, M.SmoothPlastic)
+	for z = z0 + 10, z1 - 5, 20 do
+		if not inStairs(z, 2) then
+			Util.deco(folder, V3(HALF * 2, 1.2, 1.4), CFrame.new(LINE_X, finishY - 0.8, z), Color3.fromRGB(200, 200, 196), M.Concrete)
 		end
 	end
-	for _, z in ipairs({ zc - 6, zc + 34 }) do
-		local hang = nameSign(folder, CFrame.new(LINE_X, STATION_TOP - 2.2, z), V3(10, 1.6, 0.2), "▲ FINCH   ·   PORTLANDS ▼", Color3.fromRGB(20, 20, 24), Color3.fromRGB(255, 255, 255))
-		Util.sign(hang, Enum.NormalId.Back, "▲ FINCH   ·   PORTLANDS ▼", Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack).LightInfluence = 0.2
+	local lit = 0
+	for z = z0 + 5, z1 - 5, 20 do
+		for _, x in ipairs({ -8.5, 8.5, -18, 18 }) do
+			local overTrack = math.abs(x) > 12
+			local strip = Util.deco(folder, V3(1.2, 0.2, 14), CFrame.new(LINE_X + x, finishY - 0.3, z + 5), overTrack and Color3.fromRGB(220, 222, 230) or Color3.fromRGB(255, 252, 244), M.Neon)
+			strip.CastShadow = false
+			if not overTrack then
+				lit = lit + 1
+				if lit % 2 == 0 then
+					light(strip, Enum.NormalId.Bottom, 20, 1.1, Color3.fromRGB(255, 246, 232))
+				end
+			end
+		end
+	end
+
+	-- Island platform: granite floor, white edge coping, yellow tactile strip.
+	Util.solid(folder, V3(PLAT_HALF * 2, FLOOR_UP + 1, L - 4), CFrame.new(LINE_X, (RAIL - 1 + platformTop) / 2, zc), Color3.fromRGB(176, 174, 168), M.Granite)
+	for _, side in ipairs({ -1, 1 }) do
+		Util.deco(folder, V3(0.8, 0.08, L - 4), CFrame.new(LINE_X + side * (PLAT_HALF - 0.4), platformTop + 0.04, zc), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
+		Util.deco(folder, V3(2, 0.08, L - 4), CFrame.new(LINE_X + side * (PLAT_HALF - 1.8), platformTop + 0.04, zc), Color3.fromRGB(250, 204, 30), M.Pebble)
+		-- Dark recess under the platform edge.
+		Util.deco(folder, V3(0.6, FLOOR_UP - 0.6, L - 4), CFrame.new(LINE_X + side * (PLAT_HALF + 0.05), RAIL + (FLOOR_UP - 0.6) / 2, zc), Color3.fromRGB(30, 30, 32), M.Concrete)
+	end
+
+	-- Columns in two rows, with name plates, maps, emergency points and clocks.
+	local colIndex = 0
+	for z = z0 + 12, z1 - 8, 20 do
+		if not inStairs(z, 3) then
+			for _, side in ipairs({ -1, 1 }) do
+				colIndex = colIndex + 1
+				local x = LINE_X + side * 6.5
+				Util.solid(folder, V3(1.8, STATION_TOP - platformTop, 1.8), CFrame.new(x, (platformTop + STATION_TOP) / 2, z), Color3.fromRGB(150, 152, 156), M.Metal)
+				Util.solid(folder, V3(2.2, 3.2, 2.2), CFrame.new(x, platformTop + 1.6, z), tile, M.CeramicTiles)
+				local out = V3(side, 0, 0)
+				local plate = V3(x + side * 0.95, platformTop + 7.5, z)
+				nameSign(folder, CFrame.lookAt(plate, plate + out), V3(1.7, 1, 0.1), station.name, Color3.fromRGB(22, 22, 26))
+				local inside = V3(x - side * 0.95, platformTop + 5, z)
+				if colIndex % 4 == 3 then
+					Kit.emergency(folder, CFrame.lookAt(inside + V3(0, -1, 0), inside + V3(0, -1, 0) - out))
+				end
+			end
+		end
+	end
+	-- Benches back to back down the middle, bins, clocks.
+	local benchIndex = 0
+	for z = z0 + 22, z1 - 12, 20 do
+		if not inStairs(z, 6) then
+			benchIndex = benchIndex + 1
+			for _, side in ipairs({ -1, 1 }) do
+				local p = V3(LINE_X + side * 1, platformTop, z)
+				Kit.bench(folder, CFrame.lookAt(p, p + V3(side, 0, 0)) * CFrame.Angles(0, 0, 0))
+			end
+			if benchIndex % 2 == 0 then
+				Kit.bin(folder, CFrame.lookAt(V3(LINE_X, platformTop, z + 5), V3(LINE_X + 1, platformTop, z + 5)))
+			end
+		end
+	end
+	for _, z in ipairs({ z0 + 30, z1 - 30 }) do
+		local p = V3(LINE_X, STATION_TOP - 3, z)
+		Util.deco(folder, V3(0.15, 2.4, 0.15), CFrame.new(LINE_X, STATION_TOP - 1.5, z), DARK, M.Metal)
+		Kit.clock(folder, CFrame.lookAt(p, p + V3(0, 0, 1)))
+		Kit.clock(folder, CFrame.lookAt(p, p - V3(0, 0, 1)))
+	end
+
+	-- Departure boards over each side of the platform (filled in by the timetable).
+	for _, z in ipairs({ z0 + 90, zc + 25, z1 - 20 }) do
+		for _, side in ipairs({ -1, 1 }) do
+			Kit.departureBoard(folder, CFrame.new(LINE_X + side * 8, STATION_TOP - 4.2, z), station.name, side > 0 and "N" or "S", STATION_TOP - 0.5)
+		end
+	end
+
+	-- Platform ends: railings and a no-entry sign.
+	for _, info in ipairs({ { z0 + 2, 1 }, { z1 - 2, -1 } }) do
+		local z = info[1] + info[2] * 0.2
+		Util.solid(folder, V3(PLAT_HALF * 2, 3.6, 0.3), CFrame.new(LINE_X, platformTop + 1.8, z), Color3.fromRGB(230, 190, 40), M.Metal)
+		local p = V3(LINE_X, platformTop + 2.2, z + info[2] * 0.2)
+		local sign = Util.deco(folder, V3(10, 1.4, 0.1), CFrame.lookAt(p, p + V3(0, 0, info[2])), Color3.fromRGB(20, 20, 20), M.SmoothPlastic)
+		Util.sign(sign, Front, "NO ENTRY · AUTHORIZED PERSONNEL", Color3.fromRGB(250, 204, 30), Enum.Font.GothamBold).LightInfluence = 0.3
+	end
+
+	-- Signals at the platform ends, on the walkway side of each track.
+	for _, side in ipairs({ -1, 1 }) do
+		-- Northbound (east, +x) trains leave from the north end; southbound from the south.
+		local z = side > 0 and (z0 - 8) or (z1 + 8)
+		local facing = side > 0 and V3(0, 0, 1) or V3(0, 0, -1)
+		Kit.signal(folder, CFrame.lookAt(V3(LINE_X + side * (TRACK + 6), RAIL, z), V3(LINE_X + side * (TRACK + 6), RAIL, z) + facing))
 	end
 
 	-- Ticket hall, passages and street entrances (StationKit).
-	local rng = Random.new(math.floor(zc) + 7)
 	local gaps = { [-1] = {}, [1] = {} }
 	local north = {}
 	for _, e in ipairs(entrances) do
@@ -535,23 +654,40 @@ end
 local function buildElevatedStation(folder, station)
 	local zc = station.z
 	local platformTop = ELEVATED + FLOOR_UP
-	Util.solid(folder, V3(12, FLOOR_UP + 1, PORT_HALF * 2 - 2), CFrame.new(LINE_X, ELEVATED + (FLOOR_UP - 1) / 2, zc), Color3.fromRGB(190, 186, 178), M.Concrete)
+	local L = PORT_HALF * 2 - 2
+	local rng = Random.new(math.floor(zc) + 11)
+	Util.solid(folder, V3(PLAT_HALF * 2, FLOOR_UP + 1, L), CFrame.new(LINE_X, ELEVATED + (FLOOR_UP - 1) / 2, zc), Color3.fromRGB(176, 174, 168), M.Granite)
 	for _, side in ipairs({ -1, 1 }) do
-		Util.deco(folder, V3(1.8, 0.06, PORT_HALF * 2 - 2), CFrame.new(LINE_X + side * 5.1, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
+		Util.deco(folder, V3(0.8, 0.08, L), CFrame.new(LINE_X + side * (PLAT_HALF - 0.4), platformTop + 0.04, zc), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
+		Util.deco(folder, V3(2, 0.08, L), CFrame.new(LINE_X + side * (PLAT_HALF - 1.8), platformTop + 0.04, zc), Color3.fromRGB(250, 204, 30), M.Pebble)
 	end
-	-- Canopy on columns.
+	-- Canopy on two rows of columns.
 	for k = -3, 3 do
-		Util.solid(folder, V3(1.2, 12, 1.2), CFrame.new(LINE_X, platformTop + 6, zc + k * 16), DARK, M.Metal)
+		for _, side in ipairs({ -1, 1 }) do
+			Util.solid(folder, V3(1.2, 12, 1.2), CFrame.new(LINE_X + side * 6.5, platformTop + 6, zc + k * 16), DARK, M.Metal)
+		end
 	end
 	local canopy = Util.solid(folder, V3(HALF * 2 + 4, 0.8, PORT_HALF * 2), CFrame.new(LINE_X, platformTop + 12.4, zc), Color3.fromRGB(200, 214, 220), M.Glass)
 	canopy.Transparency = 0.35
 	for k = -2, 2 do
-		local strip = Util.deco(folder, V3(1, 0.2, 12), CFrame.new(LINE_X, platformTop + 11.8, zc + k * 22), Color3.fromRGB(250, 250, 255), M.Neon)
-		light(strip, Enum.NormalId.Bottom, 16, 1)
+		for _, side in ipairs({ -1, 1 }) do
+			local strip = Util.deco(folder, V3(1, 0.2, 12), CFrame.new(LINE_X + side * 8.5, platformTop + 11.8, zc + k * 22), Color3.fromRGB(250, 250, 255), M.Neon)
+			if k % 2 == 0 then
+				light(strip, Enum.NormalId.Bottom, 16, 1)
+			end
+		end
 	end
 	for _, z in ipairs({ zc - 40, zc, zc + 40 }) do
 		nameSign(folder, CFrame.new(LINE_X, platformTop + 9, z), V3(12, 2, 0.3), station.name, TTC_RED)
-		Util.solid(folder, V3(1.6, 1.6, 6), CFrame.new(LINE_X - 2.6, platformTop + 0.8, z + 8), Color3.fromRGB(120, 86, 56), M.Wood)
+		for _, side in ipairs({ -1, 1 }) do
+			local p = V3(LINE_X + side * 1, platformTop, z + 8)
+			Kit.bench(folder, CFrame.lookAt(p, p + V3(side, 0, 0)))
+		end
+	end
+	for _, side in ipairs({ -1, 1 }) do
+		Kit.departureBoard(folder, CFrame.new(LINE_X + side * 8, platformTop + 8.5, zc - 20), station.name, side > 0 and "N" or "S", platformTop + 12)
+		local ap = V3(LINE_X + side * 6.5 - side * 0.7, platformTop + 4.5, zc + 24)
+		Kit.adPanel(folder, CFrame.lookAt(ap, ap - V3(side, 0, 0)), 1.2, 4, rng)
 	end
 	-- Stairs from the platform's south end down to the street.
 	local top = V3(LINE_X, platformTop, zc + PORT_HALF - 1)
@@ -560,6 +696,11 @@ local function buildElevatedStation(folder, station)
 	for _, side in ipairs({ -1, 1 }) do
 		span(folder, top + V3(side * 3.6, -4, 0), bottom + V3(side * 3.6, 0, 0), 0.8, 8, 0, CONCRETE, M.Concrete, true)
 	end
+	-- The platform end: railings either side of the stairs.
+	for _, side in ipairs({ -1, 1 }) do
+		Util.solid(folder, V3(PLAT_HALF - 3.4, 3.6, 0.3), CFrame.new(LINE_X + side * (3.4 + (PLAT_HALF - 3.4) / 2), platformTop + 1.8, zc + PORT_HALF - 1.2), Color3.fromRGB(230, 190, 40), M.Metal)
+	end
+	Util.solid(folder, V3(PLAT_HALF * 2, 3.6, 0.3), CFrame.new(LINE_X, platformTop + 1.8, zc - PORT_HALF + 1.2), Color3.fromRGB(230, 190, 40), M.Metal)
 	local streetSign = nameSign(folder, CFrame.new(LINE_X, Util.WALK_TOP + 9, zc + PORT_HALF + 24) * CFrame.Angles(0, math.rad(180), 0), V3(10, 2.4, 0.3), "SUBWAY", TTC_RED)
 	marker(streetSign, "🚇 " .. station.name, TTC_RED)
 end
