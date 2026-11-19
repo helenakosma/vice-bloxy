@@ -226,6 +226,7 @@ function Cars.spawn(cframe, options)
 	prompt.Parent = doorOutside
 
 	CollectionService:AddTag(model, "Car")
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic -- stream the whole car at once
 	model.Parent = options.parent or Workspace
 	pcall(function()
 		chassis:SetNetworkOwner(nil)
@@ -312,6 +313,7 @@ function Cars.spawnParked(cframe, parent, rng)
 	end
 	chassis.CanCollide = true
 	chassis.CanQuery = true
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 	model.Parent = parent
 	return model
 end

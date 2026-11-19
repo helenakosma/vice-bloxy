@@ -148,13 +148,33 @@ end
 -- Part factories. Parts are fully configured before parenting (much faster).
 ---------------------------------------------------------------------------
 local created = 0
+local currentDistrict = "Shared"
+Util.partCounts = {} -- district name -> parts created
+Util.districtOrder = {}
 
--- Yields now and then so building thousands of parts never trips the script timeout.
-function Util.tick()
-	created = created + 1
-	if created % 600 == 0 then
+-- Parts created after this call are counted toward `name`.
+function Util.beginDistrict(name)
+	currentDistrict = name
+	if not Util.partCounts[name] then
+		Util.partCounts[name] = 0
+		table.insert(Util.districtOrder, name)
+	end
+end
+Util.beginDistrict("Shared")
+
+-- Counts a created part (or model piece built elsewhere, e.g. parked cars) and
+-- yields now and then so building thousands of parts never trips the script timeout.
+function Util.tick(amount)
+	amount = amount or 1
+	created = created + amount
+	Util.partCounts[currentDistrict] = Util.partCounts[currentDistrict] + amount
+	if created % 600 < amount then
 		task.wait()
 	end
+end
+
+function Util.totalParts()
+	return created
 end
 
 local function makePart(parent, size, cf, color, material, collide, shape)

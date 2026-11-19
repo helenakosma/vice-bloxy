@@ -14,10 +14,6 @@ local function onSidewalk(p)
 	return Util.get(p.X, p.Y) == Util.WALK
 end
 
-local function to3(p, y)
-	return V3(p.X, y, p.Y)
-end
-
 ---------------------------------------------------------------------------
 -- Streetlights
 ---------------------------------------------------------------------------
@@ -253,7 +249,8 @@ function Props.placeParkedCars(folder, rng, Cars)
 				if ok then
 					-- Facing with traffic on that side (drive on the right).
 					local facing = side == 1 and dir or dir * -1
-					Cars.spawnParked(Util.groundCF(p, facing, 0.3), folder, rng)
+					local car = Cars.spawnParked(Util.groundCF(p, facing, 0.3), folder, rng)
+					Util.tick(#car:GetChildren())
 					count = count + 1
 				end
 			end

@@ -1,18 +1,26 @@
--- Builds the city: roads, buildings, shops, props, park and river.
--- Returns spawn points for players and cars.
+-- Builds the city district by district and returns spawn points for players and cars.
+--
+-- Each district is a module in World/Districts with:
+--   name    : folder name under Workspace.City
+--   bounds  : { minX, maxX, minZ, maxZ } in studs (north is -Z)
+--   budget  : part budget; going over prints a warning
+--   build(ctx) -> { carSpawns = {...}, jobCFrame = CFrame? }
+-- ctx gives the district its folder, a seeded Random, the Cars module and helpers.
 local Workspace = game:GetService("Workspace")
 
 local Util = require(script.Util)
-local Roads = require(script.Roads)
-local Buildings = require(script.Buildings)
-local Props = require(script.Props)
 local Atmosphere = require(script.Atmosphere)
 
 local World = {}
 
 local SEED = 1986
 
-local function folder(parent, name)
+-- Build order matters: later districts can rely on roads from earlier ones.
+local DISTRICTS = {
+	require(script.Districts.Downtown),
+}
+
+local function makeFolder(parent, name)
 	local f = Instance.new("Folder")
 	f.Name = name
 	f.Parent = parent
@@ -27,66 +35,64 @@ function World.build(Cars)
 	end
 	Atmosphere.apply()
 
-	local root = folder(Workspace, "City")
-	local rng = Random.new(SEED)
+	local root = makeFolder(Workspace, "City")
+	local shared = makeFolder(root, "Shared")
 
 	-- Ground first, so early joiners have something to stand on.
+	Util.beginDistrict("Shared")
 	local width = Util.RIVER_X - Util.MIN_X + 40
-	Util.solid(root, Vector3.new(width, 2, Util.MAX_Z - Util.MIN_Z + 40), CFrame.new(Util.MIN_X - 20 + width / 2, -1, 0), Color3.fromRGB(96, 93, 88), Enum.Material.Concrete)
-	local outer = Util.deco(root, Vector3.new(2000, 2, 2000), CFrame.new(0, -1.2, 0), Color3.fromRGB(80, 78, 74), Enum.Material.Concrete)
+	Util.solid(shared, Vector3.new(width, 2, Util.MAX_Z - Util.MIN_Z + 40), CFrame.new(Util.MIN_X - 20 + width / 2, -1, 0), Color3.fromRGB(96, 93, 88), Enum.Material.Concrete)
+	local outer = Util.deco(shared, Vector3.new(2000, 2, 2000), CFrame.new(0, -1.2, 0), Color3.fromRGB(80, 78, 74), Enum.Material.Concrete)
 	outer.CastShadow = false
 
-	-- Roads and the occupancy grid.
-	Roads.generate(rng)
-	local park = Roads.PARK
-	Util.markRect(park.minX, park.maxX, park.minZ, park.maxZ, Util.PARK)
-	Util.markRect(Util.RIVER_X - 10, Util.MAX_X, Util.MIN_Z, Util.MAX_Z, Util.WATER)
-	Roads.rasterize()
+	local spawnCF = nil
+	local function setSpawn(cframe)
+		if spawnCF then
+			return -- the first district to offer a spawn keeps it
+		end
+		spawnCF = cframe
+		local spawn = Instance.new("SpawnLocation")
+		spawn.Name = "Spawn"
+		spawn.Anchored = true
+		spawn.Size = Vector3.new(6, 1, 6)
+		spawn.CFrame = cframe
+		spawn.Transparency = 1
+		spawn.CanCollide = false
+		spawn.Neutral = true
+		spawn.Duration = 0
+		spawn.Parent = Workspace
+	end
 
-	-- Player spawn: sidewalk of the central avenue.
-	local spawnCF = CFrame.new(40, 1, 0)
-	for _, road in ipairs(Roads.list) do
-		if road.kind == "avenue" and math.abs(road.points[1].X - 20) < 40 then
-			for i = 1, #road.points - 1 do
-				local a, b = road.points[i], road.points[i + 1]
-				if a.Y <= 0 and b.Y >= 0 then
-					local dir = (b - a).Unit
-					local normal = Vector2.new(-dir.Y, dir.X)
-					local mid = a:Lerp(b, (0 - a.Y) / (b.Y - a.Y))
-					local p = mid + normal * (road.width / 2 + road.walk / 2)
-					spawnCF = Util.groundCF(p, dir, 1)
-					World.spawnRoad = { point = mid, dir = dir, normal = normal, width = road.width }
-				end
-			end
+	local info = { carSpawns = {}, jobCFrame = nil }
+	for i, district in ipairs(DISTRICTS) do
+		Util.beginDistrict(district.name)
+		local folder = makeFolder(root, district.name)
+		local started = os.clock()
+		local result = district.build({
+			folder = folder,
+			rng = Random.new(SEED + (i - 1) * 1000),
+			Cars = Cars,
+			makeFolder = makeFolder,
+			setSpawn = setSpawn,
+		}) or {}
+		for _, carSpawn in ipairs(result.carSpawns or {}) do
+			table.insert(info.carSpawns, carSpawn)
+		end
+		info.jobCFrame = info.jobCFrame or result.jobCFrame
+
+		local count = Util.partCounts[district.name]
+		folder:SetAttribute("PartCount", count)
+		folder:SetAttribute("PartBudget", district.budget)
+		print(string.format("[World] %s: %d parts (budget %d) in %.1fs", district.name, count, district.budget, os.clock() - started))
+		if district.budget and count > district.budget then
+			warn(string.format("[World] %s is over its part budget by %d", district.name, count - district.budget))
 		end
 	end
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = "Spawn"
-	spawn.Anchored = true
-	spawn.Size = Vector3.new(6, 1, 6)
-	spawn.CFrame = spawnCF
-	spawn.Transparency = 1
-	spawn.CanCollide = false
-	spawn.Neutral = true
-	spawn.Duration = 0
-	spawn.Parent = Workspace
 
-	Roads.render(folder(root, "Roads"))
-	Props.buildPark(folder(root, "Park"), rng)
-	Props.buildRiver(folder(root, "River"))
-
-	local buildings = folder(root, "Buildings")
-	local placed = Buildings.placeFrontage(buildings, Roads.list, rng)
-	local filled = Buildings.fillGaps(buildings, rng)
-	Buildings.background(folder(root, "Skyline"), rng)
-
-	Props.placeStreetFurniture(folder(root, "Street"), rng)
-	Props.startSignals()
-	local parked = Props.placeParkedCars(folder(root, "ParkedCars"), rng, Cars)
-
-	-- Invisible boundary walls.
+	-- Invisible boundary walls around the playable area.
+	Util.beginDistrict("Shared")
 	local function wall(size, pos)
-		local p = Util.solid(root, size, CFrame.new(pos), Color3.new(), Enum.Material.SmoothPlastic)
+		local p = Util.solid(shared, size, CFrame.new(pos), Color3.new(), Enum.Material.SmoothPlastic)
 		p.Transparency = 1
 	end
 	local h = 120
@@ -96,31 +102,12 @@ function World.build(Cars)
 	wall(Vector3.new(spanX, h, 2), Vector3.new(Util.MIN_X + spanX / 2, h / 2, Util.MAX_Z + 4))
 	wall(Vector3.new(spanX, h, 2), Vector3.new(Util.MIN_X + spanX / 2, h / 2, Util.MIN_Z - 4))
 
-	print(string.format("[World] %d frontage buildings, %d filler, %d parked cars", placed, filled, parked))
+	root:SetAttribute("PartCount", Util.totalParts())
+	print(string.format("[World] Total: %d parts", Util.totalParts()))
 
-	-- Driveable car spawns: a few by the player spawn plus some around the city.
-	local carSpawns = {}
-	local s = World.spawnRoad
-	if s then
-		for i = 0, 2 do
-			local p = s.point + s.dir * (20 + i * 18) + s.normal * (s.width / 2 - 5)
-			table.insert(carSpawns, { cframe = Util.groundCF(p, s.dir, 0.3), taxi = i == 1 })
-		end
-	end
-	Roads.eachSegment(function(road, a, _, dir, normal, length)
-		if #carSpawns < 16 and road.kind == "avenue" and length > 60 and rng:NextNumber() < 0.08 then
-			local p = a + dir * (length / 2) + normal * (road.width / 2 - 5)
-			if not Util.isJunction(p.X, p.Y) then
-				table.insert(carSpawns, { cframe = Util.groundCF(p, dir, 0.3), taxi = rng:NextNumber() < 0.3 })
-			end
-		end
-	end)
-
-	return {
-		spawnCFrame = spawnCF,
-		carSpawns = carSpawns,
-		jobCFrame = spawnCF * CFrame.new(0, -0.75, 14),
-	}
+	info.spawnCFrame = spawnCF or CFrame.new(0, 5, 0)
+	info.jobCFrame = info.jobCFrame or info.spawnCFrame * CFrame.new(0, -0.75, 14)
+	return info
 end
 
 return World
