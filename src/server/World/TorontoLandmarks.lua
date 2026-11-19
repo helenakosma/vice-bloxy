@@ -237,33 +237,12 @@ end
 ---------------------------------------------------------------------------
 -- Streetcar line
 ---------------------------------------------------------------------------
-local RED = Color3.fromRGB(200, 30, 36)
 
-local function streetcar(folder, pos, dir)
-	local base = Util.groundCF(pos, dir, Util.ROAD_TOP)
-	Util.solid(folder, V3(8, 4.5, 44), base * CFrame.new(0, 3, 0), RED, M.SmoothPlastic)
-	Util.solid(folder, V3(8, 4, 44), base * CFrame.new(0, 7.2, 0), Color3.fromRGB(236, 236, 230), M.SmoothPlastic)
-	local windows = Util.deco(folder, V3(8.1, 2.6, 40), base * CFrame.new(0, 7.4, 0), Color3.fromRGB(34, 40, 48), M.Glass)
-	windows.Reflectance = 0.3
-	Util.nightWindow(windows, 1)
-	Util.deco(folder, V3(7.6, 0.6, 43), base * CFrame.new(0, 9.5, 0), Color3.fromRGB(80, 80, 80), M.Metal)
-	Util.deco(folder, V3(3, 1, 6), base * CFrame.new(0, 10.3, 2), Color3.fromRGB(60, 60, 60), M.Metal)
-	local a = (base * CFrame.new(0, 10.8, 2)).Position
-	local b = (base * CFrame.new(0, 16.2, -6)).Position
-	Util.beam(folder, a, b, 0.25, Color3.fromRGB(30, 30, 30), M.Metal)
-	for _, z in ipairs({ -22.1, 22.1 }) do
-		local front = Util.deco(folder, V3(5, 1, 0.2), base * CFrame.new(0, 9.1, z), Color3.fromRGB(20, 20, 20), M.SmoothPlastic)
-		Util.sign(front, z < 0 and Front or Enum.NormalId.Back, "504 KING", Color3.fromRGB(255, 200, 60), Enum.Font.Code).LightInfluence = 0
-		Util.deco(folder, V3(1, 0.6, 0.2), base * CFrame.new(-2.8, 3.4, z), Color3.fromRGB(255, 246, 220), M.Neon)
-		Util.deco(folder, V3(1, 0.6, 0.2), base * CFrame.new(2.8, 3.4, z), Color3.fromRGB(255, 246, 220), M.Neon)
-	end
-end
-
--- Tracks, overhead wires and a few streetcars along a road (in its inner lanes).
-function TorontoLandmarks.streetcarLine(folder, road, rng)
+-- Tracks, overhead wires and span poles along a road (in its inner lanes). The
+-- streetcars themselves run on it from Transit.lua.
+function TorontoLandmarks.streetcarLine(folder, road)
 	local laneOffset = road.width / 8
 	local steel = Color3.fromRGB(140, 140, 146)
-	local placed = 0
 	for i = 1, #road.points - 1 do
 		local a, b = road.points[i], road.points[i + 1]
 		local delta = b - a
@@ -289,15 +268,6 @@ function TorontoLandmarks.streetcarLine(folder, road, rng)
 			local span1 = mid - normal * (road.width / 2 + 1.2)
 			local span2 = mid + normal * (road.width / 2 + 1.2)
 			Util.beam(folder, V3(span1.X, 17.6, span1.Y), V3(span2.X, 17.6, span2.Y), 0.12, Color3.fromRGB(20, 20, 20), M.Metal)
-			-- Streetcars on some segments, away from intersections.
-			if placed < 4 and length > 70 and rng:NextNumber() < 0.35 then
-				local lane = rng:NextNumber() < 0.5 and -1 or 1
-				local p = mid + normal * lane * laneOffset
-				if not Util.isJunction(p.X, p.Y) then
-					streetcar(folder, p, lane == 1 and dir or -dir)
-					placed = placed + 1
-				end
-			end
 		end
 	end
 end

@@ -33,6 +33,8 @@ local IDS = {
 	-- Billboards
 	billboard_phone = 118486983548512,
 	billboard_burger = 91739838983443,
+	-- Night
+	night_windows = 0,
 }
 
 local Assets = {}

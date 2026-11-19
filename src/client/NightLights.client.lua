@@ -3,15 +3,22 @@
 -- glowing lit-room colour (mostly warm, some cool white, the odd TV blue).
 -- Each window remembers its daytime look so it can switch back at dawn.
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
+local Assets = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Assets"))
+local WINDOW_GRID = Assets.get("night_windows")
+
+-- Kept fairly dim: Neon glows with its colour's brightness, so softer colours
+-- read as lit rooms instead of glowing slabs.
 local WARM = {
-	Color3.fromRGB(255, 214, 150),
-	Color3.fromRGB(255, 196, 128),
-	Color3.fromRGB(255, 226, 176),
-	Color3.fromRGB(240, 236, 220),
-	Color3.fromRGB(150, 180, 255),
+	Color3.fromRGB(196, 150, 92),
+	Color3.fromRGB(184, 136, 80),
+	Color3.fromRGB(206, 168, 112),
+	Color3.fromRGB(176, 172, 160),
+	Color3.fromRGB(96, 118, 176),
 }
+local FACES = { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right }
 
 local saved = {} -- part -> daytime look
 
@@ -37,7 +44,22 @@ local function setLit(part, lit)
 					child.Transparency = 1
 				end
 			end
-			saved[part] = { material = part.Material, color = part.Color, reflectance = part.Reflectance, decals = decals }
+			-- Wide floor bands get a window grid so they read as separate windows.
+			local grids = {}
+			local wide = math.max(part.Size.X, part.Size.Z) > 12
+			if WINDOW_GRID and wide then
+				for _, face in ipairs(FACES) do
+					local t = Instance.new("Texture")
+					t.Texture = WINDOW_GRID
+					t.Face = face
+					t.StudsPerTileU = 40
+					t.StudsPerTileV = part.Size.Y
+					t.OffsetStudsU = (part.Position.X + part.Position.Z) % 40
+					t.Parent = part
+					table.insert(grids, t)
+				end
+			end
+			saved[part] = { material = part.Material, color = part.Color, reflectance = part.Reflectance, decals = decals, grids = grids }
 		end
 		part.Material = Enum.Material.Neon
 		part.Color = lightColour(part)
@@ -52,6 +74,9 @@ local function setLit(part, lit)
 				if decal.Parent then
 					decal.Transparency = transparency
 				end
+			end
+			for _, grid in ipairs(look.grids) do
+				grid:Destroy()
 			end
 			saved[part] = nil
 		end

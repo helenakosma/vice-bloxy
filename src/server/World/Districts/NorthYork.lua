@@ -244,7 +244,7 @@ function NorthYork.build(ctx)
 	-- Streetcar line along King St (the southern cross arterial).
 	for _, road in ipairs(ctx.roads) do
 		if road.kind == "arterial" and math.abs(road.points[1].Y - Layout.NY_CROSS_Z[1]) < 1 then
-			TorontoLandmarks.streetcarLine(landmarks, road, rng)
+			TorontoLandmarks.streetcarLine(landmarks, road)
 		end
 	end
 	park(ctx.makeFolder(folder, "Park"), Layout.NY_PARK, rng)

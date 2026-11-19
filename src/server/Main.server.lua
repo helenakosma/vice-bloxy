@@ -73,6 +73,18 @@ for _, spawn in ipairs(info.carSpawns) do
 end
 
 -- Falling into the water is fatal (there's no swimming): respawn at the spawn point.
+-- The subway's underground spaces (info.safeZones) don't count.
+local safeZones = info.safeZones or {}
+local function underground(pos)
+	for _, zone in ipairs(safeZones) do
+		local a, b = zone.min, zone.max
+		if pos.X >= a.X and pos.X <= b.X and pos.Y >= a.Y and pos.Y <= b.Y and pos.Z >= a.Z and pos.Z <= b.Z then
+			return true
+		end
+	end
+	return false
+end
+
 task.spawn(function()
 	while true do
 		task.wait(0.5)
@@ -80,9 +92,12 @@ task.spawn(function()
 			local character = player.Character
 			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 			local root = character and character:FindFirstChild("HumanoidRootPart")
-			if humanoid and root and humanoid.Health > 0 and root.Position.Y < -4 then
-				humanoid.Health = 0
-				Remotes.notify(player, "You fell in the water")
+			if humanoid and root and humanoid.Health > 0 then
+				local pos = root.Position
+				if (pos.Y < -4 and not underground(pos)) or pos.Y < -70 then
+					humanoid.Health = 0
+					Remotes.notify(player, "You fell in the water")
+				end
 			end
 		end
 	end

@@ -14,6 +14,7 @@ local Util = require(script.Util)
 local Atmosphere = require(script.Atmosphere)
 local Highways = require(script.Highways)
 local Buildings = require(script.Buildings)
+local Transit = require(script.Transit)
 
 local World = {}
 
@@ -35,16 +36,15 @@ local function makeFolder(parent, name)
 	return f
 end
 
--- Water everywhere, tiled because parts can't exceed 2048 studs.
+-- Water everywhere, tiled because parts can't exceed 2048 studs. The water is
+-- registered now and built with the land (so stairwells can cut through it); the
+-- riverbed sits deep, below the subway tunnels.
 local function buildWater(folder)
 	local tile = 2000
 	for x = -3000, 3000, tile do
 		for z = -3000, 3000, tile do
-			local water = Util.deco(folder, Vector3.new(tile, 1, tile), CFrame.new(x, -2.5, z), Color3.fromRGB(50, 68, 74), Enum.Material.Glass)
-			water.Reflectance = 0.3
-			water.Transparency = 0.12
-			water.CastShadow = false
-			local bed = Util.solid(folder, Vector3.new(tile, 2, tile), CFrame.new(x, -15, z), Color3.fromRGB(58, 54, 46), Enum.Material.Mud)
+			Util.waterBox(folder, Vector3.new(x - tile / 2, -3, z - tile / 2), Vector3.new(x + tile / 2, -2, z + tile / 2))
+			local bed = Util.solid(folder, Vector3.new(tile, 2, tile), CFrame.new(x, -63, z), Color3.fromRGB(40, 38, 34), Enum.Material.Mud)
 			bed.CastShadow = false
 		end
 	end
@@ -111,6 +111,12 @@ function World.build(Cars)
 	Util.beginDistrict("Highways")
 	local highwayStart = os.clock()
 	Highways.layout(sharedState)
+	Util.beginDistrict("Transit")
+	local transitStart = os.clock()
+	Transit.layout(sharedState)
+	-- Now that all underground space is known, build the land and water.
+	Util.beginDistrict("Shared")
+	Util.buildGround()
 
 	-- 2. Build: buildings and props per district, then highways and the skyline.
 	local info = { carSpawns = {}, jobCFrame = nil }
@@ -128,6 +134,11 @@ function World.build(Cars)
 	Util.beginDistrict("Highways")
 	local highways = makeFolder(root, "Highways")
 	Highways.build(highways)
+	Util.beginDistrict("Transit")
+	local transitFolder = makeFolder(root, "Transit")
+	local transitInfo = Transit.build(transitFolder)
+	reportDistrict(transitFolder, "Transit", 9000, transitStart)
+	info.safeZones = transitInfo.safeZones
 	reportDistrict(highways, "Highways", 6000, highwayStart)
 
 	Util.beginDistrict("Shared")

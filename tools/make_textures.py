@@ -454,7 +454,34 @@ def billboard(name, title, sub, bg1, bg2, fg, size=150):
     save(img, name)
 
 
+def night_windows():
+    """Overlay for lit floor bands at night: a row of windows (some lit, some dark)
+    separated by mullions. Transparent where a window is lit so the glow shows."""
+    W, H = 512, 256
+    img = rgba(W, H)
+    d = ImageDraw.Draw(img)
+    frame = (26, 26, 30, 255)
+    cells = 8
+    cw = W / cells
+    r = random.Random(42)
+    d.rectangle([0, 0, W, H * 0.16], fill=frame)
+    d.rectangle([0, H * 0.84, W, H], fill=frame)
+    for c in range(cells):
+        x0 = c * cw
+        d.rectangle([x0, 0, x0 + cw * 0.12, H], fill=frame)
+        roll = r.random()
+        if roll < 0.35:  # dark window
+            d.rectangle([x0 + cw * 0.12, H * 0.16, x0 + cw, H * 0.84], fill=(18, 20, 26, 240))
+        elif roll < 0.55:  # blinds half down
+            for y in range(int(H * 0.16), int(H * 0.5), 10):
+                d.rectangle([x0 + cw * 0.12, y, x0 + cw, y + 6], fill=(60, 50, 40, 200))
+        elif roll < 0.65:  # curtain on one side
+            d.rectangle([x0 + cw * 0.12, H * 0.16, x0 + cw * 0.4, H * 0.84], fill=(90, 40, 40, 170))
+    save(img, "night_windows")
+
+
 if __name__ == "__main__":
+    night_windows()
     brick("brick_red", (150, 72, 52), seed=1)
     brick("brick_brown", (120, 84, 64), mortar=(140, 132, 120), seed=2)
     blocks("limestone", (206, 196, 176), rows=6, cols=3, seed=3)

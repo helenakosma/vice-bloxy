@@ -253,7 +253,14 @@ function Util.groundCF(p, dir, y)
 	return CFrame.lookAt(pos, pos + Vector3.new(dir.X, 0, dir.Y))
 end
 
--- Land: a thick slab with its top at y = 0. Water cells under it become free
+-- Land and water are recorded as boxes first and built later (Util.buildGround),
+-- after everything that needs space underground (subway stations, tunnels,
+-- stairwells) has registered holes with Util.carve. Each box is split around the
+-- holes, so the ground has real openings without any CSG.
+Util.groundBoxes = {} -- { min, max, parent, color, material, water }
+Util.holes = {} -- { min, max }
+
+-- Land: a slab with its top at y = 0 (20 thick). Water cells under it become free
 -- (cells already claimed by roads from another district are left alone).
 function Util.land(parent, minX, maxX, minZ, maxZ, color, material)
 	forCells(minX, maxX, minZ, maxZ, function(i)
@@ -261,9 +268,88 @@ function Util.land(parent, minX, maxX, minZ, maxZ, color, material)
 			buffer.writeu8(grid, i, Util.FREE)
 		end
 	end)
-	local size = Vector3.new(maxX - minX, 20, maxZ - minZ)
-	local cf = CFrame.new((minX + maxX) / 2, -10, (minZ + maxZ) / 2)
-	return Util.solid(parent, size, cf, color or Color3.fromRGB(96, 93, 88), material or Enum.Material.Concrete)
+	table.insert(Util.groundBoxes, {
+		min = Vector3.new(minX, -20, minZ),
+		max = Vector3.new(maxX, 0, maxZ),
+		parent = parent,
+		color = color or Color3.fromRGB(96, 93, 88),
+		material = material or Enum.Material.Concrete,
+	})
+end
+
+function Util.waterBox(parent, min, max)
+	table.insert(Util.groundBoxes, { min = min, max = max, parent = parent, water = true })
+end
+
+-- Reserves a box of space underground (or a trench) that land and water must not fill.
+function Util.carve(min, max)
+	table.insert(Util.holes, { min = min, max = max })
+end
+
+local function overlaps(a, b)
+	return a.min.X < b.max.X and a.max.X > b.min.X and a.min.Y < b.max.Y and a.max.Y > b.min.Y and a.min.Z < b.max.Z and a.max.Z > b.min.Z
+end
+
+-- Box minus hole: up to six boxes covering what's left.
+local function subtract(box, hole)
+	if not overlaps(box, hole) then
+		return { box }
+	end
+	local out = {}
+	local lo, hi = box.min, box.max
+	if hole.min.X > lo.X then
+		table.insert(out, { min = lo, max = Vector3.new(hole.min.X, hi.Y, hi.Z) })
+		lo = Vector3.new(hole.min.X, lo.Y, lo.Z)
+	end
+	if hole.max.X < hi.X then
+		table.insert(out, { min = Vector3.new(hole.max.X, lo.Y, lo.Z), max = hi })
+		hi = Vector3.new(hole.max.X, hi.Y, hi.Z)
+	end
+	if hole.min.Z > lo.Z then
+		table.insert(out, { min = lo, max = Vector3.new(hi.X, hi.Y, hole.min.Z) })
+		lo = Vector3.new(lo.X, lo.Y, hole.min.Z)
+	end
+	if hole.max.Z < hi.Z then
+		table.insert(out, { min = Vector3.new(lo.X, lo.Y, hole.max.Z), max = hi })
+		hi = Vector3.new(hi.X, hi.Y, hole.max.Z)
+	end
+	if hole.min.Y > lo.Y then
+		table.insert(out, { min = lo, max = Vector3.new(hi.X, hole.min.Y, hi.Z) })
+	end
+	if hole.max.Y < hi.Y then
+		table.insert(out, { min = Vector3.new(lo.X, hole.max.Y, lo.Z), max = hi })
+	end
+	return out
+end
+
+-- Builds all registered land and water, minus the holes.
+function Util.buildGround()
+	for _, entry in ipairs(Util.groundBoxes) do
+		local pieces = { { min = entry.min, max = entry.max } }
+		for _, hole in ipairs(Util.holes) do
+			local nextPieces = {}
+			for _, piece in ipairs(pieces) do
+				for _, rest in ipairs(subtract(piece, hole)) do
+					table.insert(nextPieces, rest)
+				end
+			end
+			pieces = nextPieces
+		end
+		for _, piece in ipairs(pieces) do
+			local size = piece.max - piece.min
+			if size.X > 0.05 and size.Y > 0.05 and size.Z > 0.05 then
+				local cf = CFrame.new((piece.min + piece.max) / 2)
+				if entry.water then
+					local water = Util.deco(entry.parent, size, cf, Color3.fromRGB(46, 62, 70), Enum.Material.Glass)
+					water.Reflectance = 0.3
+					water.Transparency = 0.06
+					water.CastShadow = false
+				else
+					Util.solid(entry.parent, size, cf, entry.color, entry.material)
+				end
+			end
+		end
+	end
 end
 
 -- Low sea wall along the edges of a land rectangle wherever water lies beyond.

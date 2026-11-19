@@ -23,7 +23,7 @@ local KEYS = {
 		time = 0, name = "night",
 		brightness = 0.8, ambient = C(40, 46, 70), outdoor = C(52, 60, 92), shift = C(120, 132, 190), exposure = -0.1,
 		atmo = { density = 0.38, color = C(60, 68, 100), decay = C(22, 24, 44), glare = 0, haze = 1.2 },
-		bloom = { intensity = 1.1, size = 30, threshold = 0.9 },
+		bloom = { intensity = 0.45, size = 18, threshold = 1.5 },
 		grade = { brightness = -0.02, contrast = 0.14, saturation = 0.12, tint = C(214, 224, 255) },
 		rays = 0, clouds = C(70, 76, 100),
 	},
@@ -57,7 +57,7 @@ local KEYS = {
 		time = 18.6, name = "dusk",
 		brightness = 1.6, ambient = C(70, 66, 98), outdoor = C(96, 80, 112), shift = C(255, 122, 112), exposure = 0.05,
 		atmo = { density = 0.38, color = C(200, 132, 144), decay = C(90, 60, 102), glare = 0.5, haze = 2.4 },
-		bloom = { intensity = 0.9, size = 28, threshold = 0.95 },
+		bloom = { intensity = 0.55, size = 22, threshold = 1.2 },
 		grade = { brightness = 0, contrast = 0.14, saturation = 0.12, tint = C(255, 226, 232) },
 		rays = 0.1, clouds = C(220, 140, 150),
 	},
@@ -188,7 +188,7 @@ function Atmosphere.apply()
 	effects.rays.Spread = 0.75
 	effects.grade = ensure("ColorCorrectionEffect", "Grade")
 	local depth = ensure("DepthOfFieldEffect", "Depth")
-	depth.FarIntensity = 0.12
+	depth.FarIntensity = 0.05
 	depth.FocusDistance = 120
 	depth.InFocusRadius = 260
 	depth.NearIntensity = 0
