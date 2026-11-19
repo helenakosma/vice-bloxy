@@ -241,6 +241,8 @@ function Cars.spawn(cframe, options)
 		doorClosedC0 = doorMotor.C0,
 		busy = false,
 		state = VehiclePhysics.new(model),
+		spawnCFrame = cframe,
+		options = options,
 	}
 	cars[model] = car
 	carsBySeat[seat] = car
@@ -392,6 +394,25 @@ function Cars.init()
 
 	Players.PlayerRemoving:Connect(function(player)
 		pendingEnter[player] = nil
+	end)
+
+	-- Cars that end up in the water (and have no driver) respawn where they started.
+	task.spawn(function()
+		while true do
+			task.wait(2)
+			local sunk = {}
+			for _, car in pairs(cars) do
+				if car.chassis.Position.Y < -6 and car.seat.Occupant == nil and not car.busy then
+					table.insert(sunk, car)
+				end
+			end
+			for _, car in ipairs(sunk) do
+				local options = car.options or {}
+				local parent = car.model.Parent
+				car.model:Destroy()
+				Cars.spawn(car.spawnCFrame, { taxi = options.taxi, color = options.color, parent = parent })
+			end
+		end
 	end)
 
 	-- Parked (driverless) cars are simulated by the server with the handbrake on.

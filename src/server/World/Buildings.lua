@@ -440,21 +440,25 @@ function Buildings.fillGaps(folder, rng)
 	return count
 end
 
--- Distant skyline outside the playable area (and across the river).
+-- Distant skyline beyond the edge of the world, standing on its own land.
 function Buildings.background(folder, rng)
+	local G = Util.GRID
 	local function ring(minX, maxX, minZ, maxZ, count, hMin, hMax)
+		local land = Util.deco(folder, Vector3.new(maxX - minX + 80, 2, maxZ - minZ + 80), CFrame.new((minX + maxX) / 2, -1, (minZ + maxZ) / 2), Color3.fromRGB(78, 76, 72), Enum.Material.Concrete)
+		land.CastShadow = false
 		for _ = 1, count do
 			local c = Vector2.new(rng:NextNumber(minX, maxX), rng:NextNumber(minZ, maxZ))
-			local w = rng:NextNumber(30, 70)
-			local d = rng:NextNumber(30, 70)
-			Buildings.filler(folder, Util.groundCF(c, Vector2.new(0, -1), 0), w, d, rng:NextNumber(hMin, hMax) * heightFactor(c * 0.5), rng, false)
+			local w = rng:NextNumber(30, 80)
+			local d = rng:NextNumber(30, 80)
+			Buildings.filler(folder, Util.groundCF(c, Vector2.new(0, -1), 0), w, d, rng:NextNumber(hMin, hMax), rng, false)
 		end
 	end
-	local pad = 40
-	ring(Util.MIN_X - 400, Util.MIN_X - pad, Util.MIN_Z - 400, Util.MAX_Z + 400, 70, 40, 160) -- west
-	ring(Util.MIN_X, Util.RIVER_X, Util.MAX_Z + pad, Util.MAX_Z + 400, 60, 40, 200) -- north
-	ring(Util.MIN_X, Util.RIVER_X, Util.MIN_Z - 400, Util.MIN_Z - pad, 60, 40, 200) -- south
-	ring(1150, 1500, Util.MIN_Z - 300, Util.MAX_Z + 300, 70, 25, 120) -- across the river
+	-- Each ring is kept under 2048 studs across (the Roblox part size limit).
+	ring(G.minX - 900, G.minX - 500, -1800, -250, 40, 40, 220) -- far west
+	ring(G.minX - 900, G.minX - 500, -250, 1200, 40, 40, 220)
+	ring(-1400, -250, G.minZ - 800, G.minZ - 450, 40, 60, 260) -- far north
+	ring(-250, 900, G.minZ - 800, G.minZ - 450, 40, 60, 260)
+	ring(-1600, 300, G.maxZ + 450, G.maxZ + 800, 60, 30, 140) -- far south
 end
 
 return Buildings

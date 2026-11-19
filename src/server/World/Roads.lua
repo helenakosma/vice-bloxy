@@ -11,10 +11,37 @@ Roads.KINDS = {
 	street = { width = 22, walk = 7 },
 	lane = { width = 16, walk = 5 },
 	alley = { width = 10, walk = 0 },
+	-- Outer districts
+	arterial = { width = 36, walk = 8, main = true },
+	boulevard = { width = 30, walk = 12, main = true },
+	bridge = { width = 34, walk = 5, main = true },
+	residential = { width = 20, walk = 6 },
+	industrial = { width = 26, walk = 3 },
 }
 
-Roads.list = {}
+Roads.list = {} -- every road in the world
 Roads.intersections = {}
+
+local nextId = 0
+function Roads.allocateId()
+	nextId = nextId + 1
+	return nextId
+end
+
+-- Registers a road and returns it. points = Vector2 polyline (x, z).
+function Roads.add(kind, points)
+	local spec = Roads.KINDS[kind]
+	local road = {
+		id = Roads.allocateId(),
+		kind = kind,
+		width = spec.width,
+		walk = spec.walk,
+		main = spec.main == true,
+		points = points,
+	}
+	table.insert(Roads.list, road)
+	return road
+end
 
 -- Park: no roads cross it.
 Roads.PARK = { minX = -650, maxX = -395, minZ = 300, maxZ = 600 }
@@ -162,33 +189,61 @@ function Roads.generate(rng)
 	add("broadway", bw, false)
 
 	-- Register roads (clipped around the park) with ids.
+	local created = {}
 	for _, entry in ipairs(raw) do
 		local pieces = { entry.points }
 		if entry.clip then
 			pieces = clipToPark(entry.points)
 		end
 		for _, pts in ipairs(pieces) do
-			local kind = Roads.KINDS[entry.kind]
-			table.insert(Roads.list, {
-				id = #Roads.list + 1,
-				kind = entry.kind,
-				width = kind.width,
-				walk = kind.walk,
-				main = kind.main == true,
-				points = pts,
-			})
+			table.insert(created, Roads.add(entry.kind, pts))
 		end
 	end
+	return created
+end
+
+-- Polyline from a to b with a point every `step` studs, drifting sideways by up to
+-- `wobble` per point (capped at 3x), so long roads are never perfectly straight.
+function Roads.path(rng, a, b, step, wobble)
+	local points = { a }
+	local delta = b - a
+	local length = delta.Magnitude
+	local dir = delta.Unit
+	local normal = Vector2.new(-dir.Y, dir.X)
+	local n = math.max(1, math.floor(length / step))
+	local offset = 0
+	for i = 1, n - 1 do
+		offset = math.clamp(offset + rng:NextNumber(-wobble, wobble), -wobble * 3, wobble * 3)
+		table.insert(points, a + dir * (length * i / n) + normal * offset)
+	end
+	table.insert(points, b)
+	return points
+end
+
+-- Downtown avenue pieces that reach an edge of downtown: "north" or "south".
+function Roads.avenueEnds(roads, edge)
+	local found = {}
+	for _, road in ipairs(roads) do
+		if road.kind == "avenue" or road.kind == "waterfront" then
+			local pts = road.points
+			if edge == "north" and math.abs(pts[1].Y - Util.MIN_Z) < 1 then
+				table.insert(found, { road = road, point = pts[1] })
+			elseif edge == "south" and math.abs(pts[#pts].Y - Util.MAX_Z) < 1 then
+				table.insert(found, { road = road, point = pts[#pts] })
+			end
+		end
+	end
+	return found
 end
 
 -- Records road and sidewalk cells in the occupancy grid.
-function Roads.rasterize()
-	for _, road in ipairs(Roads.list) do
+function Roads.rasterize(list)
+	for _, road in ipairs(list) do
 		for i = 1, #road.points - 1 do
 			Util.markSegment(road.points[i], road.points[i + 1], road.width / 2, Util.ROAD, road.id, false)
 		end
 	end
-	for _, road in ipairs(Roads.list) do
+	for _, road in ipairs(list) do
 		if road.walk > 0 then
 			for i = 1, #road.points - 1 do
 				Util.markSegment(road.points[i], road.points[i + 1], road.width / 2 + road.walk, Util.WALK, nil, true)
@@ -197,9 +252,9 @@ function Roads.rasterize()
 	end
 end
 
--- Iterates every segment: fn(road, a, b, dir, normal, length).
-function Roads.eachSegment(fn)
-	for _, road in ipairs(Roads.list) do
+-- Iterates every segment of `list` (default: all roads): fn(road, a, b, dir, normal, length).
+function Roads.eachSegment(fn, list)
+	for _, road in ipairs(list or Roads.list) do
 		for i = 1, #road.points - 1 do
 			local a, b = road.points[i], road.points[i + 1]
 			local delta = b - a
@@ -244,8 +299,20 @@ local function paintLine(folder, a, dir, length, offset, normal, width, color, d
 	flush(length)
 end
 
-function Roads.render(folder)
-	for _, road in ipairs(Roads.list) do
+local function bridgeDetails(folder, road, mid, dir, length)
+	-- Railings on both edges and a steel girder under the deck.
+	local normal = Vector2.new(-dir.Y, dir.X)
+	local edge = road.width / 2 + road.walk - 0.4
+	for _, side in ipairs({ -1, 1 }) do
+		local p = mid + normal * side * edge
+		Util.solid(folder, Vector3.new(0.8, 3.4, length), Util.groundCF(p, dir, 0.25 + 1.7), Color3.fromRGB(70, 74, 72), Enum.Material.Metal)
+	end
+	Util.deco(folder, Vector3.new(road.width + road.walk * 2, 4, length), Util.groundCF(mid, dir, -2.6), Color3.fromRGB(58, 64, 62), Enum.Material.Metal)
+end
+
+-- Draws road surfaces, sidewalks and markings for the given roads.
+function Roads.render(folder, list)
+	for _, road in ipairs(list) do
 		local yTop = 0.3 + (road.id % 7) * 0.004 -- tiny offsets stop overlapping roads flickering
 		local color = road.kind == "alley" and ALLEY_ASPHALT or ASPHALT
 		for i = 1, #road.points - 1 do
@@ -260,6 +327,9 @@ function Roads.render(folder)
 				if road.walk > 0 then
 					Util.solid(folder, Vector3.new(road.width + road.walk * 2, 1, length + extra), Util.groundCF(mid, dir, 0.25 - 0.5), SIDEWALK, Enum.Material.Pavement)
 				end
+				if road.kind == "bridge" then
+					bridgeDetails(folder, road, mid, dir, length)
+				end
 			end
 		end
 	end
@@ -273,7 +343,7 @@ function Roads.render(folder)
 				paintLine(folder, a, dir, length, side * road.width / 4, normal, 0.35, WHITE, 8, 22)
 			end
 		end
-	end)
+	end, list)
 end
 
 return Roads

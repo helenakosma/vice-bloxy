@@ -1,11 +1,18 @@
 -- Shared helpers for world generation: part factories and an occupancy grid that
 -- records what covers each 4x4-stud cell (road, sidewalk, building, park, water).
+-- Coordinates: X runs west (-) to east (+); north is -Z.
 local Util = {}
 
 Util.CELL = 4
+
+-- Downtown bounds (the original city). Other districts define their own.
 Util.MIN_X, Util.MAX_X = -700, 620
 Util.MIN_Z, Util.MAX_Z = -700, 700
-Util.RIVER_X = 594 -- water starts east of this line
+Util.RIVER_X = 594 -- the east river starts here (downtown's east edge)
+
+-- Whole-world grid covering every district. Cells start as water; districts
+-- claim their land with Util.markRect(..., Util.FREE).
+Util.GRID = { minX = -1900, maxX = 2400, minZ = -2100, maxZ = 1400 }
 
 Util.FREE = 0
 Util.ROAD = 1
@@ -13,21 +20,24 @@ Util.WALK = 2
 Util.BUILT = 3
 Util.PARK = 4
 Util.WATER = 5
+Util.RESERVED = 6 -- under elevated highways: keep clear of buildings
 
 local CELL = Util.CELL
-local NX = math.ceil((Util.MAX_X - Util.MIN_X) / CELL)
-local NZ = math.ceil((Util.MAX_Z - Util.MIN_Z) / CELL)
-local grid = table.create(NX * NZ, 0)
-local owner = table.create(NX * NZ, 0) -- id of the road covering a cell
+local G = Util.GRID
+local NX = math.ceil((G.maxX - G.minX) / CELL)
+local NZ = math.ceil((G.maxZ - G.minZ) / CELL)
+local grid = buffer.create(NX * NZ) -- u8 per cell
+local owner = buffer.create(NX * NZ * 2) -- u16 road id per cell (0 = none)
 local junction = {} -- cell index -> true where two roads overlap
+buffer.fill(grid, 0, Util.WATER)
 
 local function index(ix, iz)
-	return iz * NX + ix + 1
+	return iz * NX + ix
 end
 
 local function cellOf(x, z)
-	local ix = math.floor((x - Util.MIN_X) / CELL)
-	local iz = math.floor((z - Util.MIN_Z) / CELL)
+	local ix = math.floor((x - G.minX) / CELL)
+	local iz = math.floor((z - G.minZ) / CELL)
 	if ix < 0 or iz < 0 or ix >= NX or iz >= NZ then
 		return nil
 	end
@@ -39,13 +49,13 @@ function Util.get(x, z)
 	if not i then
 		return -1
 	end
-	return grid[i]
+	return buffer.readu8(grid, i)
 end
 
 function Util.set(x, z, value)
 	local i = cellOf(x, z)
 	if i then
-		grid[i] = value
+		buffer.writeu8(grid, i, value)
 	end
 end
 
@@ -56,14 +66,14 @@ end
 
 -- Calls fn(i, cx, cz) for every cell whose centre lies within the bounding box.
 local function forCells(minX, maxX, minZ, maxZ, fn)
-	local ix0 = math.max(0, math.floor((minX - Util.MIN_X) / CELL))
-	local ix1 = math.min(NX - 1, math.floor((maxX - Util.MIN_X) / CELL))
-	local iz0 = math.max(0, math.floor((minZ - Util.MIN_Z) / CELL))
-	local iz1 = math.min(NZ - 1, math.floor((maxZ - Util.MIN_Z) / CELL))
+	local ix0 = math.max(0, math.floor((minX - G.minX) / CELL))
+	local ix1 = math.min(NX - 1, math.floor((maxX - G.minX) / CELL))
+	local iz0 = math.max(0, math.floor((minZ - G.minZ) / CELL))
+	local iz1 = math.min(NZ - 1, math.floor((maxZ - G.minZ) / CELL))
 	for iz = iz0, iz1 do
-		local cz = Util.MIN_Z + (iz + 0.5) * CELL
+		local cz = G.minZ + (iz + 0.5) * CELL
 		for ix = ix0, ix1 do
-			fn(index(ix, iz), Util.MIN_X + (ix + 0.5) * CELL, cz)
+			fn(index(ix, iz), G.minX + (ix + 0.5) * CELL, cz)
 		end
 	end
 end
@@ -80,21 +90,22 @@ local function distToSegment(px, pz, ax, az, bx, bz)
 end
 
 -- Marks cells within `radius` of segment a-b. With roadId set, records junctions.
--- With onlyFree, leaves already-claimed cells alone.
+-- With onlyFree, only claims cells that are still free.
 function Util.markSegment(a, b, radius, value, roadId, onlyFree)
 	forCells(math.min(a.X, b.X) - radius, math.max(a.X, b.X) + radius, math.min(a.Y, b.Y) - radius, math.max(a.Y, b.Y) + radius, function(i, cx, cz)
 		if distToSegment(cx, cz, a.X, a.Y, b.X, b.Y) <= radius then
 			if onlyFree then
-				if grid[i] == Util.FREE then
-					grid[i] = value
+				if buffer.readu8(grid, i) == Util.FREE then
+					buffer.writeu8(grid, i, value)
 				end
 			else
-				grid[i] = value
+				buffer.writeu8(grid, i, value)
 				if roadId then
-					if owner[i] ~= 0 and owner[i] ~= roadId then
+					local current = buffer.readu16(owner, i * 2)
+					if current ~= 0 and current ~= roadId then
 						junction[i] = true
 					end
-					owner[i] = roadId
+					buffer.writeu16(owner, i * 2, roadId)
 				end
 			end
 		end
@@ -103,7 +114,7 @@ end
 
 function Util.markRect(minX, maxX, minZ, maxZ, value)
 	forCells(minX, maxX, minZ, maxZ, function(i)
-		grid[i] = value
+		buffer.writeu8(grid, i, value)
 	end)
 end
 
@@ -226,6 +237,25 @@ end
 function Util.groundCF(p, dir, y)
 	local pos = Vector3.new(p.X, y or 0, p.Y)
 	return CFrame.lookAt(pos, pos + Vector3.new(dir.X, 0, dir.Y))
+end
+
+-- Land: a thick slab with its top at y = 0. Water cells under it become free
+-- (cells already claimed by roads from another district are left alone).
+function Util.land(parent, minX, maxX, minZ, maxZ, color, material)
+	forCells(minX, maxX, minZ, maxZ, function(i)
+		if buffer.readu8(grid, i) == Util.WATER then
+			buffer.writeu8(grid, i, Util.FREE)
+		end
+	end)
+	local size = Vector3.new(maxX - minX, 20, maxZ - minZ)
+	local cf = CFrame.new((minX + maxX) / 2, -10, (minZ + maxZ) / 2)
+	return Util.solid(parent, size, cf, color or Color3.fromRGB(96, 93, 88), material or Enum.Material.Concrete)
+end
+
+-- Thin straight piece between two 3D points (cables, rails, ladders).
+function Util.beam(parent, a, b, thickness, color, material)
+	local length = (b - a).Magnitude
+	return Util.deco(parent, Vector3.new(thickness, thickness, length), CFrame.lookAt((a + b) / 2, b), color, material)
 end
 
 -- Adds a SurfaceGui sign with text to one face of a part.

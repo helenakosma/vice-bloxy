@@ -157,7 +157,7 @@ end
 ---------------------------------------------------------------------------
 -- Placement
 ---------------------------------------------------------------------------
-function Props.placeStreetFurniture(folder, rng)
+function Props.placeStreetFurniture(folder, rng, roads)
 	local placedSubway = 0
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
 		if road.kind == "alley" then
@@ -199,7 +199,7 @@ function Props.placeStreetFurniture(folder, rng)
 				t = t + rng:NextNumber(14, 26)
 			end
 		end
-	end)
+	end, roads)
 
 	-- Steam stacks in the middle of a few avenues.
 	local stacks = 0
@@ -211,7 +211,7 @@ function Props.placeStreetFurniture(folder, rng)
 				stacks = stacks + 1
 			end
 		end
-	end)
+	end, roads)
 
 	-- One signal per avenue crossing, on a corner, hanging over the avenue.
 	for _, x in ipairs(Roads.intersections) do
@@ -228,7 +228,7 @@ function Props.placeStreetFurniture(folder, rng)
 end
 
 -- Parked cars along kerbs of side streets.
-function Props.placeParkedCars(folder, rng, Cars)
+function Props.placeParkedCars(folder, rng, Cars, roads)
 	local count = 0
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
 		if road.kind ~= "street" then
@@ -256,7 +256,7 @@ function Props.placeParkedCars(folder, rng, Cars)
 			end
 			t = t + rng:NextNumber(20, 45)
 		end
-	end)
+	end, roads)
 	return count
 end
 
@@ -307,10 +307,6 @@ function Props.buildPark(folder, rng)
 end
 
 function Props.buildRiver(folder)
-	local water = Util.deco(folder, V3(1000, 1, 2400), CFrame.new(Util.RIVER_X + 500, -2.5, 0), Color3.fromRGB(50, 66, 70), M.Glass)
-	water.Reflectance = 0.3
-	water.Transparency = 0.15
-	Util.solid(folder, V3(1000, 2, 2400), CFrame.new(Util.RIVER_X + 500, -14, 0), Color3.fromRGB(60, 56, 48), M.Mud)
 	-- Promenade, railing and an invisible wall so nobody walks into the river.
 	Util.solid(folder, V3(10, 1, Util.MAX_Z - Util.MIN_Z), CFrame.new(Util.RIVER_X - 3, -0.25, 0), Color3.fromRGB(150, 144, 134), M.Pavement)
 	Util.solid(folder, V3(0.4, 3.4, Util.MAX_Z - Util.MIN_Z), CFrame.new(Util.RIVER_X + 1.6, 1.9, 0), Color3.fromRGB(40, 44, 42), M.Metal)

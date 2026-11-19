@@ -8,13 +8,13 @@ local Props = require(World.Props)
 
 local Downtown = {
 	name = "Downtown",
-	bounds = { minX = Util.MIN_X, maxX = Util.RIVER_X, minZ = Util.MIN_Z, maxZ = Util.MAX_Z },
+	bounds = { minX = Util.MIN_X, maxX = Util.RIVER_X, minZ = Util.MIN_Z - 30, maxZ = Util.MAX_Z },
 	budget = 28000, -- parts; a warning prints if the district goes over
 }
 
 -- Finds the sidewalk point on the central avenue at z = 0 for the player spawn.
-local function findSpawn()
-	for _, road in ipairs(Roads.list) do
+local function findSpawn(roads)
+	for _, road in ipairs(roads) do
 		if road.kind == "avenue" and math.abs(road.points[1].X - 20) < 40 then
 			for i = 1, #road.points - 1 do
 				local a, b = road.points[i], road.points[i + 1]
@@ -31,36 +31,46 @@ local function findSpawn()
 	return CFrame.new(40, 1, 0), nil
 end
 
-function Downtown.build(ctx)
-	local rng = ctx.rng
-	local folder = ctx.folder
+-- Land, roads and the occupancy grid. Runs before any district builds.
+function Downtown.layout(ctx)
+	local b = Downtown.bounds
+	Util.land(ctx.folder, b.minX, b.maxX, b.minZ, b.maxZ)
 
-	-- Roads and the occupancy grid.
-	Roads.generate(rng)
+	local roads = Roads.generate(ctx.rng)
 	local park = Roads.PARK
 	Util.markRect(park.minX, park.maxX, park.minZ, park.maxZ, Util.PARK)
 	Util.markRect(Util.RIVER_X - 10, Util.MAX_X, Util.MIN_Z, Util.MAX_Z, Util.WATER)
-	Roads.rasterize()
+	Roads.rasterize(roads)
+	ctx.roads = roads
+	ctx.shared.downtownRoads = roads
 
-	local spawnCF, spawnRoad = findSpawn()
+	local spawnCF, spawnRoad = findSpawn(roads)
+	ctx.spawnCF = spawnCF
+	ctx.spawnRoad = spawnRoad
 	ctx.setSpawn(spawnCF)
+end
 
-	Roads.render(ctx.makeFolder(folder, "Roads"))
+function Downtown.build(ctx)
+	local rng = ctx.rng
+	local folder = ctx.folder
+	local roads = ctx.roads
+
+	Roads.render(ctx.makeFolder(folder, "Roads"), roads)
 	Props.buildPark(ctx.makeFolder(folder, "Park"), rng)
 	Props.buildRiver(ctx.makeFolder(folder, "River"))
 
 	local buildings = ctx.makeFolder(folder, "Buildings")
-	local placed = Buildings.placeFrontage(buildings, Roads.list, rng)
+	local placed = Buildings.placeFrontage(buildings, roads, rng)
 	local filled = Buildings.fillGaps(buildings, rng)
-	Buildings.background(ctx.makeFolder(folder, "Skyline"), rng)
 
-	Props.placeStreetFurniture(ctx.makeFolder(folder, "Street"), rng)
+	Props.placeStreetFurniture(ctx.makeFolder(folder, "Street"), rng, roads)
 	Props.startSignals()
-	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars)
+	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars, roads)
 	print(string.format("[Downtown] %d frontage buildings, %d filler, %d parked cars", placed, filled, parked))
 
 	-- Driveable cars: a few by the player spawn plus some along the avenues.
 	local carSpawns = {}
+	local spawnRoad = ctx.spawnRoad
 	if spawnRoad then
 		for i = 0, 2 do
 			local p = spawnRoad.point + spawnRoad.dir * (20 + i * 18) + spawnRoad.normal * (spawnRoad.width / 2 - 5)
@@ -74,11 +84,11 @@ function Downtown.build(ctx)
 				table.insert(carSpawns, { cframe = Util.groundCF(p, dir, 0.3), taxi = rng:NextNumber() < 0.3 })
 			end
 		end
-	end)
+	end, roads)
 
 	return {
 		carSpawns = carSpawns,
-		jobCFrame = spawnCF * CFrame.new(0, -0.75, 14),
+		jobCFrame = ctx.spawnCF * CFrame.new(0, -0.75, 14),
 	}
 end
 

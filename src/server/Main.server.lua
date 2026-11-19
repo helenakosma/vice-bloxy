@@ -70,3 +70,19 @@ makeJobMarker(info.jobCFrame)
 for _, spawn in ipairs(info.carSpawns) do
 	Cars.spawn(spawn.cframe, { taxi = spawn.taxi })
 end
+
+-- Falling into the water is fatal (there's no swimming): respawn at the spawn point.
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			if humanoid and root and humanoid.Health > 0 and root.Position.Y < -4 then
+				humanoid.Health = 0
+				Remotes.notify(player, "You fell in the water")
+			end
+		end
+	end
+end)
