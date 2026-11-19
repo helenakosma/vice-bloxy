@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Cars = require(script.Parent.Cars)
 
 -- Leaderboard stats (the built-in Roblox leaderboard shows anything in "leaderstats").
 Players.PlayerAdded:Connect(function(player)
@@ -51,3 +52,8 @@ local function makeJobPad(position)
 end
 
 makeJobPad(Vector3.new(0, 1, 20))
+
+-- Starter cars near the job pad.
+for i = 0, 2 do
+	Cars.spawn(Vector3.new(-30 + i * 15, 1, 0))
+end
