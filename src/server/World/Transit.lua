@@ -3,9 +3,9 @@
 -- Line 1 runs straight along x = LINE_X from Finch (North York) south through
 -- Queen and Union, under the channel, through downtown (Harbour, Central), then
 -- climbs out through an open cut onto a viaduct to the elevated Portlands terminal
--- in the industrial district. Underground stations have sidewalk entrances, stairs
--- down to a ticket concourse just under the street, and stairs to an island
--- platform between the two tracks.
+-- in the industrial district. Underground stations have street entrance buildings, passages to a
+-- ticket hall just under the street, and stairs to an island platform between
+-- the two tracks (see StationKit).
 --
 -- The server builds the structure and the vehicle models (parked out of sight) and
 -- publishes each route (path, stops, timing) as JSON in ReplicatedStorage. Every
@@ -17,6 +17,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Util = require(script.Parent.Util)
 local Roads = require(script.Parent.Roads)
 local Layout = require(script.Parent.Layout)
+local Kit = require(script.Parent.StationKit)
 
 local Transit = {}
 
@@ -30,10 +31,11 @@ local FLOOR_UP = 4 -- train floor above the track bed (= platform height)
 local TRACK = 10 -- track centres at LINE_X +- TRACK
 local HALF = 16 -- tunnel and station half-width
 local TUNNEL_TOP = 15 -- tunnel ceiling above the track bed
-local STATION_TOP = -12 -- station ceiling
+local STATION_TOP = -14 -- station ceiling
 local STATION_HALF = 75 -- underground station half-length
-local CONCOURSE = -10 -- concourse floor
-local CONCOURSE_TOP = -2.5
+local CONCOURSE = -13 -- ticket hall, passages and entrance lobbies: floor
+local CONCOURSE_TOP = -1.5 -- ticket hall ceiling
+local PASSAGE_TOP = -2.5 -- passage and lobby ceiling
 local ELEVATED = 16 -- track bed on the viaduct
 local PORT_HALF = 60 -- elevated station half-length
 local PARK_Y = -300 -- where vehicle models wait on the server
@@ -120,20 +122,22 @@ end
 ---------------------------------------------------------------------------
 -- Layout: profile, holes in the ground, reserved land
 ---------------------------------------------------------------------------
--- Street entrances: an open stairwell with steel railings and a TTC sign over the
--- way in (like the sidewalk entrances downtown), set in the lot right behind a sidewalk so you walk
--- straight off the pavement into it. sz = +1: you enter on the north (-z) side and
--- the stairs go down toward +z; sz = -1 is the mirror image. The passage at the
--- bottom leaves sideways (along x) toward the line.
-local ENTRANCE_W, ENTRANCE_D = 18, 36
+-- Street entrances (see StationKit.entrance): a glass-and-steel entrance building
+-- on a lot right behind a sidewalk, with stairs, an up escalator and an elevator
+-- down to a lobby, then a passage to the ticket hall. sz = +1: you walk in from
+-- the -z side and go down toward +z; sz = -1 is the mirror image.
+-- In entrance coordinates the whole thing covers dz -20..31.5, x -17..17.
+local ENTRANCE_W, ENTRANCE_D, ENTRANCE_MID = 35, 52, 5.75
+local LOBBY_MID = 23.25 -- the passage leaves the lobby here (dz)
+local HALL_HALF, HALL_LEN, FARE_AT = 30, 70, 30 -- ticket hall: half-width, length, fare line
 
 -- When the side you walk in from touches a sidewalk across the full width, returns
 -- how far out the sidewalk starts; otherwise nil.
 local function frontsSidewalk(c, sz)
 	local reach = 0
-	for _, dx in ipairs({ -4, 0, 4 }) do
+	for _, dx in ipairs({ -12, -4, 4, 12 }) do
 		local found = nil
-		for d = 17, 27, 2 do
+		for d = 21, 31, 2 do
 			local cell = Util.get(c.X + dx, c.Y - sz * d)
 			if cell == Util.WALK then
 				found = d
@@ -152,8 +156,8 @@ end
 
 -- Keeps the ground between the entrance and the sidewalk clear of buildings.
 local function claimApron(c, sz)
-	for dx = -8, 8, 2 do
-		for d = 15, 27, 2 do
+	for dx = -16, 16, 2 do
+		for d = 19, 31, 2 do
 			if Util.get(c.X + dx, c.Y - sz * d) == Util.FREE then
 				Util.set(c.X + dx, c.Y - sz * d, Util.BUILT)
 			end
@@ -162,19 +166,20 @@ local function claimApron(c, sz)
 end
 
 -- Up to two entrances per station (one each side of the line where possible),
--- close to the concourse at the station's north end.
+-- close to the ticket hall at the station's north end. A passage either comes in
+-- through the hall's side wall (before the fare line) or, for an entrance further
+-- north, along the line into the hall's north wall.
 local function findEntrances(station)
 	local cz0 = station.z - STATION_HALF
-	local cz1 = cz0 + 44
-	local target = Vector2.new(LINE_X, cz0 + 20)
+	local target = Vector2.new(LINE_X, cz0 + 15)
 	local fwd, right = Vector2.new(0, -1), Vector2.new(1, 0)
-	local best = {} -- side -> { c, sz, dist }
-	for x = target.X - 260, target.X + 260, 4 do
-		if math.abs(x - LINE_X) >= 24 then
-			for z = target.Y - 260, target.Y + 200, 4 do
+	local best = {} -- side -> { c, sz, dist, reach }
+	for x = target.X - 300, target.X + 300, 4 do
+		if math.abs(x - LINE_X) >= HALL_HALF + 22 then
+			for z = target.Y - 280, target.Y + 220, 4 do
 				for _, sz in ipairs({ 1, -1 }) do
-					local passZ = z + 12 * sz
-					local passOk = passZ <= cz0 - 8 or (passZ >= cz0 + 8 and passZ <= cz0 + 30) -- clear of the booth
+					local passZ = z + LOBBY_MID * sz
+					local passOk = passZ <= cz0 - 12 or (passZ >= cz0 + 9 and passZ <= cz0 + FARE_AT - 9)
 					if passOk then
 						local c = Vector2.new(x, z)
 						local side = x < LINE_X and -1 or 1
@@ -182,7 +187,8 @@ local function findEntrances(station)
 						local current = best[side]
 						if not current or dist < current.dist then
 							local reach = frontsSidewalk(c, sz)
-							if reach and Util.rectFree(c, fwd, right, ENTRANCE_W, ENTRANCE_D) then
+							local centre = c + Vector2.new(0, ENTRANCE_MID * sz)
+							if reach and Util.rectFree(centre, fwd, right, ENTRANCE_W, ENTRANCE_D) then
 								best[side] = { c = c, sz = sz, dist = dist, reach = reach }
 							end
 						end
@@ -195,18 +201,19 @@ local function findEntrances(station)
 	local northTaken = false -- only one passage can come in along the line from the north
 	for _, side in ipairs({ -1, 1 }) do
 		local b = best[side]
-		local north = b and (b.c.Y + 12 * b.sz) <= cz0
-		if b and b.dist < 300 and not (north and northTaken) then
-			northTaken = northTaken or north
+		local north = b and (b.c.Y + LOBBY_MID * b.sz) <= cz0
+		if b and b.dist < 360 and not (north and northTaken) then
+			local centre = b.c + Vector2.new(0, ENTRANCE_MID * b.sz)
 			-- The other side's pick may overlap this one: check again before claiming.
-			if Util.rectFree(b.c, fwd, right, ENTRANCE_W, ENTRANCE_D) then
-				Util.rectMark(b.c, fwd, right, ENTRANCE_W, ENTRANCE_D, Util.BUILT)
+			if Util.rectFree(centre, fwd, right, ENTRANCE_W, ENTRANCE_D) then
+				northTaken = northTaken or north
+				Util.rectMark(centre, fwd, right, ENTRANCE_W, ENTRANCE_D, Util.BUILT)
 				claimApron(b.c, b.sz)
 				table.insert(found, b)
 			end
 		end
 	end
-	return found, cz0, cz1
+	return found
 end
 
 function Transit.layout(shared)
@@ -261,25 +268,33 @@ function Transit.layout(shared)
 		if not station.elevated then
 			local zc = station.z
 			hole(V3(LINE_X - HALF - 1, RAIL - 2, zc - STATION_HALF - 1), V3(LINE_X + HALF + 1, STATION_TOP + 1, zc + STATION_HALF + 1))
-			-- Concourse over the north end, and the stairwell down to the platform.
-			local cz0, cz1 = zc - STATION_HALF, zc - STATION_HALF + 44
-			hole(V3(LINE_X - 13, CONCOURSE - 1, cz0), V3(LINE_X + 13, CONCOURSE_TOP + 0.5, cz1))
-			hole(V3(LINE_X - 4, RAIL - 2, zc - STATION_HALF + 8), V3(LINE_X + 4, CONCOURSE_TOP + 0.5, zc - STATION_HALF + 28))
-			-- Street entrances, their stair shafts, and the passages to the concourse.
+			-- Ticket hall over the north end of the platform.
+			local cz0, cz1 = zc - STATION_HALF, zc - STATION_HALF + HALL_LEN
+			hole(V3(LINE_X - HALL_HALF - 1.5, CONCOURSE - 1, cz0 - 1.5), V3(LINE_X + HALL_HALF + 1.5, CONCOURSE_TOP + 0.5, cz1 + 1.5))
+			-- Street entrances, and the passages from their lobbies to the hall.
 			local list = {}
-			for _, e in ipairs((findEntrances(station))) do
+			for _, e in ipairs(findEntrances(station)) do
 				local spot, sz = e.c, e.sz
-				local passZ = spot.Y + 12 * sz
-				local side = spot.X < LINE_X and -1 or 1
-				-- Into the concourse's side wall, or along the line into its north end.
-				local inside = passZ > cz0
-				local endX = inside and (LINE_X + side * 13.5) or LINE_X
-				hole(V3(spot.X - 7, CONCOURSE - 1, spot.Y - 16), V3(spot.X + 7, 2, spot.Y + 16))
-				hole(V3(math.min(spot.X, endX) - 5, CONCOURSE - 1, passZ - 5), V3(math.max(spot.X, endX) + 5, CONCOURSE_TOP + 0.5, passZ + 5))
-				if not inside then
-					hole(V3(LINE_X - 5, CONCOURSE - 1, passZ - 5), V3(LINE_X + 5, CONCOURSE_TOP + 0.5, cz0 + 1))
+				local function zr(a, b)
+					local p, q = spot.Y + a * sz, spot.Y + b * sz
+					return math.min(p, q), math.max(p, q)
 				end
-				table.insert(list, { spot = spot, sz = sz, reach = e.reach, passZ = passZ, side = side, inside = inside, endX = endX })
+				local toward = LINE_X > spot.X and 1 or -1
+				local passZ = spot.Y + LOBBY_MID * sz
+				local inside = passZ > cz0
+				-- Entrance: open down to the stairs under the building, roofed beyond.
+				local a0, a1 = zr(-16.5, 13)
+				hole(V3(spot.X - 17.5, CONCOURSE - 1, a0), V3(spot.X + 17.5, 2, a1))
+				local b0, b1 = zr(12.5, 32.5)
+				hole(V3(spot.X - 17.5, CONCOURSE - 1, b0), V3(spot.X + 17.5, -1.5, b1))
+				-- Passage along x from the lobby wall.
+				local xa = spot.X + toward * 17.5
+				local xb = inside and (LINE_X - toward * (HALL_HALF + 1)) or (LINE_X + toward * 9)
+				hole(V3(math.min(xa, xb), CONCOURSE - 1, passZ - 9), V3(math.max(xa, xb), PASSAGE_TOP + 1, passZ + 9))
+				if not inside then
+					hole(V3(LINE_X - 9, CONCOURSE - 1, passZ), V3(LINE_X + 9, PASSAGE_TOP + 1, cz0))
+				end
+				table.insert(list, { spot = spot, sz = sz, reach = e.reach, passZ = passZ, toward = toward, inside = inside, xa = xa, xb = xb })
 				print(string.format("[Transit] %s station entrance at x=%.0f, z=%.0f", station.name, spot.X, spot.Y))
 			end
 			if #list == 0 then
@@ -299,115 +314,7 @@ end
 ---------------------------------------------------------------------------
 -- Building helpers
 ---------------------------------------------------------------------------
--- A box from a to b (3D centre line), wide x thick, raised by lift.
-local function span(folder, a, b, wide, thick, lift, colour, material, solid)
-	local length = (b - a).Magnitude
-	if length < 0.05 then
-		return nil
-	end
-	local cf = CFrame.lookAt((a + b) / 2, b) * CFrame.new(0, lift, 0)
-	local size = V3(wide, thick, length + 0.2)
-	if solid then
-		return Util.solid(folder, size, cf, colour, material)
-	end
-	return Util.deco(folder, size, cf, colour, material)
-end
-
--- Straight flight of steps from top (Vector3) to bottom, `width` wide.
-local function stairs(folder, top, bottom, width, colour)
-	local drop = top.Y - bottom.Y
-	local steps = math.max(2, math.ceil(drop / 1.1))
-	local flat = Vector3.new(bottom.X - top.X, 0, bottom.Z - top.Z)
-	local dir = flat.Unit
-	local run = flat.Magnitude / steps
-	local rise = drop / steps
-	for i = 0, steps - 1 do
-		local y = top.Y - rise * (i + 1)
-		local pos = Vector3.new(top.X, 0, top.Z) + dir * (run * (i + 0.5))
-		Util.solid(folder, V3(width, rise + 0.1, run + 0.05), CFrame.lookAt(V3(pos.X, y + rise / 2, pos.Z), V3(pos.X + dir.X, y + rise / 2, pos.Z + dir.Z)) * CFrame.new(0, -rise / 2 + (rise + 0.1) / 2, 0), colour or CONCRETE, M.Concrete)
-	end
-	-- Handrails.
-	for _, side in ipairs({ -1, 1 }) do
-		local right = V3(-dir.Z, 0, dir.X) * side * (width / 2 - 0.2)
-		span(folder, top + right + V3(0, 3, 0), bottom + right + V3(0, 3, 0), 0.2, 0.2, 0, DARK, M.Metal, false)
-	end
-end
-
-local function light(part, face, range, brightness, colour)
-	local l = Instance.new("SurfaceLight")
-	l.Face = face or Enum.NormalId.Bottom
-	l.Range = range or 14
-	l.Brightness = brightness or 1
-	l.Color = colour or Color3.fromRGB(240, 244, 255)
-	l.Angle = 120
-	l.Parent = part
-	return l
-end
-
-local function nameSign(folder, cf, size, text, colour, textColour)
-	local plate = Util.deco(folder, size, cf, colour, M.SmoothPlastic)
-	local gui = Util.sign(plate, Front, text, textColour or Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
-	gui.LightInfluence = 0.2
-	return plate
-end
-
--- Floating map marker (seen through buildings, like a GTA map icon) so players
--- can find stations and stops from a distance.
-local function marker(part, text, colour, maxDistance)
-	local gui = Instance.new("BillboardGui")
-	gui.Name = "Marker"
-	gui.AlwaysOnTop = true
-	gui.MaxDistance = maxDistance or 1200
-	gui.Size = UDim2.fromOffset(170, 34)
-	gui.StudsOffset = Vector3.new(0, 10, 0)
-	gui.LightInfluence = 0
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundColor3 = colour
-	label.BackgroundTransparency = 0.1
-	label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	label.Font = Enum.Font.GothamBlack
-	label.TextScaled = true
-	label.Text = text
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = label
-	local pad = Instance.new("UIPadding")
-	pad.PaddingLeft = UDim.new(0, 6)
-	pad.PaddingRight = UDim.new(0, 6)
-	pad.Parent = label
-	label.Parent = gui
-	gui.Parent = part
-	return gui
-end
-
--- A wall along x (alongX) or z between a and b at fixed other coordinate, from y0
--- to y1, leaving openings: gaps = list of { from, to } along the wall.
-local function wallWithGaps(folder, alongX, from, to, fixed, y0, y1, gaps, colour, material)
-	table.sort(gaps, function(a, b)
-		return a[1] < b[1]
-	end)
-	local pieces = {}
-	local cursor = from
-	for _, g in ipairs(gaps) do
-		if g[1] > cursor then
-			table.insert(pieces, { cursor, math.min(g[1], to) })
-		end
-		cursor = math.max(cursor, g[2])
-	end
-	if cursor < to then
-		table.insert(pieces, { cursor, to })
-	end
-	for _, p in ipairs(pieces) do
-		local len = p[2] - p[1]
-		if len > 0.3 then
-			local mid = (p[1] + p[2]) / 2
-			local size = alongX and V3(len, y1 - y0, 1) or V3(1, y1 - y0, len)
-			local pos = alongX and V3(mid, (y0 + y1) / 2, fixed) or V3(fixed, (y0 + y1) / 2, mid)
-			Util.solid(folder, size, CFrame.new(pos), colour, material)
-		end
-	end
-end
+local span, stairs, light, nameSign, marker = Kit.span, Kit.stairs, Kit.light, Kit.nameSign, Kit.marker
 
 ---------------------------------------------------------------------------
 -- Tunnel, open cut and viaduct
@@ -531,19 +438,27 @@ local function buildStation(folder, station, entrances)
 			end
 		end
 	end
-	-- Ceiling with light strips (opening over the stairs at the north end).
-	local stairZ0, stairZ1 = z0 + 8, z0 + 28 -- an 8-stud landing in front of the top step
+	-- Ceiling with light strips. Under the ticket hall its floor is the roof; a
+	-- lower finish layer hides it, open over the stairs up to the hall.
+	local cz0, cz1 = z0, z0 + HALL_LEN
+	local stairZ0, stairZ1 = z0 + 40, z0 + 64
 	local ceilY = STATION_TOP + 0.5
-	Util.solid(folder, V3(HALF * 2 + 2, 1, z1 - stairZ1), CFrame.new(LINE_X, ceilY, (stairZ1 + z1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
+	Util.solid(folder, V3(HALF * 2 + 2, 1, z1 - cz1), CFrame.new(LINE_X, ceilY, (cz1 + z1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
+	local finishY = STATION_TOP - 0.3
 	for _, side in ipairs({ -1, 1 }) do
-		Util.solid(folder, V3(HALF - 4, 1, stairZ1 - z0), CFrame.new(LINE_X + side * (4 + (HALF - 4) / 2 + 0.5), ceilY, (z0 + stairZ1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
+		Util.deco(folder, V3(HALF - 4.5, 0.4, cz1 - z0), CFrame.new(LINE_X + side * (4.5 + (HALF - 4.5) / 2), finishY, (z0 + cz1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
 	end
+	Util.deco(folder, V3(9, 0.4, stairZ0 - z0), CFrame.new(LINE_X, finishY, (z0 + stairZ0) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
+	Util.deco(folder, V3(9, 0.4, cz1 - stairZ1), CFrame.new(LINE_X, finishY, (stairZ1 + cz1) / 2), Color3.fromRGB(230, 230, 226), M.SmoothPlastic)
 	for k = -3, 3 do
 		for _, x in ipairs({ -TRACK, 0, TRACK }) do
-			local strip = Util.deco(folder, V3(1.2, 0.2, 14), CFrame.new(LINE_X + x, STATION_TOP - 0.15, zc + k * 20), Color3.fromRGB(250, 250, 255), M.Neon)
-			strip.CastShadow = false
-			if x == 0 and k % 2 == 0 then
-				light(strip, Enum.NormalId.Bottom, 18, 1.1)
+			local sz = zc + k * 20
+			if not (x == 0 and sz + 7 > stairZ0 - 2 and sz - 7 < stairZ1 + 2) then
+				local strip = Util.deco(folder, V3(1.2, 0.2, 14), CFrame.new(LINE_X + x, finishY - 0.3, sz), Color3.fromRGB(250, 250, 255), M.Neon)
+				strip.CastShadow = false
+				if x == 0 and k % 2 == 0 then
+					light(strip, Enum.NormalId.Bottom, 18, 1.1)
+				end
 			end
 		end
 	end
@@ -553,141 +468,64 @@ local function buildStation(folder, station, entrances)
 		Util.deco(folder, V3(1.8, 0.06, STATION_HALF * 2 - 4), CFrame.new(LINE_X + side * 5.1, platformTop + 0.03, zc), Color3.fromRGB(250, 210, 30), M.SmoothPlastic)
 	end
 	for k = -3, 3 do
-		if zc + k * 18 + 9 > stairZ1 + 4 then -- keep the foot of the stairs clear
+		local cz = zc + k * 18 + 9
+		if cz < stairZ0 - 2 or cz > stairZ1 + 4 then -- keep the stairs clear
 			Util.solid(folder, V3(1.6, STATION_TOP - platformTop, 1.6), CFrame.new(LINE_X, (platformTop + STATION_TOP) / 2, zc + k * 18 + 9), Util.shade(tile, 0.85), M.CeramicTiles)
 		end
-		if k % 2 == 0 then
-			Util.solid(folder, V3(1.6, 1.6, 6), CFrame.new(LINE_X + 2.6, platformTop + 0.8, zc + k * 18), Color3.fromRGB(120, 86, 56), M.Wood)
+		local bz = zc + k * 18
+		if k % 2 == 0 and (bz < stairZ0 - 4 or bz > stairZ1 + 4) then
+			Util.solid(folder, V3(1.6, 1.6, 6), CFrame.new(LINE_X + 2.6, platformTop + 0.8, bz), Color3.fromRGB(120, 86, 56), M.Wood)
 		end
 	end
-	for _, z in ipairs({ zc - 30, zc + 30 }) do
+	for _, z in ipairs({ zc - 6, zc + 34 }) do
 		local hang = nameSign(folder, CFrame.new(LINE_X, STATION_TOP - 2.2, z), V3(10, 1.6, 0.2), "▲ FINCH   ·   PORTLANDS ▼", Color3.fromRGB(20, 20, 24), Color3.fromRGB(255, 255, 255))
 		Util.sign(hang, Enum.NormalId.Back, "▲ FINCH   ·   PORTLANDS ▼", Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack).LightInfluence = 0.2
 	end
 
-	-- Stairs from the concourse down onto the platform's north end.
-	stairs(folder, V3(LINE_X, CONCOURSE, stairZ0), V3(LINE_X, platformTop, stairZ1), 6.5)
-
-	-- Concourse: floor (open over the stairs), walls, ceiling, fare gates and a booth.
-	local cz0, cz1 = z0, z0 + 44
-	local floorY = CONCOURSE - 0.5
-	Util.solid(folder, V3(26, 1, cz1 - stairZ1), CFrame.new(LINE_X, floorY, (stairZ1 + cz1) / 2), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
-	for _, side in ipairs({ -1, 1 }) do
-		Util.solid(folder, V3(9, 1, stairZ1 - cz0), CFrame.new(LINE_X + side * 8.5, floorY, (cz0 + stairZ1) / 2), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
-		local glass = Util.solid(folder, V3(0.2, 3.4, stairZ1 - stairZ0), CFrame.new(LINE_X + side * 3.6, CONCOURSE + 1.7, (stairZ0 + stairZ1) / 2), Color3.fromRGB(200, 220, 228), M.Glass)
-		glass.Transparency = 0.5
-	end
-	local ceiling = Util.deco(folder, V3(26, 0.4, 44), CFrame.new(LINE_X, CONCOURSE_TOP - 0.2, (cz0 + cz1) / 2), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
-	light(ceiling, Enum.NormalId.Bottom, 16, 1.2)
-	-- Landing between the north wall and the top of the platform stairs.
-	Util.solid(folder, V3(8, 1, stairZ0 - cz0), CFrame.new(LINE_X, floorY, (cz0 + stairZ0) / 2), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
-	-- Walls, with openings where the passages from the street come in.
-	local sideGaps = { [-1] = {}, [1] = {} }
-	local northGaps, southGaps = {}, {}
+	-- Ticket hall, passages and street entrances (StationKit).
+	local rng = Random.new(math.floor(zc) + 7)
+	local gaps = { [-1] = {}, [1] = {} }
+	local north = {}
 	for _, e in ipairs(entrances) do
 		if e.inside then
-			table.insert(sideGaps[e.side], { e.passZ - 5, e.passZ + 5 })
-		elseif #northGaps == 0 then
-			table.insert(northGaps, { LINE_X - 5, LINE_X + 5 })
+			table.insert(gaps[-e.toward], { e.passZ - 8, e.passZ + 8 })
+		else
+			table.insert(north, { LINE_X - 8, LINE_X + 8 })
 		end
 	end
-	for _, side in ipairs({ -1, 1 }) do
-		wallWithGaps(folder, false, cz0, cz1, LINE_X + side * 13.5, CONCOURSE, CONCOURSE_TOP, sideGaps[side], tile, M.CeramicTiles)
+	local names = {}
+	for _, s in ipairs(STATIONS) do
+		table.insert(names, s.name)
 	end
-	wallWithGaps(folder, true, LINE_X - 14, LINE_X + 14, cz0 - 0.5, CONCOURSE, CONCOURSE_TOP, northGaps, tile, M.CeramicTiles)
-	wallWithGaps(folder, true, LINE_X - 14, LINE_X + 14, cz1 + 0.5, CONCOURSE, CONCOURSE_TOP, southGaps, tile, M.CeramicTiles)
-	for k = -2, 2 do
-		local gx = LINE_X + k * 3
-		Util.deco(folder, V3(0.8, 3.2, 3), CFrame.new(gx, CONCOURSE + 1.6, cz0 + 30), Color3.fromRGB(180, 180, 186), M.Metal)
-		Util.deco(folder, V3(0.5, 0.3, 0.3), CFrame.new(gx, CONCOURSE + 3.3, cz0 + 28.6), Color3.fromRGB(60, 220, 100), M.Neon)
-	end
-	local booth = Util.solid(folder, V3(6, 7, 5), CFrame.new(LINE_X - 9, CONCOURSE + 3.5, cz0 + 36), Color3.fromRGB(190, 210, 216), M.Glass)
-	booth.Transparency = 0.4
-	nameSign(folder, CFrame.new(LINE_X, CONCOURSE_TOP - 1.4, cz0 + 32), V3(14, 1.6, 0.2), station.name .. " STATION", TTC_RED)
+	Kit.concourse(folder, station, {
+		x = LINE_X,
+		floor = CONCOURSE,
+		top = CONCOURSE_TOP,
+		passageTop = PASSAGE_TOP,
+		z0 = cz0,
+		z1 = cz1,
+		fareZ = cz0 + FARE_AT,
+		stair0 = stairZ0,
+		stair1 = stairZ1,
+		platformTop = platformTop,
+		half = HALL_HALF,
+		gapsWest = gaps[-1],
+		gapsEast = gaps[1],
+		gapsNorth = north,
+		stations = names,
+	}, rng)
 
-	-- Passages from the street entrances, and the entrances themselves.
-	local function corridor(a, b, alongX)
-		local length = alongX and math.abs(b.X - a.X) or math.abs(b.Z - a.Z)
-		local mid = (a + b) / 2
-		if length < 1 then
-			return
-		end
-		local size = alongX and V3(length + 10, 1, 10) or V3(10, 1, length + 10)
-		Util.solid(folder, size, CFrame.new(mid.X, CONCOURSE - 0.5, mid.Z), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
-		local roof = Util.deco(folder, alongX and V3(length + 10, 0.4, 10) or V3(10, 0.4, length + 10), CFrame.new(mid.X, CONCOURSE_TOP - 0.2, mid.Z), Color3.fromRGB(236, 236, 232), M.SmoothPlastic)
-		light(roof, Enum.NormalId.Bottom, 12, 0.9)
-		-- Side walls stop short of both ends so the corners stay open.
-		local wallLen = length - 11
-		if wallLen > 0.5 then
-			for _, side in ipairs({ -1, 1 }) do
-				local off = alongX and V3(0, 0, side * 5.5) or V3(side * 5.5, 0, 0)
-				local wsize = alongX and V3(wallLen, CONCOURSE_TOP - CONCOURSE, 1) or V3(1, CONCOURSE_TOP - CONCOURSE, wallLen)
-				Util.solid(folder, wsize, CFrame.new(mid.X + off.X, (CONCOURSE + CONCOURSE_TOP) / 2, mid.Z + off.Z), tile, M.CeramicTiles)
-			end
-		end
-	end
-	local RAILING = Color3.fromRGB(70, 72, 76)
-	local kerb = Util.WALK_TOP
 	for _, e in ipairs(entrances) do
-		local spot, sz, passZ = e.spot, e.sz, e.passZ
-		local function at(x, y, dz)
-			return CFrame.new(spot.X + x, y, spot.Y + dz * sz)
+		Kit.entrance(folder, e, station, { floor = CONCOURSE, passageTop = PASSAGE_TOP, ceilingTop = -1.5 }, rng)
+		if e.inside then
+			Kit.passage(folder, true, e.xa, e.xb, e.passZ, 8, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
+		else
+			-- Along x past the line, then along the line into the hall's north wall.
+			local towardHall = { { LINE_X - 8, LINE_X + 8 } }
+			local closeA, closeB = false, true -- open at the lobby, closed past the line
+			Kit.passage(folder, true, e.xa, e.xb, e.passZ, 8, CONCOURSE, PASSAGE_TOP, station.tile, { minus = {}, plus = towardHall }, closeA, closeB, rng)
+			Kit.passage(folder, false, e.passZ + 8, cz0 - 1, LINE_X, 8, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
 		end
-		corridor(V3(spot.X, 0, passZ), V3(e.endX, 0, passZ), true)
-		if not e.inside then
-			corridor(V3(LINE_X, 0, passZ), V3(LINE_X, 0, cz0 - 5), false)
-		end
-
-		-- Paved apron from the sidewalk to the top step, and the landing at the top.
-		local apron = e.reach - 15
-		Util.solid(folder, V3(16, 1, apron), at(0, kerb - 0.52, -(16 + apron / 2)), Color3.fromRGB(150, 146, 138), M.Concrete)
-		Util.solid(folder, V3(12, 1, 3), at(0, kerb - 0.5, -14.5), CONCRETE, M.Concrete)
-		stairs(folder, V3(spot.X, kerb, spot.Y - 13 * sz), V3(spot.X, CONCOURSE, spot.Y + 2 * sz), 11)
-		Util.solid(folder, V3(12, 1, 14), at(0, CONCOURSE - 0.5, 9), Color3.fromRGB(210, 206, 198), M.CeramicTiles)
-
-		-- Tiled shaft walls below ground (open toward the passage), and the end wall.
-		for _, side in ipairs({ -1, 1 }) do
-			local gaps = side == -e.side and { { passZ - 5, passZ + 5 } } or {} -- the wall facing the line
-			wallWithGaps(folder, false, spot.Y - 16, spot.Y + 16, spot.X + side * 6.5, CONCOURSE, kerb, gaps, tile, M.CeramicTiles)
-		end
-		Util.solid(folder, V3(14, kerb - CONCOURSE, 1), at(0, (kerb + CONCOURSE) / 2, 16.5), tile, M.CeramicTiles)
-		local lamp = Util.deco(folder, V3(10, 0.3, 1), at(0, CONCOURSE + 8, 15.8), Color3.fromRGB(255, 246, 226), M.Neon)
-		light(lamp, Enum.NormalId.Bottom, 18, 1.2, Color3.fromRGB(255, 240, 214))
-
-		-- Above ground: stone coping, green railings round three sides.
-		for _, side in ipairs({ -1, 1 }) do
-			Util.solid(folder, V3(1.4, 0.3, 33), at(side * 6.5, kerb + 0.15, 0.5), CONCRETE, M.Concrete)
-			Util.solid(folder, V3(0.3, 3.4, 31), at(side * 6.5, kerb + 2, 1), RAILING, M.Metal)
-			Util.deco(folder, V3(0.6, 0.3, 31), at(side * 6.5, kerb + 3.8, 1), RAILING, M.Metal)
-		end
-		Util.solid(folder, V3(13.6, 0.3, 1.4), at(0, kerb + 0.15, 16.5), CONCRETE, M.Concrete)
-		Util.solid(folder, V3(13, 3.4, 0.3), at(0, kerb + 2, 16.5), RAILING, M.Metal)
-
-		-- TTC sign over the way in: posts, a white board with the red TTC logo, and the
-		-- station name on a black band under it (lit from below at night).
-		for _, side in ipairs({ -1, 1 }) do
-			Util.solid(folder, V3(0.5, 8.6, 0.5), at(side * 6.5, kerb + 4.3, -15.5), RAILING, M.Metal)
-		end
-		local turn = sz > 0 and CFrame.identity or CFrame.Angles(0, math.pi, 0)
-		local board = Util.deco(folder, V3(13.4, 2, 0.4), at(0, kerb + 8.6, -15.5) * turn, Color3.fromRGB(245, 245, 242), M.SmoothPlastic)
-		board.CastShadow = false
-		for _, face in ipairs({ Front, Enum.NormalId.Back }) do
-			Util.sign(board, face, "TTC  SUBWAY", TTC_RED, Enum.Font.GothamBlack).LightInfluence = 0
-		end
-		marker(board, "🚇 " .. station.name, TTC_RED)
-		local band = Util.deco(folder, V3(13.4, 1.2, 0.35), at(0, kerb + 7, -15.5) * turn, Color3.fromRGB(18, 18, 20), M.SmoothPlastic)
-		band.CastShadow = false
-		for _, face in ipairs({ Front, Enum.NormalId.Back }) do
-			Util.sign(band, face, station.name, Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold).LightInfluence = 0
-		end
-		light(band, Enum.NormalId.Bottom, 14, 1.2, Color3.fromRGB(255, 244, 226))
-		-- Tall red TTC pylon at the corner so the entrance stands out down the street.
-		local pylon = Util.solid(folder, V3(1.2, 16, 3), at(-8.6, kerb + 8, -17), TTC_RED, M.SmoothPlastic)
-		for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right, Front, Enum.NormalId.Back }) do
-			Util.sign(pylon, face, "TTC", Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack).LightInfluence = 0
-		end
-		local cap = Util.deco(folder, V3(1.6, 1, 3.4), at(-8.6, kerb + 16.5, -17), Color3.fromRGB(255, 70, 70), M.Neon)
-		cap.CastShadow = false
 	end
 end
 
@@ -985,6 +823,7 @@ local function roadLoopRoute(vehicles, folder, road, spec)
 		table.insert(stops, d)
 	end
 	-- A stop pole (and maybe a shelter) on the kerb next to each stop.
+	local labelSpots = {}
 	for _, stop in ipairs(stops) do
 		for i = 1, #loop - 1 do
 			if s[i] <= stop and s[i + 1] >= stop then
@@ -998,7 +837,17 @@ local function roadLoopRoute(vehicles, folder, road, spec)
 				for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right }) do
 					Util.sign(flag, face, spec.signText, Color3.fromRGB(255, 255, 255), Enum.Font.GothamBlack)
 				end
-				marker(flag, spec.markerText, spec.markerColour, 500)
+				-- Stops come in pairs (one each direction): one map label per pair.
+				local labelled = false
+				for _, q in ipairs(labelSpots) do
+					if (q - kerb).Magnitude < 90 then
+						labelled = true
+					end
+				end
+				if not labelled then
+					table.insert(labelSpots, kerb)
+					marker(flag, spec.markerText, spec.markerColour, 420)
+				end
 				if spec.shelters then
 					-- Shelter a little further from the kerb, its open side to the road.
 					local shelterAt = p + right * (road.width / 2 - lane + road.walk * 0.6)
@@ -1128,7 +977,7 @@ function Transit.build(folder)
 	local entranceList = {}
 	for _, station in ipairs(STATIONS) do
 		for _, e in ipairs(state.entrances[station] or {}) do
-			table.insert(entranceList, { name = station.name, x = e.spot.X, y = Util.WALK_TOP, z = e.spot.Y - 15 * e.sz })
+			table.insert(entranceList, { name = station.name, x = e.spot.X, y = Util.WALK_TOP, z = e.spot.Y - 20 * e.sz })
 		end
 		if station.elevated then
 			table.insert(entranceList, { name = station.name, x = LINE_X, y = Util.WALK_TOP, z = station.z + PORT_HALF + 21 })
@@ -1150,7 +999,7 @@ function Transit.build(folder)
 		local PathfindingService = game:GetService("PathfindingService")
 		for _, station in ipairs(STATIONS) do
 			for i, e in ipairs(state.entrances[station] or {}) do
-				local from = V3(e.spot.X, Util.WALK_TOP + 3, e.spot.Y - 18 * e.sz)
+				local from = V3(e.spot.X, Util.WALK_TOP + 3, e.spot.Y - 18.5 * e.sz)
 				local to = V3(LINE_X + 3, RAIL + FLOOR_UP + 3, station.z)
 				local path = PathfindingService:CreatePath({ AgentRadius = 1.5, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 6 })
 				local ok, err = pcall(function()

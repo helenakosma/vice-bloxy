@@ -172,6 +172,13 @@ local function screen(model, cf, w, depth, rng)
 	return true
 end
 
+-- Shared with other systems (station ads, train ads).
+Billboards.face = adFace
+Billboards.ADS = ADS
+function Billboards.pick(rng)
+	return ADS[(rng or Random.new()):NextInteger(1, #ADS)]
+end
+
 -- Maybe add an ad to a building just built on a main road.
 -- cf: ground level at the lot centre, facing the road; w: frontage; depth: lot depth.
 function Billboards.maybe(model, cf, w, depth, center)
