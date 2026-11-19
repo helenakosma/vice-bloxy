@@ -185,10 +185,7 @@ end
 ---------------------------------------------------------------------------
 -- Placement
 ---------------------------------------------------------------------------
--- opts.tropical: palms instead of street trees, no subway or steam stacks.
--- opts.signals: also place traffic signals at downtown's avenue crossings.
-function Props.placeStreetFurniture(folder, rng, roads, opts)
-	opts = opts or {}
+local function placeFurniture(folder, inRoad, rng, roads, opts)
 	local tropical = opts.tropical == true
 	local placedSubway = 0
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
@@ -214,6 +211,9 @@ function Props.placeStreetFurniture(folder, rng, roads, opts)
 				local kerbSide = a + dir * t + normal * side * (half + 2)
 				local midWalk = a + dir * t + normal * side * (half + road.walk * 0.55)
 				local r = rng:NextNumber()
+				if opts.skip and opts.skip(midWalk) then
+					r = 2 -- curated area: leave the clutter to the hand-placed kit
+				end
 				if tropical and r < 0.4 and onSidewalk(midWalk) then
 					palm(folder, midWalk, rng, 0.8)
 				elseif not tropical and not road.main and r < 0.35 and onSidewalk(midWalk) then
@@ -245,7 +245,7 @@ function Props.placeStreetFurniture(folder, rng, roads, opts)
 		if road.kind == "avenue" and stacks < 8 and rng:NextNumber() < 0.08 then
 			local p = a + dir * (length / 2) + normal * (road.width / 4)
 			if not Util.isJunction(p.X, p.Y) then
-				steamStack(folder, p)
+				steamStack(inRoad, p)
 				stacks = stacks + 1
 			end
 		end
@@ -264,6 +264,24 @@ function Props.placeStreetFurniture(folder, rng, roads, opts)
 				trafficSignal(folder, pole, mainNormal * -s[1], x.mainWidth / 2 + 1, mainDir * s[2])
 				break
 			end
+		end
+	end
+end
+
+-- opts.tropical: palms instead of street trees, no subway or steam stacks.
+-- opts.signals: also place traffic signals at downtown's avenue crossings.
+-- opts.skip(point) -> true: no clutter there (streetlights still go in).
+function Props.placeStreetFurniture(folder, rng, roads, opts)
+	opts = opts or {}
+	local inRoad = Instance.new("Folder")
+	inRoad.Name = "InRoad"
+	inRoad.Parent = folder
+	placeFurniture(folder, inRoad, rng, roads, opts)
+	-- Everything except the in-road props stands on the raised sidewalk.
+	local lift = Vector3.new(0, Util.WALK_TOP - 0.25, 0)
+	for _, item in ipairs(folder:GetDescendants()) do
+		if item:IsA("BasePart") and not item:IsDescendantOf(inRoad) then
+			item.CFrame = item.CFrame + lift
 		end
 	end
 end
@@ -382,5 +400,12 @@ function Props.buildRiver(folder, gaps)
 		end
 	end
 end
+
+-- Shared with the hand-built street kit.
+Props.tree = tree
+Props.hydrant = hydrant
+Props.trashCan = trashCan
+Props.newsBox = newsBox
+Props.busStop = busStop
 
 return Props

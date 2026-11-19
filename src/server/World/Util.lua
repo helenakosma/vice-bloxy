@@ -1,9 +1,14 @@
 -- Shared helpers for world generation: part factories and an occupancy grid that
 -- records what covers each 4x4-stud cell (road, sidewalk, building, park, water).
 -- Coordinates: X runs west (-) to east (+); north is -Z.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Assets = require(ReplicatedStorage.Shared.Assets)
+
 local Util = {}
 
 Util.CELL = 4
+Util.ROAD_TOP = 0.3 -- road surface height
+Util.WALK_TOP = 0.75 -- sidewalk height (a 0.45-stud kerb)
 
 -- Downtown bounds (the original city). Other districts define their own.
 Util.MIN_X, Util.MAX_X = -700, 620
@@ -57,6 +62,15 @@ function Util.set(x, z, value)
 	if i then
 		buffer.writeu8(grid, i, value)
 	end
+end
+
+-- Id of the road that last claimed this cell (0 = none).
+function Util.ownerAt(x, z)
+	local i = cellOf(x, z)
+	if not i then
+		return 0
+	end
+	return buffer.readu16(owner, i * 2)
 end
 
 function Util.isJunction(x, z)
@@ -307,6 +321,52 @@ end
 function Util.beam(parent, a, b, thickness, color, material)
 	local length = (b - a).Magnitude
 	return Util.deco(parent, Vector3.new(thickness, thickness, length), CFrame.lookAt((a + b) / 2, b), color, material)
+end
+
+-- Tiling texture on one face of a part, if that texture has been imported.
+function Util.texture(part, face, name, studsU, studsV, transparency)
+	local id = Assets.get(name)
+	if not id then
+		return nil
+	end
+	local t = Instance.new("Texture")
+	t.Texture = id
+	t.Face = face
+	t.StudsPerTileU = studsU or 8
+	t.StudsPerTileV = studsV or studsU or 8
+	t.Transparency = transparency or 0
+	t.Parent = part
+	return t
+end
+
+-- Stretched image on one face of a part, if that image has been imported.
+function Util.decal(part, face, name, transparency)
+	local id = Assets.get(name)
+	if not id then
+		return nil
+	end
+	local d = Instance.new("Decal")
+	d.Texture = id
+	d.Face = face
+	d.Transparency = transparency or 0
+	d.Parent = part
+	return d
+end
+
+function Util.hasAsset(name)
+	return Assets.get(name) ~= nil
+end
+
+-- Wraps a building in its own Model so streaming can show a low-detail version of
+-- it from far away (Roblox's built-in level of detail).
+function Util.buildingModel(parent, name)
+	local model = Instance.new("Model")
+	model.Name = name or "Building"
+	pcall(function()
+		model.LevelOfDetail = Enum.ModelLevelOfDetail.StreamingMesh
+	end)
+	model.Parent = parent
+	return model
 end
 
 -- Adds a SurfaceGui sign with text to one face of a part.

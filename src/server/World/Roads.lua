@@ -322,10 +322,71 @@ local function bridgeDetails(folder, road, mid, dir, length)
 	end
 end
 
+-- Raised sidewalks along both sides of a segment, cut wherever another road
+-- crosses (so kerbs are real and intersections stay at road level).
+-- opts.ramps(point) -> true adds kerb ramps at the cut ends near that point.
+local function sidewalks(folder, road, a, dir, normal, length, extra, opts)
+	local walk = road.walk
+	local half = road.width / 2
+	local kerbTop = Util.WALK_TOP
+	for _, side in ipairs({ -1, 1 }) do
+		local offset = side * (half + walk / 2)
+		local runStart, startsAtCut = nil, false
+		local function flush(t1, endsAtCut)
+			if runStart and t1 - runStart > 1.5 then
+				local s0, s1 = runStart, t1
+				local wantRamps = opts and opts.ramps and opts.ramps(a + dir * ((s0 + s1) / 2))
+				local rampLen = 3
+				if wantRamps and startsAtCut then
+					s0 = s0 + rampLen
+				end
+				if wantRamps and endsAtCut then
+					s1 = s1 - rampLen
+				end
+				if s1 - s0 > 0.5 then
+					local mid = a + dir * ((s0 + s1) / 2) + normal * offset
+					local slab = Util.solid(folder, Vector3.new(walk, 1.2, s1 - s0), Util.groundCF(mid, dir, kerbTop - 0.6), SIDEWALK, Enum.Material.Pavement)
+					Util.texture(slab, Enum.NormalId.Top, "sidewalk_slabs", 10, 10)
+				end
+				if wantRamps then
+					local drop = kerbTop - Util.ROAD_TOP
+					local angle = math.atan(drop / rampLen)
+					for _, info in ipairs({ { startsAtCut, runStart, -1 }, { endsAtCut, t1, 1 } }) do
+						if info[1] then
+							local edge = a + dir * info[2] + normal * offset
+							local toward = dir * info[3]
+							local centre = edge - toward * (rampLen / 2)
+							local pos = Vector3.new(centre.X, (kerbTop + Util.ROAD_TOP) / 2 - 0.15, centre.Y)
+							local cf = CFrame.lookAt(pos, pos + Vector3.new(toward.X, 0, toward.Y)) * CFrame.Angles(-angle, 0, 0)
+							Util.solid(folder, Vector3.new(walk, 0.3, rampLen / math.cos(angle)), cf, SIDEWALK, Enum.Material.Pavement)
+						end
+					end
+				end
+			end
+			runStart = nil
+		end
+		local t = -extra / 2
+		local stop = length + extra / 2
+		while t <= stop do
+			local p = a + dir * t + normal * offset
+			local crossing = Util.get(p.X, p.Y) == Util.ROAD and Util.ownerAt(p.X, p.Y) ~= road.id
+			if crossing then
+				flush(t, true)
+			elseif not runStart then
+				runStart = t
+				startsAtCut = t > -extra / 2 + 0.5
+			end
+			t = t + 1
+		end
+		flush(stop, false)
+	end
+end
+
 -- Draws road surfaces, sidewalks and markings for the given roads.
-function Roads.render(folder, list)
+-- opts.ramps(point) -> true: add kerb ramps at intersections near that point.
+function Roads.render(folder, list, opts)
 	for _, road in ipairs(list) do
-		local yTop = 0.3 + (road.id % 7) * 0.004 -- tiny offsets stop overlapping roads flickering
+		local yTop = Util.ROAD_TOP + (road.id % 7) * 0.004 -- tiny offsets stop overlapping roads flickering
 		local color = road.kind == "alley" and ALLEY_ASPHALT or ASPHALT
 		for i = 1, #road.points - 1 do
 			local a, b = road.points[i], road.points[i + 1]
@@ -337,7 +398,7 @@ function Roads.render(folder, list)
 				local extra = road.width * 0.5 -- overlap at joints so bends have no gaps
 				Util.solid(folder, Vector3.new(road.width, 1, length + extra), Util.groundCF(mid, dir, yTop - 0.5), color, Enum.Material.Asphalt)
 				if road.walk > 0 then
-					Util.solid(folder, Vector3.new(road.width + road.walk * 2, 1, length + extra), Util.groundCF(mid, dir, 0.25 - 0.5), SIDEWALK, Enum.Material.Pavement)
+					sidewalks(folder, road, a, dir, Vector2.new(-dir.Y, dir.X), length, extra, opts)
 				end
 				if road.kind == "bridge" then
 					bridgeDetails(folder, road, mid, dir, length)
