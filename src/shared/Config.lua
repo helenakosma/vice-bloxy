@@ -42,4 +42,14 @@ return {
 
 		MphPerStud = 0.63,
 	},
+
+	-- Subway Line 1 service.
+	Transit = {
+		Headway = 60, -- target seconds between trains (the number of trains is worked out from this)
+		Cars = 4, -- cars per train
+		Speed = 80, -- studs per second between stations
+		Accel = 9, -- studs per second squared (speeding up and braking)
+		Dwell = 10, -- seconds with doors open at a station
+		TerminalDwell = 24, -- seconds at Finch and Portlands
+	},
 }

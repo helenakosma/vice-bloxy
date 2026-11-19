@@ -30,7 +30,7 @@ local CEILING = C(214, 214, 210)
 local SIGN_BLACK = C(22, 22, 26)
 local WHITE = C(255, 255, 255)
 local TTC_RED = Kit.TTC_RED
-local TILE_H = 4.5 -- height of the tiled band at the bottom of walls
+local TILE_H = 6 -- height of the tiled band at the bottom of walls
 
 ---------------------------------------------------------------------------
 -- Helpers
@@ -198,7 +198,7 @@ function Kit.ceiling(folder, x0, x1, z0, z1, y, rows)
 	for _, x in ipairs(rows) do
 		local z = z0 + 6
 		while z < z1 - 3 do
-			local panel = Util.deco(folder, V3(5, 0.15, 1.6), CFrame.new(x, y - 0.05, z), C(255, 250, 240), M.Neon)
+			local panel = Util.deco(folder, V3(6.5, 0.15, 2), CFrame.new(x, y - 0.05, z), C(255, 250, 240), M.Neon)
 			panel.CastShadow = false
 			n = n + 1
 			if n % 2 == 0 then
@@ -210,27 +210,28 @@ function Kit.ceiling(folder, x0, x1, z0, z1, y, rows)
 end
 
 ---------------------------------------------------------------------------
--- Fittings. cf: on the floor, Front facing the way the object faces.
+-- Fittings, sized for Roblox characters. cf: on the floor, Front facing the way
+-- the object faces.
 ---------------------------------------------------------------------------
 function Kit.bench(folder, cf)
-	Util.solid(folder, V3(6, 0.4, 1.6), cf * CFrame.new(0, 1.6, 0), STEEL, M.Metal)
-	Util.deco(folder, V3(6, 1.6, 0.25), cf * CFrame.new(0, 2.6, 0.75), STEEL, M.Metal)
-	for _, x in ipairs({ -2.4, 2.4 }) do
-		Util.solid(folder, V3(0.3, 1.4, 1.4), cf * CFrame.new(x, 0.7, 0), Kit.DARK, M.Metal)
+	Util.solid(folder, V3(8, 0.5, 2.2), cf * CFrame.new(0, 2.2, 0), STEEL, M.Metal)
+	Util.deco(folder, V3(8, 2.2, 0.3), cf * CFrame.new(0, 3.6, 1.05), STEEL, M.Metal)
+	for _, x in ipairs({ -3.2, 3.2 }) do
+		Util.solid(folder, V3(0.4, 2, 1.9), cf * CFrame.new(x, 1, 0), Kit.DARK, M.Metal)
 	end
 end
 
 function Kit.bin(folder, cf)
-	Util.solid(folder, V3(1.4, 2.8, 1.4), cf * CFrame.new(-0.8, 1.4, 0), C(60, 64, 70), M.Metal)
-	Util.solid(folder, V3(1.4, 2.8, 1.4), cf * CFrame.new(0.8, 1.4, 0), C(30, 90, 170), M.Metal)
-	Util.deco(folder, V3(3, 0.2, 1.5), cf * CFrame.new(0, 2.9, 0), C(30, 30, 32), M.Metal)
+	Util.solid(folder, V3(1.9, 3.8, 1.9), cf * CFrame.new(-1.05, 1.9, 0), C(60, 64, 70), M.Metal)
+	Util.solid(folder, V3(1.9, 3.8, 1.9), cf * CFrame.new(1.05, 1.9, 0), C(30, 90, 170), M.Metal)
+	Util.deco(folder, V3(4, 0.25, 2), cf * CFrame.new(0, 3.9, 0), C(30, 30, 32), M.Metal)
 end
 
 -- Ceiling camera: cf at the ceiling, Front facing where it looks.
 function Kit.camera(folder, cf)
-	Util.deco(folder, V3(0.3, 0.8, 0.3), cf * CFrame.new(0, -0.4, 0), Kit.DARK, M.Metal)
-	Util.deco(folder, V3(0.6, 0.6, 1.4), cf * CFrame.new(0, -1, -0.4) * CFrame.Angles(math.rad(-20), 0, 0), C(230, 230, 230), M.SmoothPlastic)
-	local led = Util.deco(folder, V3(0.15, 0.15, 0.1), cf * CFrame.new(0.2, -0.85, -1.1), C(255, 40, 40), M.Neon)
+	Util.deco(folder, V3(0.4, 1, 0.4), cf * CFrame.new(0, -0.5, 0), Kit.DARK, M.Metal)
+	Util.deco(folder, V3(0.8, 0.8, 1.8), cf * CFrame.new(0, -1.3, -0.5) * CFrame.Angles(math.rad(-20), 0, 0), C(230, 230, 230), M.SmoothPlastic)
+	local led = Util.deco(folder, V3(0.2, 0.2, 0.1), cf * CFrame.new(0.25, -1.1, -1.4), C(255, 40, 40), M.Neon)
 	led.CastShadow = false
 end
 
@@ -240,30 +241,30 @@ function Kit.clock(folder, cf)
 	face.Anchored = true
 	face.CanCollide = false
 	face.Shape = Enum.PartType.Cylinder
-	face.Size = V3(0.4, 3, 3)
-	face.CFrame = cf * CFrame.new(0, 0, -0.2) * CFrame.Angles(0, math.rad(90), 0)
+	face.Size = V3(0.5, 4, 4)
+	face.CFrame = cf * CFrame.new(0, 0, -0.25) * CFrame.Angles(0, math.rad(90), 0)
 	face.Color = WHITE
 	face.Material = M.SmoothPlastic
 	face.Parent = folder
 	Util.tick()
-	Util.deco(folder, V3(0.18, 1.1, 0.05), cf * CFrame.new(0, 0.45, -0.45), Kit.DARK, M.SmoothPlastic)
-	Util.deco(folder, V3(0.8, 0.18, 0.05), cf * CFrame.new(0.35, 0, -0.45), Kit.DARK, M.SmoothPlastic)
+	Util.deco(folder, V3(0.24, 1.5, 0.05), cf * CFrame.new(0, 0.6, -0.55), Kit.DARK, M.SmoothPlastic)
+	Util.deco(folder, V3(1.1, 0.24, 0.05), cf * CFrame.new(0.45, 0, -0.55), Kit.DARK, M.SmoothPlastic)
 end
 
 function Kit.ticketMachine(folder, cf)
-	Util.solid(folder, V3(3, 6.4, 1.8), cf * CFrame.new(0, 3.2, 0), C(48, 50, 56), M.Metal)
-	Util.deco(folder, V3(3.1, 0.8, 1.9), cf * CFrame.new(0, 6.1, 0), TTC_RED, M.SmoothPlastic)
-	local screen = Util.deco(folder, V3(2.2, 1.6, 0.1), cf * CFrame.new(0, 4.2, -0.92), C(40, 120, 200), M.Neon)
+	Util.solid(folder, V3(4, 8.6, 2.4), cf * CFrame.new(0, 4.3, 0), C(48, 50, 56), M.Metal)
+	Util.deco(folder, V3(4.1, 1, 2.5), cf * CFrame.new(0, 8.2, 0), TTC_RED, M.SmoothPlastic)
+	local screen = Util.deco(folder, V3(3, 2.2, 0.1), cf * CFrame.new(0, 5.6, -1.22), C(40, 120, 200), M.Neon)
 	screen.CastShadow = false
 	local gui = Util.sign(screen, Front, "TICKETS · TAP OR CARD", WHITE, Enum.Font.GothamBold)
 	gui.LightInfluence = 0
-	Util.deco(folder, V3(1.2, 0.5, 0.2), cf * CFrame.new(0, 2.8, -0.95), C(20, 20, 20), M.SmoothPlastic)
-	Util.deco(folder, V3(0.7, 0.7, 0.1), cf * CFrame.new(0.8, 3.4, -0.95), C(60, 200, 120), M.Neon).CastShadow = false
+	Util.deco(folder, V3(1.6, 0.7, 0.2), cf * CFrame.new(0, 3.7, -1.25), C(20, 20, 20), M.SmoothPlastic)
+	Util.deco(folder, V3(0.9, 0.9, 0.1), cf * CFrame.new(1.1, 4.5, -1.25), C(60, 200, 120), M.Neon).CastShadow = false
 end
 
 -- Lit, framed advertising panel on a wall. Tagged "AdPanel" for rotation later.
 function Kit.adPanel(folder, cf, w, h, rng)
-	Util.deco(folder, V3(w + 0.6, h + 0.6, 0.3), cf * CFrame.new(0, 0, 0.15), C(50, 52, 56), M.Metal)
+	Util.deco(folder, V3(w + 0.8, h + 0.8, 0.3), cf * CFrame.new(0, 0, 0.15), C(50, 52, 56), M.Metal)
 	local panel = Util.deco(folder, V3(w, h, 0.2), cf * CFrame.new(0, 0, -0.1), C(240, 240, 240), M.SmoothPlastic)
 	panel.CastShadow = false
 	Billboards.face(panel, Front, Billboards.pick(rng), true)
@@ -326,12 +327,12 @@ end
 
 -- Black hanging sign with white text on both faces, on two rods up to `ceilingY`.
 function Kit.hangingSign(folder, cf, w, text, ceilingY, textColour)
-	local plate = Util.deco(folder, V3(w, 1.5, 0.3), cf, SIGN_BLACK, M.SmoothPlastic)
+	local plate = Util.deco(folder, V3(w, 2, 0.3), cf, SIGN_BLACK, M.SmoothPlastic)
 	plate.CastShadow = false
 	for _, face in ipairs({ Front, Enum.NormalId.Back }) do
 		Util.sign(plate, face, text, textColour or WHITE, Enum.Font.GothamBold).LightInfluence = 0
 	end
-	local top = cf.Position.Y + 0.75
+	local top = cf.Position.Y + 1
 	if ceilingY and ceilingY > top + 0.2 then
 		for _, x in ipairs({ -w / 3, w / 3 }) do
 			local p = cf * CFrame.new(x, 0, 0)
@@ -343,7 +344,7 @@ end
 
 -- Small green EXIT sign: cf at the sign, Front facing the viewer.
 function Kit.exitSign(folder, cf, text)
-	local plate = Util.deco(folder, V3(3.6, 0.9, 0.25), cf, C(20, 120, 60), M.SmoothPlastic)
+	local plate = Util.deco(folder, V3(4.8, 1.2, 0.25), cf, C(20, 120, 60), M.SmoothPlastic)
 	plate.CastShadow = false
 	for _, face in ipairs({ Front, Enum.NormalId.Back }) do
 		Util.sign(plate, face, text or "EXIT", WHITE, Enum.Font.GothamBold).LightInfluence = 0
@@ -352,8 +353,8 @@ end
 
 -- Red emergency point (alarm + intercom) on a wall.
 function Kit.emergency(folder, cf)
-	Util.deco(folder, V3(1.4, 2.2, 0.4), cf * CFrame.new(0, 0, -0.2), C(200, 30, 30), M.SmoothPlastic)
-	local label = Util.deco(folder, V3(1.3, 0.5, 0.05), cf * CFrame.new(0, 0.7, -0.42), WHITE, M.SmoothPlastic)
+	Util.deco(folder, V3(1.9, 3, 0.4), cf * CFrame.new(0, 0, -0.2), C(200, 30, 30), M.SmoothPlastic)
+	local label = Util.deco(folder, V3(1.8, 0.7, 0.05), cf * CFrame.new(0, 1, -0.42), WHITE, M.SmoothPlastic)
 	Util.sign(label, Front, "EMERGENCY", C(200, 30, 30), Enum.Font.GothamBold)
 end
 
@@ -361,7 +362,7 @@ end
 -- "DepartureBoard" with Station and Bound ("N"/"S") attributes; the timetable
 -- fills its Title / Next / Following / Status labels.
 function Kit.departureBoard(folder, cf, stationName, bound, ceilingY)
-	local board = Util.deco(folder, V3(6.4, 2.4, 0.5), cf, C(14, 14, 16), M.SmoothPlastic)
+	local board = Util.deco(folder, V3(8.6, 3.2, 0.5), cf, C(14, 14, 16), M.SmoothPlastic)
 	board.Name = "DepartureBoard"
 	board.CastShadow = false
 	board:SetAttribute("Station", stationName)
@@ -395,10 +396,10 @@ function Kit.departureBoard(folder, cf, stationName, bound, ceilingY)
 		end
 		gui.Parent = board
 	end
-	Util.deco(folder, V3(6.6, 0.3, 0.7), cf * CFrame.new(0, 1.35, 0), C(60, 62, 66), M.Metal)
-	local top = cf.Position.Y + 1.5
+	Util.deco(folder, V3(8.8, 0.3, 0.7), cf * CFrame.new(0, 1.75, 0), C(60, 62, 66), M.Metal)
+	local top = cf.Position.Y + 1.9
 	if ceilingY > top then
-		for _, x in ipairs({ -2.4, 2.4 }) do
+		for _, x in ipairs({ -3.2, 3.2 }) do
 			local p = cf * CFrame.new(x, 0, 0)
 			Util.deco(folder, V3(0.15, ceilingY - top, 0.15), CFrame.new(p.X, (top + ceilingY) / 2, p.Z), Kit.DARK, M.Metal)
 		end
@@ -477,16 +478,16 @@ function Kit.passage(folder, alongX, a0, a1, c, half, y0, y1, accent, gaps, clos
 	while a < a1 - 12 do
 		local side = (k % 2 == 0) and -1 or 1
 		local list = side < 0 and gaps.minus or gaps.plus
-		if not blocked(list, a, 4) then
-			local p = pos(a, side * half, y0 + TILE_H + 2.6)
+		if not blocked(list, a, 5) then
+			local p = pos(a, side * half, y0 + TILE_H + 3.4)
 			local inward = alongX and V3(0, 0, -side) or V3(-side, 0, 0)
-			Kit.adPanel(folder, CFrame.lookAt(p + inward * 0.1, p + inward * 2), 7, 4.2, rng)
+			Kit.adPanel(folder, CFrame.lookAt(p + inward * 0.1, p + inward * 2), 9, 5.4, rng)
 			if len > 50 and k == 1 then
-				local b = pos(a, side * (half - 1.4), y0)
+				local b = pos(a, side * (half - 1.8), y0)
 				Kit.bench(folder, CFrame.lookAt(b, b + inward))
 			end
 		end
-		a = a + 16
+		a = a + 20
 		k = k + 1
 	end
 end
@@ -497,18 +498,35 @@ end
 --       toward (+1/-1: the line is toward +x / -x), reach (distance from the spot
 --       to the sidewalk), passZ }
 -- In entrance coordinates, x runs across and dz along the way in:
---   dz -20..-16 canopy over the apron, -16..-10 landing, -10..15 stairs and
---   escalator going down, 15..31.5 the lobby at concourse level; the building
---   above ground covers dz -16..12.5. Across: stairs x -16.5..0.6, escalator 1..6,
---   divider 6..7, side walkway and elevator 7..16.5.
+--   dz -26..-21 canopy over the apron, -21..-13 landing, -13..19 stairs and
+--   escalator going down, 19..41.5 the lobby at concourse level; the building
+--   above ground covers dz -21..10.5. Across: stairs x -22..1, escalator 2..9,
+--   divider 9..10.5, side walkway and elevator 10.5..22.
 ---------------------------------------------------------------------------
-Kit.ENTRANCE = { HALF_W = 16.5, FRONT = -20, BACK = 31.5, LOBBY0 = 15, LOBBY1 = 31.5, HOUSE_BACK = 12.5 }
+local E = {
+	HALF_W = 22,
+	CANOPY = -26,
+	LAND0 = -21,
+	STAIR0 = -13,
+	STAIR1 = 19,
+	LOBBY1 = 41.5,
+	HOUSE_BACK = 10.5,
+	HOUSE_H = 14,
+	STAIR_X0 = -22, STAIR_X1 = 1,
+	ESC_X0 = 2, ESC_X1 = 9,
+	DIV_X0 = 9, DIV_X1 = 10.5,
+	WALK_X1 = 22,
+	CAB_X0 = 12, CAB_X1 = 20.5, CAB_Z0 = 1, CAB_Z1 = 10,
+	CAB_H = 11,
+}
+Kit.ENTRANCE = E
 
 function Kit.entrance(folder, e, station, geo, rng)
 	local spot, sz = e.spot, e.sz
 	local kerb = Util.WALK_TOP
 	local y0 = geo.floor -- underground floor level
 	local accent = station.tile
+	local HW = E.HALF_W
 	local function at(x, y, dz)
 		return CFrame.new(spot.X + x, y, spot.Y + dz * sz)
 	end
@@ -517,133 +535,145 @@ function Kit.entrance(folder, e, station, geo, rng)
 	end
 	local turn = sz > 0 and CFrame.identity or CFrame.Angles(0, math.pi, 0) -- Front faces the street
 	local backTurn = turn * CFrame.Angles(0, math.pi, 0) -- Front faces into the station
+	local GRANITE = C(176, 172, 164)
+	local width = HW * 2
 
 	-- Street level: apron to the sidewalk, landing, side walkway.
-	local apron = math.max(e.reach - 16, 1)
-	Util.solid(folder, V3(34, 1, apron), at(0, kerb - 0.52, -(16 + apron / 2)), C(150, 146, 138), M.Concrete)
-	Util.solid(folder, V3(33, 1, 6), at(0, kerb - 0.5, -13), C(176, 172, 164), M.Granite)
-	Util.solid(folder, V3(9.5, 1, 22.5), at(11.75, kerb - 0.5, 1.25), C(176, 172, 164), M.Granite)
+	local apron = math.max(e.reach - (-E.LAND0), 1)
+	Util.solid(folder, V3(width + 2, 1, apron), at(0, kerb - 0.52, E.LAND0 - apron / 2), C(150, 146, 138), M.Concrete)
+	Util.solid(folder, V3(width, 1, E.STAIR0 - E.LAND0), at(0, kerb - 0.5, (E.LAND0 + E.STAIR0) / 2), GRANITE, M.Granite)
+	local walkW = E.WALK_X1 - E.DIV_X1
+	local walkX = (E.WALK_X1 + E.DIV_X1) / 2
+	Util.solid(folder, V3(walkW, 1, E.HOUSE_BACK - E.STAIR0), at(walkX, kerb - 0.5, (E.STAIR0 + E.HOUSE_BACK) / 2), GRANITE, M.Granite)
 
-	-- Stairs (solid underneath) with three handrails.
-	Kit.solidStairs(folder, p3(-7.95, kerb, -10), p3(-7.95, y0, 15), 17.1, y0 - 0.5)
-	for _, x in ipairs({ -16, -8, 0.3 }) do
-		Kit.span(folder, p3(x, kerb + 3, -10), p3(x, y0 + 3, 15), 0.25, 0.25, 0, Kit.DARK, M.Metal, false)
-		Kit.span(folder, p3(x, kerb + 1.5, -10), p3(x, y0 + 1.5, 15), 0.12, 3, 0, STEEL, M.Metal, false)
+	-- Stairs (solid underneath) with handrails.
+	local stairW = E.STAIR_X1 - E.STAIR_X0
+	local stairX = (E.STAIR_X0 + E.STAIR_X1) / 2
+	Kit.solidStairs(folder, p3(stairX, kerb, E.STAIR0), p3(stairX, y0, E.STAIR1), stairW, y0 - 0.5)
+	for _, x in ipairs({ E.STAIR_X0 + 0.5, stairX, E.STAIR_X1 - 0.4 }) do
+		Kit.span(folder, p3(x, kerb + 3.6, E.STAIR0), p3(x, y0 + 3.6, E.STAIR1), 0.3, 0.3, 0, Kit.DARK, M.Metal, false)
+		Kit.span(folder, p3(x, kerb + 1.8, E.STAIR0), p3(x, y0 + 1.8, E.STAIR1), 0.15, 3.6, 0, STEEL, M.Metal, false)
 	end
 
 	-- Up escalator: a moving surface (anchored part with a velocity carries you up),
 	-- steel balustrades with black handrails.
-	local escTop, escBottom = p3(3.5, kerb, -10), p3(3.5, y0, 15)
-	local belt = Kit.span(folder, escTop, escBottom, 5, 1, -0.5, C(70, 72, 76), M.DiamondPlate, true)
+	local escX = (E.ESC_X0 + E.ESC_X1) / 2
+	local escTop, escBottom = p3(escX, kerb, E.STAIR0), p3(escX, y0, E.STAIR1)
+	local belt = Kit.span(folder, escTop, escBottom, E.ESC_X1 - E.ESC_X0, 1, -0.5, C(70, 72, 76), M.DiamondPlate, true)
 	if belt then
-		belt.AssemblyLinearVelocity = (escTop - escBottom).Unit * 7
+		belt.AssemblyLinearVelocity = (escTop - escBottom).Unit * 8
 		belt.Name = "Escalator"
 	end
-	for _, x in ipairs({ 0.8 }) do
-		Kit.span(folder, p3(x, kerb, -10), p3(x, y0, 15), 0.4, 3.4, 1.7, STEEL, M.Metal, true)
-		Kit.span(folder, p3(x, kerb, -10), p3(x, y0, 15), 0.6, 0.3, 3.5, C(15, 15, 15), M.Rubber, false)
+	local balX = (E.STAIR_X1 + E.ESC_X0) / 2
+	Kit.span(folder, p3(balX, kerb, E.STAIR0), p3(balX, y0, E.STAIR1), E.ESC_X0 - E.STAIR_X1, 4.2, 2.1, STEEL, M.Metal, true)
+	Kit.span(folder, p3(balX, kerb, E.STAIR0), p3(balX, y0, E.STAIR1), 1.2, 0.35, 4.3, C(15, 15, 15), M.Rubber, false)
+	for _, info in ipairs({ { E.STAIR0 - 1, kerb }, { E.STAIR1 + 1, y0 } }) do
+		Util.deco(folder, V3(E.ESC_X1 - E.ESC_X0, 0.1, 2.4), at(escX, info[2] + 0.05, info[1]), C(200, 200, 204), M.DiamondPlate)
 	end
-	for _, info in ipairs({ { -11, kerb }, { 16, y0 } }) do
-		Util.deco(folder, V3(5, 0.1, 2), at(3.5, info[2] + 0.05, info[1]), C(200, 200, 204), M.DiamondPlate)
-	end
-	local upSign = Util.deco(folder, V3(5, 1, 0.2), at(3.5, y0 + 9, 15.6) * turn, SIGN_BLACK, M.SmoothPlastic)
+	local upSign = Util.deco(folder, V3(7, 1.4, 0.2), at(escX, y0 + 11, E.STAIR1 + 0.6) * turn, SIGN_BLACK, M.SmoothPlastic)
 	Util.sign(upSign, Front, "▲ UP TO STREET", C(120, 255, 140), Enum.Font.GothamBold).LightInfluence = 0
 
 	-- Divider between the escalator and the walkway/elevator: tile below, glass above.
-	Util.solid(folder, V3(1, kerb - y0, 25), at(6.5, (kerb + y0) / 2, 2.5), accent, M.CeramicTiles)
-	local guard = Util.solid(folder, V3(0.3, 3.6, 22.5), at(6.5, kerb + 1.8, 1.25), C(200, 220, 228), M.Glass)
+	local divX = (E.DIV_X0 + E.DIV_X1) / 2
+	local divW = E.DIV_X1 - E.DIV_X0
+	Util.solid(folder, V3(divW, kerb - y0, E.STAIR1 - E.STAIR0), at(divX, (kerb + y0) / 2, (E.STAIR0 + E.STAIR1) / 2), accent, M.CeramicTiles)
+	local guard = Util.solid(folder, V3(0.4, 4.2, E.HOUSE_BACK - E.STAIR0), at(divX, kerb + 2.1, (E.STAIR0 + E.HOUSE_BACK) / 2), C(200, 220, 228), M.Glass)
 	guard.Transparency = 0.5
-	Util.deco(folder, V3(0.5, 0.25, 22.5), at(6.5, kerb + 3.7, 1.25), STEEL, M.Metal)
+	Util.deco(folder, V3(0.7, 0.3, E.HOUSE_BACK - E.STAIR0), at(divX, kerb + 4.3, (E.STAIR0 + E.HOUSE_BACK) / 2), STEEL, M.Metal)
 	-- Close the space under the walkway behind the lower elevator.
-	Util.solid(folder, V3(9.5, kerb - 1 - y0, 1), at(11.75, (kerb - 1 + y0) / 2, 2.5), accent, M.CeramicTiles)
+	Util.solid(folder, V3(walkW, kerb - 1 - y0, 1), at(walkX, (kerb - 1 + y0) / 2, E.CAB_Z0 - 0.5), accent, M.CeramicTiles)
 
 	-- Underground: side walls (opening on the line side), front and end walls,
 	-- lobby floor, lower walkway floor, lobby ceiling.
-	local L = Kit.ENTRANCE
 	for _, side in ipairs({ -1, 1 }) do
 		local gaps = {}
 		if side == e.toward then
-			local g0, g1 = spot.Y + (L.LOBBY0 + 0.25) * sz, spot.Y + (L.LOBBY1 - 0.25) * sz
-			table.insert(gaps, { math.min(g0, g1), math.max(g0, g1) })
+			table.insert(gaps, { e.passZ - 10, e.passZ + 10 })
 		end
-		local w0, w1 = spot.Y - 16.5 * sz, spot.Y + 32 * sz
-		Kit.wall(folder, false, math.min(w0, w1), math.max(w0, w1), spot.X + side * 17, y0, kerb, gaps, accent, geo.passageTop)
+		local w0, w1 = spot.Y + (E.LAND0 - 0.5) * sz, spot.Y + (E.LOBBY1 + 0.5) * sz
+		Kit.wall(folder, false, math.min(w0, w1), math.max(w0, w1), spot.X + side * (HW + 0.5), y0, kerb, gaps, accent, geo.passageTop)
 	end
-	Util.solid(folder, V3(35, kerb - 1 - y0, 1), at(0, (kerb - 1 + y0) / 2, -16.5), accent, M.CeramicTiles)
-	Kit.wall(folder, true, spot.X - 17.5, spot.X + 17.5, spot.Y + 32 * sz, y0, geo.ceilingTop, {}, accent, nil)
-	Util.solid(folder, V3(33, 1, 18.5), at(0, y0 - 0.5, 22.25), FLOOR, M.Granite) -- from the foot of the stairs
-	Util.solid(folder, V3(9.5, 1, 12.5), at(11.75, y0 - 0.5, 8.75), FLOOR, M.Granite)
-	local cz0, cz1 = spot.Y + 12.5 * sz, spot.Y + 31.5 * sz
-	Kit.ceiling(folder, spot.X - 16.5, spot.X + 16.5, math.min(cz0, cz1), math.max(cz0, cz1), geo.passageTop + 0.25, { spot.X - 8, spot.X + 8 })
-	Kit.hangingSign(folder, at(0, geo.passageTop - 1.4, 30.8) * turn, 14, "◀ ▶  TRAINS · LINE 1", geo.passageTop + 0.25)
-	Kit.exitSign(folder, at(-8, y0 + 9.5, 15.3) * turn, "EXIT ▲ STREET")
-	Kit.bin(folder, at(-13, y0, 30.5) * turn)
-	Kit.camera(folder, at(14, geo.passageTop + 0.25, 30) * turn)
+	Util.solid(folder, V3(width + 2, kerb - 1 - y0, 1), at(0, (kerb - 1 + y0) / 2, E.LAND0 - 0.5), accent, M.CeramicTiles)
+	Kit.wall(folder, true, spot.X - HW - 1, spot.X + HW + 1, spot.Y + (E.LOBBY1 + 0.5) * sz, y0, geo.ceilingTop, {}, accent, nil)
+	Util.solid(folder, V3(width, 1, E.LOBBY1 - E.STAIR1 + 2), at(0, y0 - 0.5, (E.STAIR1 - 2 + E.LOBBY1) / 2), FLOOR, M.Granite)
+	Util.solid(folder, V3(walkW, 1, E.STAIR1 - E.CAB_Z0 + 0.5), at(walkX, y0 - 0.5, (E.CAB_Z0 - 0.5 + E.STAIR1) / 2), FLOOR, M.Granite)
+	local c0, c1 = spot.Y + E.HOUSE_BACK * sz, spot.Y + E.LOBBY1 * sz
+	Kit.ceiling(folder, spot.X - HW, spot.X + HW, math.min(c0, c1), math.max(c0, c1), geo.passageTop, { spot.X - 11, spot.X + 11 })
+	Kit.hangingSign(folder, at(0, geo.passageTop - 2, E.LOBBY1 - 0.8) * turn, 18, "◀ ▶  TRAINS · LINE 1", geo.passageTop)
+	Kit.exitSign(folder, at(stairX, y0 + 12, E.STAIR1 + 0.3) * turn, "EXIT ▲ STREET")
+	Kit.bin(folder, at(-HW + 3, y0, E.LOBBY1 - 1.5) * turn)
+	Kit.camera(folder, at(HW - 2, geo.passageTop, E.LOBBY1 - 2) * turn)
 
 	-- Above ground: steel-and-glass building over the stairs, canopy, signs.
+	local houseLen = E.HOUSE_BACK - E.LAND0
+	local houseMid = (E.HOUSE_BACK + E.LAND0) / 2
 	for _, side in ipairs({ -1, 1 }) do
-		local glass = Util.solid(folder, V3(0.4, 11, 28.5), at(side * 16.5, kerb + 5.5, -1.75), C(190, 214, 224), M.Glass)
+		local glass = Util.solid(folder, V3(0.4, E.HOUSE_H, houseLen), at(side * HW, kerb + E.HOUSE_H / 2, houseMid), C(190, 214, 224), M.Glass)
 		glass.Transparency = 0.45
-		for dz = -16, 12.5, 7.125 do
-			Util.solid(folder, V3(0.7, 11, 0.7), at(side * 16.5, kerb + 5.5, dz), Kit.DARK, M.Metal)
+		for dz = E.LAND0, E.HOUSE_BACK, houseLen / 4 do
+			Util.solid(folder, V3(0.8, E.HOUSE_H, 0.8), at(side * HW, kerb + E.HOUSE_H / 2, dz), Kit.DARK, M.Metal)
 		end
-		Util.solid(folder, V3(0.8, 11, 0.8), at(side * 16.5, kerb + 5.5, -19.5), Kit.DARK, M.Metal)
+		Util.solid(folder, V3(1, E.HOUSE_H, 1), at(side * HW, kerb + E.HOUSE_H / 2, E.CANOPY + 0.5), Kit.DARK, M.Metal)
 	end
-	Util.solid(folder, V3(33, kerb + 1.75, 0.8), at(0, (kerb - 1.75) / 2, 12.9), Kit.CONCRETE, M.Concrete)
-	local back = Util.solid(folder, V3(33, 11, 0.4), at(0, kerb + 5.5, 12.5), C(190, 214, 224), M.Glass)
+	Util.solid(folder, V3(width, kerb + 1.75, 0.8), at(0, (kerb - 1.75) / 2, E.HOUSE_BACK + 0.4), Kit.CONCRETE, M.Concrete)
+	local back = Util.solid(folder, V3(width, E.HOUSE_H, 0.4), at(0, kerb + E.HOUSE_H / 2, E.HOUSE_BACK), C(190, 214, 224), M.Glass)
 	back.Transparency = 0.45
-	Util.solid(folder, V3(35, 1, 33), at(0, kerb + 11.5, -3.75), Kit.DARK, M.Metal)
-	Util.deco(folder, V3(35.4, 0.4, 33.4), at(0, kerb + 12.1, -3.75), C(120, 122, 126), M.Metal)
-	for _, dz in ipairs({ -14, 0 }) do
-		local strip = Util.deco(folder, V3(20, 0.15, 1.2), at(0, kerb + 10.95, dz), C(255, 248, 236), M.Neon)
+	local roofLen = E.HOUSE_BACK - E.CANOPY
+	Util.solid(folder, V3(width + 2, 1, roofLen), at(0, kerb + E.HOUSE_H + 0.5, (E.HOUSE_BACK + E.CANOPY) / 2), Kit.DARK, M.Metal)
+	Util.deco(folder, V3(width + 2.4, 0.4, roofLen + 0.4), at(0, kerb + E.HOUSE_H + 1.1, (E.HOUSE_BACK + E.CANOPY) / 2), C(120, 122, 126), M.Metal)
+	for _, dz in ipairs({ -17, -3 }) do
+		local strip = Util.deco(folder, V3(26, 0.15, 1.4), at(0, kerb + E.HOUSE_H - 0.05, dz), C(255, 248, 236), M.Neon)
 		strip.CastShadow = false
-		Kit.light(strip, Enum.NormalId.Bottom, 18, 1.3, C(255, 244, 226))
+		Kit.light(strip, Enum.NormalId.Bottom, 22, 1.3, C(255, 244, 226))
 	end
 	-- Fascia sign over the way in: TTC SUBWAY, the station name under it.
-	local board = Util.deco(folder, V3(26, 2.6, 0.6), at(0, kerb + 9.7, -19.8) * turn, WHITE, M.SmoothPlastic)
+	local board = Util.deco(folder, V3(34, 3.4, 0.6), at(0, kerb + E.HOUSE_H - 1.9, E.CANOPY + 0.2) * turn, WHITE, M.SmoothPlastic)
 	board.CastShadow = false
 	for _, face in ipairs({ Front, Enum.NormalId.Back }) do
 		Util.sign(board, face, "TTC   SUBWAY", TTC_RED, Enum.Font.GothamBlack).LightInfluence = 0
 	end
 	Kit.marker(board, "🚇 " .. station.name, TTC_RED)
-	local band = Util.deco(folder, V3(26, 1.4, 0.5), at(0, kerb + 7.75, -19.8) * turn, SIGN_BLACK, M.SmoothPlastic)
+	local band = Util.deco(folder, V3(34, 1.8, 0.5), at(0, kerb + E.HOUSE_H - 4.5, E.CANOPY + 0.2) * turn, SIGN_BLACK, M.SmoothPlastic)
 	band.CastShadow = false
 	for _, face in ipairs({ Front, Enum.NormalId.Back }) do
 		Util.sign(band, face, station.name .. " STATION", WHITE, Enum.Font.GothamBold).LightInfluence = 0
 	end
 	-- Red TTC pylon at the corner of the apron.
-	local pylon = Util.solid(folder, V3(1.2, 16, 3), at(-15.5, kerb + 8, -22), TTC_RED, M.SmoothPlastic)
+	local pylon = Util.solid(folder, V3(1.6, 20, 4), at(-HW + 1.5, kerb + 10, E.CANOPY - 2), TTC_RED, M.SmoothPlastic)
 	for _, face in ipairs({ Enum.NormalId.Left, Enum.NormalId.Right, Front, Enum.NormalId.Back }) do
 		Util.sign(pylon, face, "TTC", WHITE, Enum.Font.GothamBlack).LightInfluence = 0
 	end
-	local cap = Util.deco(folder, V3(1.6, 1, 3.4), at(-15.5, kerb + 16.5, -22), C(255, 70, 70), M.Neon)
+	local cap = Util.deco(folder, V3(2, 1.2, 4.4), at(-HW + 1.5, kerb + 20.6, E.CANOPY - 2), C(255, 70, 70), M.Neon)
 	cap.CastShadow = false
 	-- Information panel on the landing.
-	local info = Util.solid(folder, V3(4, 6, 0.5), at(-14, kerb + 3, -12) * turn, SIGN_BLACK, M.Metal)
+	local info = Util.solid(folder, V3(5.4, 7.6, 0.6), at(-HW + 3.5, kerb + 3.8, E.LAND0 + 4) * turn, SIGN_BLACK, M.Metal)
 	Util.sign(info, Front, "LINE 1 YONGE\n◀ STAIRS   ESCALATOR ▲\nELEVATOR ▶", WHITE, Enum.Font.GothamBold).LightInfluence = 0
 
 	-- Elevator: a cab at street level on the walkway and one below; the call
 	-- button takes you to the other one.
 	local cabs = {}
-	for i, info2 in ipairs({ { kerb, 3 }, { y0, 10 } }) do
+	local cabX = (E.CAB_X0 + E.CAB_X1) / 2
+	local cabW = E.CAB_X1 - E.CAB_X0
+	local cabMid = (E.CAB_Z0 + E.CAB_Z1) / 2
+	for i, info2 in ipairs({ { kerb, E.CAB_Z0 }, { y0, E.CAB_Z1 } }) do
 		local y, doorDz = info2[1], info2[2]
-		local backDz = doorDz == 3 and 10 or 3
-		for _, x in ipairs({ 8, 15 }) do
-			local wall = Util.solid(folder, V3(0.4, 9, 7), at(x, y + 4.5, 6.5), C(190, 214, 224), M.Glass)
+		local backDz = doorDz == E.CAB_Z0 and E.CAB_Z1 or E.CAB_Z0
+		for _, x in ipairs({ E.CAB_X0, E.CAB_X1 }) do
+			local wall = Util.solid(folder, V3(0.4, E.CAB_H, E.CAB_Z1 - E.CAB_Z0), at(x, y + E.CAB_H / 2, cabMid), C(190, 214, 224), M.Glass)
 			wall.Transparency = 0.35
 		end
-		Util.solid(folder, V3(7.4, 9, 0.4), at(11.5, y + 4.5, backDz), C(120, 124, 130), M.Metal)
-		for _, x in ipairs({ 8.3, 14.7 }) do
-			Util.solid(folder, V3(1.4, 9, 0.5), at(x, y + 4.5, doorDz), C(150, 152, 156), M.Metal)
+		Util.solid(folder, V3(cabW + 0.4, E.CAB_H, 0.4), at(cabX, y + E.CAB_H / 2, backDz), C(120, 124, 130), M.Metal)
+		for _, x in ipairs({ E.CAB_X0 + 0.8, E.CAB_X1 - 0.8 }) do
+			Util.solid(folder, V3(1.6, E.CAB_H, 0.5), at(x, y + E.CAB_H / 2, doorDz), C(150, 152, 156), M.Metal)
 		end
-		Util.solid(folder, V3(7.4, 1.2, 0.5), at(11.5, y + 8.4, doorDz), C(150, 152, 156), M.Metal)
-		local top = Util.solid(folder, V3(7.4, 0.5, 7.4), at(11.5, y + 9.25, 6.5), C(120, 124, 130), M.Metal)
-		Kit.light(top, Enum.NormalId.Bottom, 10, 1)
-		local signTurn = doorDz == 3 and turn or backTurn
-		local label = Util.deco(folder, V3(5, 0.8, 0.2), at(11.5, y + 8.4, doorDz) * signTurn * CFrame.new(0, 0, -0.3), SIGN_BLACK, M.SmoothPlastic)
+		Util.solid(folder, V3(cabW + 0.4, 1.4, 0.5), at(cabX, y + E.CAB_H - 0.7, doorDz), C(150, 152, 156), M.Metal)
+		local top = Util.solid(folder, V3(cabW + 0.4, 0.5, E.CAB_Z1 - E.CAB_Z0 + 0.4), at(cabX, y + E.CAB_H + 0.25, cabMid), C(120, 124, 130), M.Metal)
+		Kit.light(top, Enum.NormalId.Bottom, 12, 1)
+		local signTurn = doorDz == E.CAB_Z0 and turn or backTurn
+		local label = Util.deco(folder, V3(7, 1, 0.2), at(cabX, y + E.CAB_H - 0.7, doorDz) * signTurn * CFrame.new(0, 0, -0.3), SIGN_BLACK, M.SmoothPlastic)
 		Util.sign(label, Front, i == 1 and "ELEVATOR ▼ TRAINS" or "ELEVATOR ▲ STREET", WHITE, Enum.Font.GothamBold).LightInfluence = 0
-		local panel = Util.solid(folder, V3(0.3, 1.6, 0.8), at(14.7, y + 4, 6.5), C(40, 40, 44), M.Metal)
-		cabs[i] = { panel = panel, centre = at(11.5, y + 3, 6.5) }
+		local panel = Util.solid(folder, V3(0.3, 2, 1), at(E.CAB_X1 - 0.4, y + 4.6, cabMid), C(40, 40, 44), M.Metal)
+		cabs[i] = { panel = panel, centre = at(cabX, y + 3, cabMid) }
 	end
 	for i, cab in ipairs(cabs) do
 		local other = cabs[3 - i]
@@ -651,13 +681,13 @@ function Kit.entrance(folder, e, station, geo, rng)
 		prompt.ActionText = i == 1 and "Go down to the trains" or "Go up to the street"
 		prompt.ObjectText = "Elevator"
 		prompt.HoldDuration = 0.3
-		prompt.MaxActivationDistance = 8
+		prompt.MaxActivationDistance = 10
 		prompt.RequiresLineOfSight = false
 		prompt.Parent = cab.panel
 		prompt.Triggered:Connect(function(player)
 			local character = player.Character
 			local root = character and character:FindFirstChild("HumanoidRootPart")
-			if root and (root.Position - cab.centre.Position).Magnitude < 12 then
+			if root and (root.Position - cab.centre.Position).Magnitude < 14 then
 				local offset = cab.centre:ToObjectSpace(root.CFrame)
 				character:PivotTo(other.centre * offset)
 			end
@@ -675,6 +705,7 @@ function Kit.concourse(folder, station, geo, rng)
 	local z0, z1, fz = geo.z0, geo.z1, geo.fareZ
 	local s0, s1 = geo.stair0, geo.stair1
 	local H = geo.half
+	local O = 6.5 -- half-width of the opening over the platform stairs
 	local accent = station.tile
 	local function face(p, dir)
 		return CFrame.lookAt(p, p + dir)
@@ -682,59 +713,63 @@ function Kit.concourse(folder, station, geo, rng)
 
 	-- Floor with the opening over the platform stairs.
 	for _, side in ipairs({ -1, 1 }) do
-		Util.solid(folder, V3(H - 4.5, 1, z1 - z0), CFrame.new(X + side * (4.5 + (H - 4.5) / 2), y0 - 0.5, (z0 + z1) / 2), FLOOR, M.Granite)
+		Util.solid(folder, V3(H - O, 1, z1 - z0), CFrame.new(X + side * (O + (H - O) / 2), y0 - 0.5, (z0 + z1) / 2), FLOOR, M.Granite)
 	end
-	Util.solid(folder, V3(9, 1, s0 - z0), CFrame.new(X, y0 - 0.5, (z0 + s0) / 2), FLOOR, M.Granite)
-	Util.solid(folder, V3(9, 1, z1 - s1), CFrame.new(X, y0 - 0.5, (s1 + z1) / 2), FLOOR, M.Granite)
+	Util.solid(folder, V3(O * 2, 1, s0 - z0), CFrame.new(X, y0 - 0.5, (z0 + s0) / 2), FLOOR, M.Granite)
+	Util.solid(folder, V3(O * 2, 1, z1 - s1), CFrame.new(X, y0 - 0.5, (s1 + z1) / 2), FLOOR, M.Granite)
 	-- Glass balustrade round the opening, tactile strip at the top step.
 	for _, side in ipairs({ -1, 1 }) do
-		local g = Util.solid(folder, V3(0.3, 3.6, s1 - s0), CFrame.new(X + side * 4.75, y0 + 1.8, (s0 + s1) / 2), C(200, 220, 228), M.Glass)
+		local g = Util.solid(folder, V3(0.3, 4.4, s1 - s0), CFrame.new(X + side * (O + 0.25), y0 + 2.2, (s0 + s1) / 2), C(200, 220, 228), M.Glass)
 		g.Transparency = 0.5
-		Util.deco(folder, V3(0.5, 0.25, s1 - s0), CFrame.new(X + side * 4.75, y0 + 3.7, (s0 + s1) / 2), STEEL, M.Metal)
+		Util.deco(folder, V3(0.6, 0.3, s1 - s0), CFrame.new(X + side * (O + 0.25), y0 + 4.5, (s0 + s1) / 2), STEEL, M.Metal)
 	end
-	local endGlass = Util.solid(folder, V3(9.8, 3.6, 0.3), CFrame.new(X, y0 + 1.8, s1 + 0.15), C(200, 220, 228), M.Glass)
+	local endGlass = Util.solid(folder, V3(O * 2 + 0.8, 4.4, 0.3), CFrame.new(X, y0 + 2.2, s1 + 0.15), C(200, 220, 228), M.Glass)
 	endGlass.Transparency = 0.5
-	Util.deco(folder, V3(8.5, 0.06, 1.4), CFrame.new(X, y0 + 0.03, s0 - 1.2), C(250, 200, 30), M.SmoothPlastic)
-	Kit.stairs(folder, V3(X, y0, s0), V3(X, geo.platformTop, s1), 8.5)
+	Util.deco(folder, V3(O * 2 - 0.5, 0.06, 1.8), CFrame.new(X, y0 + 0.03, s0 - 1.4), C(250, 200, 30), M.SmoothPlastic)
+	Kit.stairs(folder, V3(X, y0, s0), V3(X, geo.platformTop, s1), O * 2 - 0.5)
 
 	-- Walls (openings where passages arrive), ceiling, beams, columns.
 	Kit.wall(folder, false, z0 - 1, z1 + 1, X - H - 0.5, y0, y1, geo.gapsWest, accent, geo.passageTop)
 	Kit.wall(folder, false, z0 - 1, z1 + 1, X + H + 0.5, y0, y1, geo.gapsEast, accent, geo.passageTop)
 	Kit.wall(folder, true, X - H - 1, X + H + 1, z0 - 0.5, y0, y1, geo.gapsNorth, accent, geo.passageTop)
 	Kit.wall(folder, true, X - H - 1, X + H + 1, z1 + 0.5, y0, y1, {}, accent, nil)
-	Kit.ceiling(folder, X - H, X + H, z0, z1, y1 - 0.5, { X - 18, X, X + 18 })
-	for z = z0 + 14, z1 - 4, 14 do
-		Util.deco(folder, V3(H * 2, 1, 1.2), CFrame.new(X, y1 - 1, z), C(196, 196, 192), M.Concrete)
+	Kit.ceiling(folder, X - H, X + H, z0, z1, y1 - 0.5, { X - 22, X, X + 22 })
+	for z = z0 + 18, z1 - 4, 18 do
+		Util.deco(folder, V3(H * 2, 1.4, 1.6), CFrame.new(X, y1 - 1.2, z), C(196, 196, 192), M.Concrete)
 	end
-	for _, x in ipairs({ X - 15, X + 15 }) do
-		for _, z in ipairs({ z0 + 14, z0 + 48, z0 + 62 }) do
-			Util.solid(folder, V3(2.4, y1 - y0, 2.4), CFrame.new(x, (y0 + y1) / 2, z), STEEL, M.Metal)
-			Util.solid(folder, V3(2.8, 1, 2.8), CFrame.new(x, y0 + 0.5, z), accent, M.CeramicTiles)
+	for _, x in ipairs({ X - 20, X + 20 }) do
+		for _, z in ipairs({ z0 + 18, z0 + 60, z0 + 80 }) do
+			Util.solid(folder, V3(3.2, y1 - y0, 3.2), CFrame.new(x, (y0 + y1) / 2, z), STEEL, M.Metal)
+			Util.solid(folder, V3(3.8, 1.4, 3.8), CFrame.new(x, y0 + 0.7, z), accent, M.CeramicTiles)
 		end
 	end
-	-- Station name panels on the south wall and clock above.
-	Kit.nameSign(folder, face(V3(X, y0 + TILE_H + 2.2, z1 - 0.05), V3(0, 0, -1)), V3(24, 3, 0.1), station.name, accent, SIGN_BLACK)
-	Kit.clock(folder, face(V3(X, y1 - 2.6, z1 - 0.05), V3(0, 0, -1)))
-	Kit.emergency(folder, face(V3(X + H - 3, y0 + 4, z1 - 0.05), V3(0, 0, -1)))
+	-- Station name on the south wall, clock above, emergency point.
+	Kit.nameSign(folder, face(V3(X, y0 + TILE_H + 3, z1 - 0.05), V3(0, 0, -1)), V3(32, 4, 0.1), station.name, accent, SIGN_BLACK)
+	Kit.clock(folder, face(V3(X, y1 - 3.4, z1 - 0.05), V3(0, 0, -1)))
+	Kit.emergency(folder, face(V3(X + H - 4, y0 + 5, z1 - 0.05), V3(0, 0, -1)))
 
 	-- Fare line: six gates (three in, three out), a wide accessible gate, glass
-	-- barriers either side. The flaps are decoration for now (no fares yet).
-	local laneW, cabW = 3.4, 0.8
-	local x = X - 13
+	-- barriers either side. Tagged "FareGate" so a fare system can drive the flaps.
+	local laneW, cabW = 4.6, 1.1
+	local x = X - 18
+	local gateStart = x
 	for i = 0, 7 do
-		Util.solid(folder, V3(cabW, 3.4, 4), CFrame.new(x + cabW / 2, y0 + 1.7, fz), C(56, 58, 64), M.Metal)
-		Util.deco(folder, V3(cabW, 0.12, 4), CFrame.new(x + cabW / 2, y0 + 3.46, fz), C(200, 210, 216), M.Glass)
+		Util.solid(folder, V3(cabW, 4.6, 5.4), CFrame.new(x + cabW / 2, y0 + 2.3, fz), C(56, 58, 64), M.Metal)
+		Util.deco(folder, V3(cabW, 0.15, 5.4), CFrame.new(x + cabW / 2, y0 + 4.68, fz), C(200, 210, 216), M.Glass)
 		if i < 7 then
-			local width = (i == 6) and 5 or laneW
+			local width = (i == 6) and 6.5 or laneW
 			local lx = x + cabW + width / 2
 			local entry = i < 3 or i == 6
-			local reader = Util.deco(folder, V3(0.6, 0.1, 0.6), CFrame.new(x + cabW / 2, y0 + 3.55, fz + (entry and -1.4 or 1.4)), entry and C(60, 220, 110) or C(220, 70, 60), M.Neon)
+			local reader = Util.deco(folder, V3(0.8, 0.12, 0.8), CFrame.new(x + cabW / 2, y0 + 4.8, fz + (entry and -1.9 or 1.9)), entry and C(60, 220, 110) or C(220, 70, 60), M.Neon)
 			reader.CastShadow = false
 			for _, s in ipairs({ -1, 1 }) do
-				local flap = Util.deco(folder, V3(width / 2 - 0.2, 2, 0.15), CFrame.new(lx + s * (width / 4), y0 + 2, fz), C(200, 220, 228), M.Glass)
+				local flap = Util.deco(folder, V3(width / 2 - 0.25, 2.7, 0.2), CFrame.new(lx + s * (width / 4), y0 + 2.7, fz), C(200, 220, 228), M.Glass)
 				flap.Transparency = 0.4
+				flap.Name = "Flap"
+				CollectionService:AddTag(flap, "FareGate")
+				flap:SetAttribute("Entry", entry)
 			end
-			local arrow = Util.deco(folder, V3(width - 0.4, 0.05, 1.6), CFrame.new(lx, y0 + 0.03, fz + (entry and -3.2 or 3.2)), entry and C(60, 200, 110) or C(210, 70, 60), M.SmoothPlastic)
+			local arrow = Util.deco(folder, V3(width - 0.5, 0.05, 2.2), CFrame.new(lx, y0 + 0.03, fz + (entry and -4.2 or 4.2)), entry and C(60, 200, 110) or C(210, 70, 60), M.SmoothPlastic)
 			arrow.CastShadow = false
 			x = x + cabW + width
 		else
@@ -742,46 +777,47 @@ function Kit.concourse(folder, station, geo, rng)
 		end
 	end
 	local gateEnd = x
-	for _, seg in ipairs({ { X - H, X - 13 }, { gateEnd, X + H } }) do
+	for _, seg in ipairs({ { X - H, gateStart }, { gateEnd, X + H } }) do
 		if seg[2] - seg[1] > 0.5 then
-			local g = Util.solid(folder, V3(seg[2] - seg[1], 3.8, 0.3), CFrame.new((seg[1] + seg[2]) / 2, y0 + 1.9, fz), C(200, 220, 228), M.Glass)
+			local g = Util.solid(folder, V3(seg[2] - seg[1], 4.8, 0.3), CFrame.new((seg[1] + seg[2]) / 2, y0 + 2.4, fz), C(200, 220, 228), M.Glass)
 			g.Transparency = 0.5
-			Util.deco(folder, V3(seg[2] - seg[1], 0.25, 0.5), CFrame.new((seg[1] + seg[2]) / 2, y0 + 3.9, fz), STEEL, M.Metal)
+			Util.deco(folder, V3(seg[2] - seg[1], 0.3, 0.6), CFrame.new((seg[1] + seg[2]) / 2, y0 + 4.95, fz), STEEL, M.Metal)
 		end
 	end
-	Kit.hangingSign(folder, CFrame.new(X - 4, y1 - 3.2, fz - 3), 16, "TAP TO ENTER  ▼  TRAINS", y1 - 0.5)
-	Kit.hangingSign(folder, CFrame.new(X - 4, y1 - 3.2, fz + 3), 16, "▲  EXIT · STREET", y1 - 0.5, C(120, 255, 140))
+	local signX = (gateStart + gateEnd) / 2
+	Kit.hangingSign(folder, CFrame.new(signX, y1 - 4.4, fz - 4), 22, "TAP TO ENTER  ▼  TRAINS", y1 - 0.5)
+	Kit.hangingSign(folder, CFrame.new(signX, y1 - 4.4, fz + 4), 22, "▲  EXIT · STREET", y1 - 0.5, C(120, 255, 140))
 
 	-- Unpaid side: ticket machines and system maps on the north wall, info booth.
-	for _, mx in ipairs({ X - 22.5, X - 19, X + 19, X + 22.5 }) do
-		Kit.ticketMachine(folder, face(V3(mx, y0, z0 + 1.2), V3(0, 0, 1)))
+	for _, mx in ipairs({ X - 30.5, X - 26, X + 26, X + 30.5 }) do
+		Kit.ticketMachine(folder, face(V3(mx, y0, z0 + 1.6), V3(0, 0, 1)))
 	end
-	for _, mx in ipairs({ X - 11, X + 11 }) do
-		Kit.mapBoard(folder, face(V3(mx, y0 + TILE_H + 2.4, z0 + 0.1), V3(0, 0, 1)), 9, 4.5, "LINE 1 YONGE", geo.stations, station.name)
+	for _, mx in ipairs({ X - 16.5, X + 16.5 }) do
+		Kit.mapBoard(folder, face(V3(mx, y0 + TILE_H + 3, z0 + 0.1), V3(0, 0, 1)), 11, 5.6, "LINE 1 YONGE", geo.stations, station.name)
 	end
-	local boothX = X + 8
-	local booth = Util.solid(folder, V3(8, 7, 6), CFrame.new(boothX, y0 + 3.5, fz - 11), C(190, 214, 224), M.Glass)
+	local boothX = X + 11
+	local booth = Util.solid(folder, V3(10, 9, 8), CFrame.new(boothX, y0 + 4.5, fz - 15), C(190, 214, 224), M.Glass)
 	booth.Transparency = 0.4
-	Util.solid(folder, V3(8.4, 0.6, 6.4), CFrame.new(boothX, y0 + 7.3, fz - 11), Kit.DARK, M.Metal)
-	Util.solid(folder, V3(8, 3, 1), CFrame.new(boothX, y0 + 1.5, fz - 14.5), C(56, 58, 64), M.Metal)
-	local boothSign = Util.deco(folder, V3(7, 1, 0.2), CFrame.new(boothX, y0 + 8.2, fz - 14.6), C(30, 90, 170), M.SmoothPlastic)
+	Util.solid(folder, V3(10.4, 0.8, 8.4), CFrame.new(boothX, y0 + 9.4, fz - 15), Kit.DARK, M.Metal)
+	Util.solid(folder, V3(10, 3.8, 1.2), CFrame.new(boothX, y0 + 1.9, fz - 19.5), C(56, 58, 64), M.Metal)
+	local boothSign = Util.deco(folder, V3(9, 1.4, 0.2), CFrame.new(boothX, y0 + 10.6, fz - 19.6), C(30, 90, 170), M.SmoothPlastic)
 	Util.sign(boothSign, Front, "i  INFORMATION", WHITE, Enum.Font.GothamBold).LightInfluence = 0
-	Kit.bench(folder, face(V3(X - 20, y0, fz - 2.5), V3(0, 0, -1)))
-	Kit.bin(folder, face(V3(X - 25, y0, fz - 2), V3(0, 0, -1)))
+	Kit.bench(folder, face(V3(X - 26, y0, fz - 3.5), V3(0, 0, -1)))
+	Kit.bin(folder, face(V3(X - 32, y0, fz - 2.5), V3(0, 0, -1)))
 
 	-- Paid side: benches and bins along the walls, sign over the stairs.
 	for _, side in ipairs({ -1, 1 }) do
-		for _, z in ipairs({ s0 + 2, s1 - 2 }) do
-			Kit.bench(folder, face(V3(X + side * (H - 1.6), y0, z), V3(-side, 0, 0)))
+		for _, z in ipairs({ s0 + 4, s1 - 4 }) do
+			Kit.bench(folder, face(V3(X + side * (H - 2.2), y0, z), V3(-side, 0, 0)))
 		end
-		Kit.bin(folder, face(V3(X + side * (H - 1.4), y0, (s0 + s1) / 2), V3(-side, 0, 0)))
+		Kit.bin(folder, face(V3(X + side * (H - 1.8), y0, (s0 + s1) / 2), V3(-side, 0, 0)))
 	end
-	Kit.hangingSign(folder, CFrame.new(X, y1 - 3.2, s0 - 3), 18, "▼ PLATFORM  ·  FINCH ◀▶ PORTLANDS", y1 - 0.5)
+	Kit.hangingSign(folder, CFrame.new(X, y1 - 4.4, s0 - 4), 26, "▼ PLATFORM  ·  FINCH ◀▶ PORTLANDS", y1 - 0.5)
 
 	-- Ads on the side walls (clear of the openings), cameras in the corners.
 	local function clear(list, z)
 		for _, g in ipairs(list) do
-			if z + 5 > g[1] - 1 and z - 5 < g[2] + 1 then
+			if z + 6 > g[1] - 1 and z - 6 < g[2] + 1 then
 				return false
 			end
 		end
@@ -789,24 +825,24 @@ function Kit.concourse(folder, station, geo, rng)
 	end
 	for _, side in ipairs({ -1, 1 }) do
 		local list = side < 0 and geo.gapsWest or geo.gapsEast
-		for z = z0 + 7, z1 - 6, 13 do
-			if math.abs(z - fz) > 6 and clear(list, z) then
-				local p = V3(X + side * (H - 0.05), y0 + TILE_H + 2.8, z)
-				Kit.adPanel(folder, face(p, V3(-side, 0, 0)), 8, 4.6, rng)
+		for z = z0 + 9, z1 - 8, 16 do
+			if math.abs(z - fz) > 8 and clear(list, z) then
+				local p = V3(X + side * (H - 0.05), y0 + TILE_H + 3.6, z)
+				Kit.adPanel(folder, face(p, V3(-side, 0, 0)), 11, 6.2, rng)
 			end
 		end
-		Kit.camera(folder, face(V3(X + side * (H - 1), y1 - 0.5, z0 + 1), V3(-side, 0, 1)))
-		Kit.camera(folder, face(V3(X + side * (H - 1), y1 - 0.5, z1 - 1), V3(-side, 0, -1)))
+		Kit.camera(folder, face(V3(X + side * (H - 1.2), y1 - 0.5, z0 + 1.2), V3(-side, 0, 1)))
+		Kit.camera(folder, face(V3(X + side * (H - 1.2), y1 - 0.5, z1 - 1.2), V3(-side, 0, -1)))
 	end
 	-- Exit signs over the openings.
 	for _, info in ipairs({ { geo.gapsWest, -1 }, { geo.gapsEast, 1 } }) do
 		for _, g in ipairs(info[1]) do
-			local p = V3(X + info[2] * (H - 0.4), geo.passageTop - 0.8, (g[1] + g[2]) / 2)
+			local p = V3(X + info[2] * (H - 0.4), geo.passageTop - 1, (g[1] + g[2]) / 2)
 			Kit.exitSign(folder, face(p, V3(-info[2], 0, 0)), "EXIT ▶ STREET")
 		end
 	end
 	for _, g in ipairs(geo.gapsNorth) do
-		Kit.exitSign(folder, face(V3((g[1] + g[2]) / 2, geo.passageTop - 0.8, z0 + 0.4), V3(0, 0, 1)), "EXIT ▲ STREET")
+		Kit.exitSign(folder, face(V3((g[1] + g[2]) / 2, geo.passageTop - 1, z0 + 0.4), V3(0, 0, 1)), "EXIT ▲ STREET")
 	end
 end
 
