@@ -11,10 +11,18 @@ local Services = script.Parent.Services
 require(Services.PlayerData).start()
 require(Services.Economy).start()
 require(Services.Phone).start()
+require(Services.Employment).start()
 require(Services.Router).start()
 
 Cars.init()
 local info = World.build(Cars)
+-- Work puts its prompts on the workplaces the world just built.
+local workOk, workErr = pcall(function()
+	require(Services.Work).start()
+end)
+if not workOk then
+	warn("[Work] failed to start: " .. tostring(workErr))
+end
 require(script.Parent.World.Atmosphere).startCycle()
 
 for _, spawn in ipairs(info.carSpawns) do

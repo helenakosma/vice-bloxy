@@ -21,6 +21,7 @@ local Billboards = require(script.Parent.Billboards)
 local Stores = require(script.Parent.Stores)
 local Props = require(script.Parent.Props)
 local Kit = require(script.Parent.StationKit)
+local Workplaces = require(script.Parent.Workplaces)
 
 local Landmarks = {}
 
@@ -273,7 +274,12 @@ function Landmarks.eatonCentre(folder, rect, rng)
 		local eastRanges = { { li == 1 and foodEnd or z0, z1 } }
 		local westRanges = { { li == 1 and foodEnd or z0, liftZ0 } }
 		if li == 1 then
-			eastRanges = cut(eastRanges, { { yongeDoors[1] - 7, yongeDoors[1] + 7 }, { yongeDoors[2] - 7, yongeDoors[2] + 7 } })
+			eastRanges = cut(eastRanges, { { yongeDoors[1] - 7, yongeDoors[1] + 7 }, { yongeDoors[2] - 7, yongeDoors[2] + 7 }, { z0 + 73, z0 + 103 } })
+			-- A workplace that fails to build must never take the rest of the city with it.
+			local ok, err = pcall(Workplaces.clothing, folder, ys[1], eFront, 1, z0 + 73, z0 + 103, "THREADS_EATON", "threads")
+			if not ok then
+				warn("[Workplaces] Metro Threads failed to build: " .. tostring(err))
+			end
 			westRanges = cut(westRanges, { { bayDoor - 7, bayDoor + 7 } })
 		end
 		ecRow(folder, ys[li], eFront, 1, 30, eastRanges, rng, counter)
@@ -344,7 +350,14 @@ function Landmarks.eatonCentre(folder, rect, rng)
 		for k = 0, 1 do
 			local z = z0 + 10 + k * 18
 			local p = V3(info[1] + info[2] * 0.6, KERB, z)
-			Kit.shop(folder, CFrame.lookAt(p, p + V3(info[2], 0, 0)), 16, rng)
+			if info[2] > 0 and k == 0 then
+				local ok, err = pcall(Workplaces.cafe, folder, CFrame.lookAt(p, p + V3(1, 0, 0)), 16, "GRIND_EATON", "grind")
+				if not ok then
+					warn("[Workplaces] Grind Coffee failed to build: " .. tostring(err))
+				end
+			else
+				Kit.shop(folder, CFrame.lookAt(p, p + V3(info[2], 0, 0)), 16, rng)
+			end
 		end
 	end
 	for tx = wBack + 14, eBack - 14, 12 do

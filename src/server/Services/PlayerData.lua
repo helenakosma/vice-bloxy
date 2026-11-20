@@ -48,9 +48,9 @@ local function template(player)
 		},
 		money = { balance = Economy.StartingBalance, ledger = {}, seen = {} },
 		transit = { card = false, balance = 0 },
-		phone = { wallpaper = 1, theme = "dark", notify = { bank = true, system = true } },
+		phone = { wallpaper = 1, theme = "dark", notify = { bank = true, jobs = true, system = true } },
 		inbox = {},
-		employment = { current = nil, history = {}, applications = {}, saved = {} },
+		employment = { history = {}, applications = {}, saved = {}, experience = {}, skills = {}, totalShifts = 0 },
 		education = { applications = {}, enrolment = nil, degrees = {} },
 		housing = { lease = nil, owned = {}, layouts = {} },
 		inventory = { furniture = {}, items = {} },
@@ -82,6 +82,7 @@ end
 local profiles = {} -- player -> { data, guest, loadedAt }
 local loadedEvent = Instance.new("BindableEvent")
 local listeners = {}
+local leavingHooks = {} -- run before the final save (e.g. pay out a shift in progress)
 
 local function key(player)
 	return "u" .. player.UserId
@@ -191,6 +192,12 @@ local function onPlayerRemoving(player)
 	if not entry then
 		return
 	end
+	for _, fn in ipairs(leavingHooks) do
+		local ok, err = pcall(fn, player, entry.data)
+		if not ok then
+			warn("[PlayerData] leaving hook failed: " .. tostring(err))
+		end
+	end
 	entry.data.stats.playSeconds += os.clock() - entry.loadedAt
 	save(player, entry, true)
 	profiles[player] = nil
@@ -224,6 +231,11 @@ function PlayerData.onLoaded(fn)
 	for player, entry in pairs(profiles) do
 		task.spawn(fn, player, entry.data)
 	end
+end
+
+-- fn(player, data) runs when a player leaves, just before their final save.
+function PlayerData.onLeaving(fn)
+	table.insert(leavingHooks, fn)
 end
 
 function PlayerData.start()

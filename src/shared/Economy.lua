@@ -36,6 +36,34 @@ return {
 	ShiftHours = { full = 8, part = 4 },
 	DeliveryPerTrip = { min = 18, max = 24 },
 
+	-- Jobs (Milestone 2).
+	Employment = {
+		MaxOpenApplications = 4,
+		ReapplyAfterSeconds = 300, -- after a rejection, per listing
+		ReviewSeconds = { 8, 16 }, -- how long the hiring manager takes (random within)
+		OfferValidSeconds = 600,
+		-- Hiring score needed (0..1) by the level you're hired at; an interview is
+		-- requested when you're within InterviewBand of it (or always for level 3+).
+		HireThreshold = { 0.4, 0.5, 0.6, 0.66, 0.72, 0.78 },
+		InterviewBand = 0.15,
+		-- Pay: hourly wage x hours on shift x (FloorShare + (1 - FloorShare) x performance).
+		FloorShare = 0.5,
+		-- Tasks expected per in-game hour for full performance.
+		ExpectedPerHour = { food = 1.0, retail = 1.5 },
+		-- Leaving the workplace for this long ends your shift.
+		AwaySeconds = 45,
+		-- Promotion: shifts at your current level and average performance needed.
+		PromotionShifts = { 2, 3, 4, 5, 6, 8, 10 },
+		PromotionPerformance = 0.7,
+		-- Tips at the café by how fast the order was handed over (seconds).
+		Tips = { { 40, 6 }, { 70, 4 }, { math.huge, 2 } },
+		-- Deliveries: base + per stud of distance, and the courier level bonus.
+		DeliveryBase = 8,
+		DeliveryPerStud = 0.016,
+		DeliveryLevelBonus = { 1, 1.1, 1.2 },
+		DeliveryDistance = { 250, 1000 },
+	},
+
 	-- Weekly rent by home type (Milestone 4).
 	RentPerWeek = {
 		dorm = 90,

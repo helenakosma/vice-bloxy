@@ -2,7 +2,7 @@
 -- whether your progress is saving.
 local UI = require(script.Parent.Parent.PhoneUI)
 
-local CATEGORIES = { { "bank", "Bank and payments" }, { "system", "City and phone" } }
+local CATEGORIES = { { "bank", "Bank and payments" }, { "jobs", "Jobs and shifts" }, { "system", "City and phone" } }
 
 return {
 	id = "settings",

@@ -146,7 +146,11 @@ local function screen(model, cf, w, depth, rng)
 	end
 	local sw = math.min(w - 6, rng:NextNumber(16, 26))
 	local sh = sw * rng:NextNumber(0.55, 0.8)
-	local y = math.clamp(top * 0.45, 14 + sh / 2, top - sh / 2 - 4)
+	local lo, hi = 14 + sh / 2, top - sh / 2 - 4
+	if hi < lo then
+		return false -- building too short for a screen this size
+	end
+	local y = math.clamp(top * 0.45, lo, hi)
 	-- Find the actual facade at that height (it may be set back or have bays).
 	local origin = (cf * CFrame.new(0, y, -depth / 2 - 30)).Position
 	local face = Workspace:Raycast(origin, cf.LookVector * -(depth + 30), params(model))

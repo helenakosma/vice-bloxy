@@ -14,6 +14,7 @@ local Util = require(script.Parent.Util)
 local Billboards = require(script.Parent.Billboards)
 local Stores = require(script.Parent.Stores)
 local Fares = require(script.Parent.Parent.Fares)
+local Workplaces = require(script.Parent.Workplaces)
 
 local Kit = {}
 
@@ -495,6 +496,8 @@ function Kit.shop(folder, cf, w, rng)
 	local top = Util.solid(folder, V3(w - 0.8, 0.25, 1.9), at(0, 3.72, -depth + 0.8), C(220, 216, 208), M.Marble)
 	Util.deco(folder, V3(1.4, 1, 1), at(w / 2 - 2.2, 4.35, -depth + 0.9), C(40, 40, 44), M.SmoothPlastic)
 	Stores.attachPurchase(top, shop.kind, shop.name)
+	-- Couriers collect delivery orders from the counter.
+	Workplaces.addPickup(shop.name, (cf * CFrame.new(0, 0, -depth - 2.5)).Position)
 end
 
 ---------------------------------------------------------------------------

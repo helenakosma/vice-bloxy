@@ -13,6 +13,8 @@ local Workspace = game:GetService("Workspace")
 local UI = require(script.Parent.PhoneUI)
 local APPS = {
 	require(script.Parent.Apps.Bank),
+	require(script.Parent.Apps.Jobs),
+	require(script.Parent.Apps.Calendar),
 	require(script.Parent.Apps.Profile),
 	require(script.Parent.Apps.Notifications),
 	require(script.Parent.Apps.Settings),

@@ -123,7 +123,12 @@ function World.build(Cars)
 	for i, district in ipairs(DISTRICTS) do
 		Util.beginDistrict(district.name)
 		local ctx = contexts[i]
-		local result = district.build(ctx) or {}
+		-- One district failing must never stop the rest of the city (or the subway) from building.
+		local ok, built = pcall(district.build, ctx)
+		if not ok then
+			warn("[World] " .. district.name .. " failed to build: " .. tostring(built))
+		end
+		local result = (ok and built) or {}
 		for _, carSpawn in ipairs(result.carSpawns or {}) do
 			table.insert(info.carSpawns, carSpawn)
 		end
