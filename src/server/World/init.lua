@@ -144,6 +144,13 @@ function World.build(Cars)
 	Util.beginDistrict("Shared")
 	Buildings.background(makeFolder(shared, "Skyline"), Random.new(SEED - 1))
 
+	-- Map data for the minimap (the south extension's stations too).
+	require(script.Minimap).publish({
+		{ "HARBOUR", 100, -560 },
+		{ "CENTRAL", 100, 0 },
+		{ "PORTLANDS", 100, 962 },
+	})
+
 	root:SetAttribute("PartCount", Util.totalParts())
 	print(string.format("[World] Total: %d parts", Util.totalParts()))
 

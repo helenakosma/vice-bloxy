@@ -129,6 +129,9 @@ end
 ---------------------------------------------------------------------------
 -- Styles
 ---------------------------------------------------------------------------
+-- Every building's footprint { x, z, width, depth, facing in degrees }, for the minimap.
+Buildings.footprints = {}
+
 local Styles = {}
 Buildings.Styles = Styles -- other modules (e.g. ViceStyles) add their own styles here
 
@@ -425,6 +428,7 @@ function Buildings.placeFrontage(folder, roads, rng, opts)
 										Billboards.maybe(model, cf, w, depth, center)
 									end
 								end
+								table.insert(Buildings.footprints, { center.X, center.Y, w, depth, math.deg(math.atan2(front.Y, front.X)) })
 								placed = placed + 1
 								done = true
 								t = t + w
@@ -457,6 +461,7 @@ function Buildings.fillGaps(folder, rng, bounds)
 						Util.rectMark(c, fwd, right, size, size, Util.BUILT)
 						local h = rng:NextNumber(30, 70) * heightFactor(c)
 						Buildings.filler(Util.buildingModel(folder, "Filler"), Util.groundCF(c, fwd, 0), size, size, h, rng, true)
+						table.insert(Buildings.footprints, { c.X, c.Y, size, size, 0 })
 						count = count + 1
 						break
 					end

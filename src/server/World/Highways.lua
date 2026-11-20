@@ -32,6 +32,11 @@ local MEDIAN = 1.5
 local list = {}
 local byName = {}
 
+-- Every highway (name, width, sampled points), e.g. for the minimap.
+function Highways.list()
+	return list
+end
+
 local function flat(v)
 	return Vector2.new(v.X, v.Z)
 end
