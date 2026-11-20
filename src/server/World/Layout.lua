@@ -175,7 +175,7 @@ end
 Layout.SIGNS = {
 	Expressway = {
 		{ at = Vector2.new(EX, H401 + 700), text = "ALLEN RD  ·  DOWNTOWN" },
-		{ at = Vector2.new(EX, -3054), text = "BLOOR ST  ·  1 KM" },
+		{ at = Vector2.new(EX, TorontoLayout.shiftZ(-3054)), text = "BLOOR ST  ·  1 KM" },
 		{ at = Vector2.new(EX, -1300), text = "DOWNTOWN  ·  HARBOR FWY" },
 		{ at = Vector2.new(EX, -200), text = "DOWNTOWN  EXIT" },
 		{ at = Vector2.new(EX, 760), text = "INDUSTRIAL  ·  VICE BEACH" },

@@ -1,3 +1,6 @@
 *.rbxl.lock
 *.rbxlx.lock
 sourcemap.json
+
+# Eaton Centre extraction output (regenerate: python tools/eaton/extract.py <leasing pdf>)
+tools/eaton/out/

@@ -14,6 +14,9 @@
 local T = {}
 
 T.YONGE_X = 100
+-- Bay St sits west enough to leave James St (a pedestrian lane) between it and
+-- the Eaton Centre, whose floor plan is built at 0.5 studs per real foot.
+T.BAY_X = -161
 T.BOUNDS = { minX = -1150, maxX = 1150, minZ = -8300, maxZ = -800 }
 T.WATERFRONT_Z = -836 -- Queens Quay, along the harbour
 T.FRONT_Z = -1040 -- Front St (Union Station's street)
@@ -92,7 +95,7 @@ T.NORTH_SOUTH = {
 	{ "Yonge St North", "yongeNorth", { { T.YONGE_X, T.MIDTOWN_FROM_Z }, { T.YONGE_X, -8240 } } },
 	{ "University Ave", "arterial", { { -404, T.FRONT_Z }, { -404, -3054 } } },
 	{ "Avenue Rd", "avenue", { { -404, -3054 }, { -185, -3960 }, { -170, -4921 }, { -200, -5691 }, { -230, -6387 } } },
-	{ "Bay St", "avenue", { { -131, T.WATERFRONT_Z }, { -131, -3054 } } },
+	{ "Bay St", "avenue", { { T.BAY_X, T.WATERFRONT_Z }, { T.BAY_X, -3054 } } },
 	{ "Church St", "street", { { 303, T.WATERFRONT_Z }, { 303, -3054 } } },
 	{ "Jarvis St", "street", { { 464, T.WATERFRONT_Z }, { 464, -3054 } } },
 	{ "Mount Pleasant Rd", "avenue", { { 464, -3054 }, { 430, -3960 }, { 420, -4921 }, { 420, -5691 } } },
@@ -116,9 +119,9 @@ T.HWY401_Z = -6900
 T.NEEDLE = Vector2.new(-560, -935) -- CN Tower, between Front and the waterfront
 T.DOME = Vector2.new(-680, -938) -- Rogers Centre beside it
 T.UNION = Vector2.new(-260, -935) -- Union Station on Front St, between Bay and University
-T.FINANCIAL = Vector2.new(-131, -1293) -- King & Bay
-T.CITY_HALL = { minX = -352, maxX = -181, minZ = -1860, maxZ = -1668 } -- Queen & Bay, north-west
-T.EATON = { minX = -88, maxX = 57, minZ = -1866, maxZ = -1661 } -- Yonge, Queen to Dundas, back to Bay
+T.FINANCIAL = Vector2.new(T.BAY_X, -1293) -- King & Bay
+T.CITY_HALL = { minX = -352, maxX = -202, minZ = -1860, maxZ = -1668 } -- Queen & Bay, north-west
+T.EATON = { minX = -109, maxX = 57, minZ = -1866, maxZ = -1661 } -- Yonge to James St, Queen to Dundas (stretched below)
 T.SANKOFA = { minX = 142, maxX = 258, minZ = -1866, maxZ = -1787 } -- south-east corner of Yonge & Dundas
 -- The billboard buildings round Yonge & Dundas (with the Eaton Centre's corner).
 T.DUNDAS_NE = { minX = 144, maxX = 262, minZ = -2052, maxZ = -1957 } -- "10 Dundas East" screens
@@ -181,6 +184,68 @@ function T.nearStation(p, radius)
 		end
 	end
 	return false
+end
+
+---------------------------------------------------------------------------
+-- The Eaton Centre block. The real mall is about 1,390 ft from Queen to Dundas;
+-- at 0.5 studs per foot that's 695 studs, far more than the distance scale above
+-- leaves between the two streets. So the city north of the mall is moved north by
+-- GROW studs: Queen St and everything south of it stay put; Dundas St and
+-- everything north of it (stations, streets, landmarks, building heights, the map
+-- bounds) shift together, so nothing north of Dundas changes shape.
+---------------------------------------------------------------------------
+T.GROW = 505
+T.GROW_CUT = -1700 -- between Queen St and the old Dundas St
+
+function T.shiftZ(z)
+	if z < T.GROW_CUT then
+		return z - T.GROW
+	end
+	return z
+end
+
+do
+	local sz = T.shiftZ
+	T.BOUNDS.minZ = sz(T.BOUNDS.minZ)
+	T.MIDTOWN_FROM_Z = sz(T.MIDTOWN_FROM_Z)
+	T.DOWNTOWN_FROM_Z = sz(T.DOWNTOWN_FROM_Z)
+	T.HWY401_Z = sz(T.HWY401_Z)
+	for _, s in ipairs(T.STATIONS) do
+		s.z = sz(s.z)
+	end
+	for _, street in ipairs(T.EAST_WEST) do
+		street[2] = sz(street[2])
+	end
+	for _, street in ipairs(T.NORTH_SOUTH) do
+		for i, pt in ipairs(street[3]) do
+			street[3][i] = { pt[1], sz(pt[2]) }
+		end
+	end
+	for _, pt in ipairs(PROFILE) do
+		pt[1] = sz(pt[1])
+	end
+	-- Rects north of the cut move whole; the Eaton Centre's north edge moves with
+	-- Dundas, so the block stretches. City Hall stays at Queen & Bay.
+	for _, key in ipairs({ "EATON", "SANKOFA", "DUNDAS_NE", "DUNDAS_NW", "TMU_SLC", "TMU_KERR", "TMU_SOUTH", "UOFT_SOUTH", "UOFT_NORTH", "MEL_LASTMAN", "MOUNT_PLEASANT_CEMETERY" }) do
+		local r = T[key]
+		r.minZ, r.maxZ = sz(r.minZ), sz(r.maxZ)
+	end
+	for _, key in ipairs({ "ROM", "YONGE_EGLINTON_CENTRE" }) do
+		T[key] = Vector2.new(T[key].X, sz(T[key].Y))
+	end
+	for i, v in ipairs(T.NY_TOWERS) do
+		T.NY_TOWERS[i] = Vector2.new(v.X, sz(v.Y))
+	end
+	-- Shuter St meets Yonge about halfway between Queen and Dundas.
+	for _, street in ipairs(T.EAST_WEST) do
+		if street[1] == "Shuter St" then
+			for _, s in ipairs(T.STATIONS) do
+				if s.name == "DUNDAS" then
+					street[2] = math.floor(-1616 + (s.z + 1616) * 0.47)
+				end
+			end
+		end
+	end
 end
 
 return T

@@ -18,6 +18,7 @@ local TorontoLandmarks = require(World.TorontoLandmarks)
 local TorontoLayout = require(World.TorontoLayout)
 local Mall = require(World.Mall)
 local DowntownLandmarks = require(World.DowntownLandmarks)
+local EatonCentre = require(World.EatonCentre)
 
 local T = TorontoLayout
 
@@ -320,7 +321,11 @@ function Toronto.build(ctx)
 	TorontoLandmarks.twistingTower(landmarks, T.NY_TOWERS[1], 30, 0)
 	TorontoLandmarks.twistingTower(landmarks, T.NY_TOWERS[2], 34, 1.3)
 	TorontoLandmarks.streetcarLine(landmarks, ctx.named["King St"])
-	DowntownLandmarks.eatonCentre(ctx.makeFolder(folder, "EatonCentre"), T.EATON, rng)
+	-- The Eaton Centre, rebuilt from its leasing plans (World/EatonCentre).
+	local okEaton, errEaton = pcall(EatonCentre.build, folder, T.EATON)
+	if not okEaton then
+		warn("[EatonCentre] failed to build: " .. tostring(errEaton))
+	end
 	DowntownLandmarks.sankofaSquare(ctx.makeFolder(folder, "SankofaSquare"), T.SANKOFA, rng)
 	DowntownLandmarks.screenBuilding(ctx.makeFolder(folder, "TenDundasEast"), T.DUNDAS_NE, 74, { "south", "west" }, "10 DUNDAS EAST", rng)
 	DowntownLandmarks.screenBuilding(ctx.makeFolder(folder, "YongeDundasNW"), T.DUNDAS_NW, 58, { "south", "east" }, nil, rng)
@@ -338,7 +343,7 @@ function Toronto.build(ctx)
 		ads = true,
 	})
 	-- Fill the inside of downtown blocks so the core reads as solid city.
-	local filled = Buildings.fillGaps(buildings, rng, { minX = -640, maxX = 1060, minZ = -3200, maxZ = -900 })
+	local filled = Buildings.fillGaps(buildings, rng, { minX = -640, maxX = 1060, minZ = T.shiftZ(-3200), maxZ = -900 })
 
 	-- Street furniture on Yonge, the downtown streets and the main cross streets.
 	local furnished = {}

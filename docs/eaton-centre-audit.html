@@ -1,0 +1,322 @@
+<title>Eaton Centre Reconstruction Audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column like a drawing-set cover memo; tables and the scale diagram break out to full width. */
+:root {
+  --bg: #f6f7f8; --paper: #ffffff; --fg: #1b2127; --muted: #5d6873; --line: #d9dee3;
+  --accent: #0f6f8f; --accent-soft: #e3f1f6; --warn: #a35a00; --warn-soft: #fbf0e1; --good: #1f7a4d; --good-soft: #e5f4ec;
+  --plan-a: #c43b3b; --plan-b: #0f6f8f; --plan-c: #7a5cc4; --plan-d: #8a8f96; --street: #b9c1c8;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161a; --paper: #1a2026; --fg: #e6eaee; --muted: #9aa6b1; --line: #2c353d;
+  --accent: #5bbbd9; --accent-soft: #15303a; --warn: #f0a94a; --warn-soft: #33260f; --good: #5fd39a; --good-soft: #12301f;
+  --plan-a: #ef6b6b; --plan-b: #5bbbd9; --plan-c: #a78bf0; --plan-d: #7d858d; --street: #3a444d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161a; --paper: #1a2026; --fg: #e6eaee; --muted: #9aa6b1; --line: #2c353d;
+  --accent: #5bbbd9; --accent-soft: #15303a; --warn: #f0a94a; --warn-soft: #33260f; --good: #5fd39a; --good-soft: #12301f;
+  --plan-a: #ef6b6b; --plan-b: #5bbbd9; --plan-c: #a78bf0; --plan-d: #7d858d; --street: #3a444d; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 40px; }
+header { display: grid; gap: 10px; border-bottom: 2px solid var(--fg); padding-bottom: 20px; }
+.sheet { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 20px; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; font-weight: 700; text-wrap: balance; }
+h2 { font-size: 22px; margin: 0; text-wrap: balance; }
+h3 { font-size: 16px; margin: 0; }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 16px; }
+.label { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 17px; max-width: 70ch; }
+.decision { background: var(--paper); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 20px 22px; display: grid; gap: 12px; }
+.decision ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 640px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; }
+.tag { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 3px; white-space: nowrap; }
+.m { background: var(--good-soft); color: var(--good); }
+.i { background: var(--warn-soft); color: var(--warn); }
+.rec { background: var(--accent-soft); color: var(--accent); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.card { background: var(--paper); border: 1px solid var(--line); padding: 16px 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card ul, section > ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.diagram { background: var(--paper); border: 1px solid var(--line); overflow-x: auto; padding: 12px; }
+.diagram svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.note { font-size: 13px; color: var(--muted); }
+.steps { counter-reset: s; display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 10px; background: var(--paper); border: 1px solid var(--line); padding: 12px 14px; }
+.steps li::before { content: counter(s, decimal-leading-zero); font-family: var(--mono); color: var(--accent); font-weight: 500; }
+.steps li > div { display: grid; gap: 4px; min-width: 0; }
+code { font-family: var(--mono); font-size: .9em; }
+.shots { display: grid; gap: 16px; }
+.shots figure { margin: 0; background: var(--paper); border: 1px solid var(--line); padding: 8px; display: grid; gap: 6px; }
+.shots img { display: block; width: 100%; height: auto; }
+.shots figcaption { font-size: 13px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="sheet"><span>Vice Bloxy · Landmark reconstruction</span><span>Phase 1–2 · source analysis &amp; map audit</span><span>Nothing modified yet</span></div>
+  <h1>CF Toronto Eaton Centre: source analysis and fit to our map</h1>
+  <p class="lede">The leasing plans are vector drawings with a real scale bar, unit outlines, unit numbers and square footage, so the mall can be rebuilt from measured geometry. The real building does not fit the block our map gives it: it is about 4.8 times too big at the map's street spacing. Three decisions below need your call before any building changes.</p>
+</header>
+
+<section aria-labelledby="cp2">
+  <div class="label">Checkpoint 2 · the shell, built from the plans</div>
+  <h2 id="cp2">In game now</h2>
+  <p>The old stand-in mall is gone. Levels 1–3 are built from the traced plans at 0.5 studs per foot, 20 studs a level: floors with the real openings, exterior walls with entrances only where the plans put entrance arrows, unit walls and storefront lines, glass balustrades, columns, the roof, and a glass barrel vault over the galleria skylight traced on the roof plan. Tested in Studio: the world builds with no errors and the station checks still pass.</p>
+  <div class="shots">
+    <figure><img src="eaton/shell-galleria-L3.jpg" alt="Level 3 galleria under the glass barrel vault"><figcaption>Level 3 galleria under the vault, balconies and openings down</figcaption></figure>
+    <figure><img src="eaton/shell-atrium-up.jpg" alt="Looking up from Level 1 through the floor openings to the vault"><figcaption>From Level 1: the openings stack up through every floor to the glass</figcaption></figure>
+    <figure><img src="eaton/shell-queen-court.jpg" alt="Queen court from Level 2"><figcaption>Queen court from Level 2</figcaption></figure>
+    <figure><img src="eaton/shell-queen-yonge.jpg" alt="Queen and Yonge corner from the street"><figcaption>Queen &amp; Yonge corner, Queen St entrance</figcaption></figure>
+    <figure><img src="eaton/shell-aerial.jpg" alt="Aerial view of the rebuilt mall"><figcaption>From the air, Queen St in front</figcaption></figure>
+    <figure><img src="eaton/shell-L3-top.jpg" alt="Level 3 from above with the roof hidden"><figcaption>Level 3 from above (roof hidden) · compare with the Level 3 trace below</figcaption></figure>
+    <figure><img src="eaton/shell-L2-top.jpg" alt="Level 2 from above"><figcaption>Level 2 from above</figcaption></figure>
+    <figure><img src="eaton/shell-L1-top.jpg" alt="Level 1 from above"><figcaption>Level 1 from above</figcaption></figure>
+  </div>
+  <h3>Fixed during testing</h3>
+  <ul>
+    <li>The Yonge facade was missing: it sits about 4 ft east of the line the data was clipped at. The clip now has a margin.</li>
+    <li>Over 1,000 ft of the Yonge wall had become "entrances" because a strip of common area runs inside it. Entrances now come only from the plans' entrance arrows (Queen St, Yonge by the subway, James St tunnel, Yonge &amp; Dundas), at least 16 ft wide.</li>
+    <li>Floating facade panels at Queen &amp; Yonge, where the plan draws kiosks out on the sidewalk: exterior walls now follow the footprint as clipped to the block.</li>
+    <li>The vault grew tall drums where the skylight widens; it now keeps one rise like the real galleria, with flat framed glass where the skylight turns diagonally at the Dundas end.</li>
+  </ul>
+  <h3>Not done yet</h3>
+  <ul>
+    <li>Escalators and stairs (6 working lift shafts are the only way up for now) and the concourse with its subway links.</li>
+    <li>Storefront glass, sign bands, finishes (ceilings still show the floor texture underneath), lighting and signage.</li>
+    <li>Grind Coffee now sits in unit D106 at the Dundas corner and Metro Threads in N132A; both work as before.</li>
+    <li>The transit name tags (bus stop, station pills) show through the mall; they should hide indoors.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="cp1">
+  <div class="label">Checkpoint 1 · block grown, plans extracted</div>
+  <h2 id="cp1">What's done</h2>
+  <div class="grid2">
+    <div class="card"><h3>Downtown block grown</h3><ul>
+      <li>Dundas St and everything north moved 490 studs; Queen St and south unchanged</li>
+      <li>Eaton block now 166 × 695 studs (James St to Yonge, Queen to Dundas)</li>
+      <li>Bay St moved to x −161; Shuter St re-placed halfway between Queen and Dundas</li>
+      <li>Studio test: the world builds fully, all 32 station path checks pass, trains and cars running, minimap updated</li>
+    </ul></div>
+    <div class="card"><h3>Plans turned into data</h3><ul>
+      <li>Repeatable tool: <code>tools/eaton/extract.py</code></li>
+      <li>Every unit traced from its own label and checked against its printed square footage</li>
+      <li>Corridors from the plans' common-area fills; atrium voids and escalator wells detected</li>
+      <li>Level 1 is tied to the Queen, Yonge and James walls; every other level is registered to Level 1 by its structural column grid</li>
+    </ul></div>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Level</th><th>Registration</th><th>Large units (≥1,500 sq ft) within 10% / 25%</th><th>Small units within 25%</th><th>Traced vs printed area</th></tr></thead>
+    <tbody>
+      <tr><td>Concourse</td><td>29 of 194 columns + escalator lands under L1 escalator</td><td class="num">3 / 3 of 3</td><td class="num">21 of 22</td><td class="num">28,815 / 30,984 (93%)</td></tr>
+      <tr><td>Level 1</td><td>street walls</td><td class="num">32 / 38 of 42</td><td class="num">30 of 45</td><td class="num">232,440 / 248,714 (93%)</td></tr>
+      <tr><td>Level 2</td><td class="num">256 of 363 columns</td><td class="num">35 / 43 of 46</td><td class="num">24 of 29</td><td class="num">220,822 / 231,213 (96%)</td></tr>
+      <tr><td>Level 3</td><td class="num">206 of 326 columns</td><td class="num">29 / 34 of 36</td><td class="num">12 of 13</td><td class="num">249,906 / 262,717 (95%)</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Storage rooms on the concourse are left out of these counts. Wrong column offsets match only 10–60 columns, so the grid registration is unambiguous; it also confirms each sheet's own scale bar (a 1% scale change drops the match from 256 to about 60).</p>
+  <h3>Discrepancies fixed</h3>
+  <ul>
+    <li><strong>Level 3 "3% wider":</strong> not a drawing error. The Yonge facade steps out about 9 ft along the Queen half, and Levels 1–2 had been measured from the inner wall. With column-grid registration every level now measures 318 ft James–Yonge.</li>
+    <li><strong>H&amp;M on Level 1:</strong> the label shared a text line with Jugo Juice's unit number; labels are now split piece by piece. H&amp;M traces within 1.5%.</li>
+    <li><strong>Small units and kiosks:</strong> each label now starts from the nearby region that best fits its printed size, labels that point at their unit with a leader line are followed (Swatch, Sunglass Hut, Geox, Gemlet and others), and 10 corridor kiosks with no outline on the plan are placed at their label as a square of their printed area, marked inferred.</li>
+    <li><strong>Lifts, stairs, escalators:</strong> extracted. Lifts come from the plans' lift symbol (public lifts: concourse 3, L1 6, L2 11, L3 13, including the glass lifts at the Queen and centre courts). Escalators are found where the plan draws treads inside a floor opening or marks UP/DN (Queen court on L2 and L3, the Yonge St escalator hall, James St). Escalators drawn only as outlines will be read off each opening by eye during the circulation build and flagged as such.</li>
+  </ul>
+  <p class="note">Traced areas run a little under printed areas because leasing areas are measured to wall centrelines and storefront faces, while the trace stops at the inside of the drawn lines.</p>
+  <h3>Trace overlays (traced units coloured; orange = corridor edges; pink = voids)</h3>
+  <div class="shots">
+    <figure><img src="eaton/L1-trace.jpg" alt="Level 1 leasing plan with traced units overlaid"><figcaption>Level 1</figcaption></figure>
+    <figure><img src="eaton/L2-trace.jpg" alt="Level 2 leasing plan with traced units overlaid"><figcaption>Level 2</figcaption></figure>
+    <figure><img src="eaton/L3-trace.jpg" alt="Level 3 leasing plan with traced units overlaid"><figcaption>Level 3 · pink openings are the galleria voids and escalator wells</figcaption></figure>
+    <figure><img src="eaton/concourse-trace.jpg" alt="Concourse leasing plan with traced units overlaid"><figcaption>Concourse (Urban Eatery)</figcaption></figure>
+    <figure><img src="eaton/block-topdown.jpg" alt="Top-down view of the grown Eaton Centre block in Roblox Studio"><figcaption>In game: the stretched block, Queen at the bottom, Dundas at the top</figcaption></figure>
+  </div>
+  <h3>Still open</h3>
+  <ul>
+    <li>10 of about 300 units have no traceable outline (mostly Dundas-corner kiosks and a few leader-line labels whose line ends in a corridor). They'll be placed by hand from the plan when storefronts go in.</li>
+    <li>About a third of small Level 1 units are more than 25% off, usually because fixture lines split them. Their storefront positions along the corridor are still right; interiors will be fitted to the unit.</li>
+    <li>Escalators drawn only as outlines still need reading off their openings.</li>
+  </ul>
+</section>
+
+<section class="decision" aria-labelledby="dec">
+  <div class="label">Decisions · approved</div>
+  <h2 id="dec">Agreed before construction</h2>
+  <ol>
+    <li><strong>Scale and block size.</strong> Recommended: build the mall at 0.5 studs per foot (2× smaller than human scale across the floor plan, full human scale vertically) and lengthen the Queen–Dundas block by about 490 studs, moving Dundas Street and everything north of it. The Queen &amp; Yonge corner stays where it is.</li>
+    <li><strong>Store names.</strong> Recommended: keep every real unit number, footprint and category, but show original, made-up store names in game. Real brand names and logos are other companies' trademarks and can get a Roblox experience moderated. The registry still records the real tenant for reference.</li>
+    <li><strong>Upper anchors.</strong> Recommended: build Concourse, Level 1, 2 and 3 fully; show Level 2B, 4 and 5 (department-store upper floors, offices, parking) as exterior and closed space only.</li>
+  </ol>
+</section>
+
+<section aria-labelledby="src">
+  <div class="label">Phase 1 · Source material</div>
+  <h2 id="src">What the PDFs contain</h2>
+  <p>Both files are 17×11 in sheets drawn with north to the right: Queen Street on the left, Dundas Street West on the right, James Street at the top, Yonge Street at the bottom. Every wall, unit boundary and fixture is a vector line, not a scanned image.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Sheet</th><th>Level</th><th>Scale (measured)</th><th>What it gives us</th></tr></thead>
+    <tbody>
+      <tr><td>Leasing p1</td><td>Concourse / Urban Eatery</td><td class="num">1.915 pt/ft</td><td>Food court only: 22 stalls with frontage dimensions, seating layout, Sport Chek, McDonald's, Chick-fil-A, three washroom blocks, escalators. Drawn about 2.7× larger than the other sheets.</td></tr>
+      <tr><td>Leasing p2</td><td>Level 1</td><td class="num">0.700 pt/ft</td><td>Full footprint Queen to Dundas, ~130 unit labels with square footage, corridor widths (20–41 ft), every street entrance, subway arrows, tunnel to Bell Trinity Square.</td></tr>
+      <tr><td>Leasing p3–4</td><td>Level 2</td><td class="num">0.700 pt/ft</td><td>Units, balconies around the open galleria, bridge across Queen to the Hudson's Bay building, James Street doors.</td></tr>
+      <tr><td>Leasing p5</td><td>Level 2B</td><td class="num">—</td><td>Small Yonge-side mezzanine (Roots, two vacant units) and the 250 Yonge link.</td></tr>
+      <tr><td>Leasing p6</td><td>Level 3</td><td class="num">0.680 pt/ft</td><td>Upper units, the open voids with escalator banks between the two corridors, the round court near Michael Kors, the former Nordstrom block (Y002A) at Dundas.</td></tr>
+      <tr><td>Leasing p7–8</td><td>Level 4, 5</td><td class="num">—</td><td>Mostly void, offices and parking. The Level 5 sheet labels the galleria void at roof level: <span class="mono">50,786 sq ft</span>.</td></tr>
+      <tr><td>floorplan.pdf</td><td>Concourse, L1–L4</td><td class="num">dims in feet</td><td>Older directory-style plans with hundreds of written dimensions (store widths, corridor widths, the 132 ft Sport Chek frontage). Used to cross-check the leasing plans.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Measured means read from the drawing's own scale bar or written dimensions, accurate to about ±2%. Inferred means estimated where the plans say nothing.</p>
+</section>
+
+<section aria-labelledby="arch">
+  <h2 id="arch">Architectural reading</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Feature</th><th>Value</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>Length, Queen St wall to Dundas St W face</td><td class="num">≈ 1,390 ft (424 m)</td><td><span class="tag m">measured</span> L1 scale bar</td></tr>
+      <tr><td>Width, James St wall to Yonge St wall</td><td class="num">≈ 330 ft (101 m)</td><td><span class="tag m">measured</span> L1 scale bar</td></tr>
+      <tr><td>Galleria (glass-vault void) footprint</td><td class="num">50,786 sq ft</td><td><span class="tag m">measured</span> L5 void label</td></tr>
+      <tr><td>Main corridor widths</td><td class="num">26–41 ft</td><td><span class="tag m">measured</span> written dimensions, L1–L3</td></tr>
+      <tr><td>Retail units</td><td class="num">≈ 300 across 4 levels, 100–34,000 sq ft</td><td><span class="tag m">measured</span> unit labels</td></tr>
+      <tr><td>Floor-to-floor height</td><td class="num">≈ 20 ft per level</td><td><span class="tag i">inferred</span> plans are 2D; from photos and typical malls</td></tr>
+      <tr><td>Vault profile and roof height</td><td class="num">barrel vault over L3</td><td><span class="tag i">inferred</span> no section drawings</td></tr>
+      <tr><td>How the sheets line up</td><td class="num">shared James, Yonge and Queen walls</td><td><span class="tag i">inferred</span> each level is its own sheet; walls give a common reference</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid2">
+    <div class="card"><h3>Concourse</h3><ul>
+      <li>Urban Eatery food court below the north half, with seating islands and a ring of stalls</li>
+      <li>Sport Chek (15,163 sq ft), McDonald's, Chick-fil-A, Gong Cha</li>
+      <li>Links to Dundas station (north) and Queen station (south)</li>
+      <li>Only the food-court part is drawn; the south concourse is missing</li>
+    </ul></div>
+    <div class="card"><h3>Level 1 (street)</h3><ul>
+      <li>Two parallel corridors joined around central courts, not one straight hall</li>
+      <li>Entrances: Queen St, three on Yonge, Yonge &amp; Dundas corner (H&amp;M), Dundas St W, Trinity Square tunnel</li>
+      <li>Anchors: Queen's Cross Food Hall (old Richtree, FA100), Gap, Old Navy/Winners, Shoppers, Adidas</li>
+      <li>Subway stairs at the Queen end and mid-Yonge</li>
+    </ul></div>
+    <div class="card"><h3>Level 2</h3><ul>
+      <li>Balconies on both sides of the galleria void</li>
+      <li>Bridge across Queen St to the Hudson's Bay building</li>
+      <li>Apple, Aritzia, Victoria's Secret, H&amp;M (28,731 sq ft)</li>
+      <li>James St doors near Aritzia</li>
+    </ul></div>
+    <div class="card"><h3>Level 3</h3><ul>
+      <li>Voids with escalator banks between the two corridors</li>
+      <li>Round court at the centre (by Michael Kors), bridge toward Yonge</li>
+      <li>Zara, Uniqlo, Indigo, Harry Rosen, Sephora, Lululemon</li>
+      <li>Former Nordstrom block at Dundas, now Simons, Nike and Eataly</li>
+    </ul></div>
+  </div>
+</section>
+
+<section aria-labelledby="ten">
+  <div class="label">Phase 6 preview · Tenants</div>
+  <h2 id="ten">Current directory vs the plans</h2>
+  <p>The official directory lists <strong class="mono">252</strong> current stores, each with its unit number. <strong class="mono">196</strong> match a unit on the leasing plans directly (L1 74, L2 62, L3 32, Concourse 25, other 3). The other 56 are newer subdivisions of units on the plans: the 16 Queen's Cross Food Hall stalls inside FA100, Nike / Eataly / Simons inside the old Nordstrom space, seasonal kiosks, and renumbered units. Hudson's Bay and Saks appear on the plans but closed in 2025, so their building would be shown as a closed anchor.</p>
+</section>
+
+<section aria-labelledby="map">
+  <div class="label">Phase 2 · Existing map audit</div>
+  <h2 id="map">What our map has today</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Item</th><th>In our map</th></tr></thead>
+    <tbody>
+      <tr><td>Origin and orientation</td><td>Union Station at z = −1000 on the harbour, north is −Z, Yonge St straight along x = 100</td></tr>
+      <tr><td>Scale</td><td>People, streets and buildings at about 0.3 m per stud; distances between places compressed downtown to 700 studs per real km</td></tr>
+      <tr><td>Queen St / Dundas St</td><td class="mono">z = −1616 / z = −1911 (295 studs apart)</td></tr>
+      <tr><td>Eaton Centre block</td><td class="mono">x −88…57, z −1866…−1661 (145 × 205 studs)</td></tr>
+      <tr><td>Current mall</td><td>3 levels 18 studs apart, one straight 30-stud galleria with a glass barrel vault, L2/L3 bridges, food court on L1 at the Dundas end, Grind Coffee and Metro Threads workplaces, lifts at the Queen end</td></tr>
+      <tr><td>Neighbours</td><td>Sankofa Square SE of Yonge &amp; Dundas, Shuter St (east side only) at z −1760, Bay St at x −131, City Hall square NW of Queen &amp; Bay, billboard buildings at Yonge &amp; Dundas</td></tr>
+      <tr><td>Subway</td><td>Queen and Dundas stations under Yonge; ticket concourse at y −17, platforms at y −36. The real Eaton Centre's concourse level lines up naturally with our station concourse.</td></tr>
+      <tr><td>How positions are set</td><td>Almost everything reads from <code>TorontoLayout.lua</code>; only about 11 numbers elsewhere would need checking if the block grows</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="scale">
+  <h2 id="scale">The scale problem</h2>
+  <p>At our street spacing, the 424 m mall would have to fit 205 studs. That is 0.15 studs per foot: a 20 ft storefront would be 3 studs wide, narrower than a player. The current mall works only because it is a simplified stand-in. Any faithful version needs a bigger block.</p>
+  <div class="diagram" role="img" aria-label="Top-down footprints of four scale options drawn to the same scale, with Queen Street as a shared baseline">
+    <svg viewBox="0 0 760 460" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Mono, monospace">
+      <!-- 1 stud = 0.28 px; Queen St baseline at y = 400; north is up -->
+      <line x1="20" y1="400" x2="740" y2="400" stroke="var(--street)" stroke-width="6"/>
+      <text x="24" y="425" font-size="12" fill="var(--muted)">QUEEN ST (fixed)</text>
+      <line x1="20" y1="317" x2="740" y2="317" stroke="var(--street)" stroke-width="2" stroke-dasharray="6 5"/>
+      <text x="24" y="311" font-size="11" fill="var(--muted)">Dundas St today (295 studs)</text>
+      <!-- A: 49 x 205 -->
+      <rect x="90" y="342.6" width="13.7" height="57.4" fill="var(--plan-a)" fill-opacity=".25" stroke="var(--plan-a)" stroke-width="1.5"/>
+      <text x="60" y="445" font-size="12" fill="var(--fg)">A · fit block</text>
+      <!-- B: 166 x 695 -->
+      <rect x="250" y="205.4" width="46.5" height="194.6" fill="var(--plan-b)" fill-opacity=".25" stroke="var(--plan-b)" stroke-width="2"/>
+      <text x="222" y="445" font-size="12" fill="var(--fg)">B · 0.5 stud/ft</text>
+      <text x="304" y="214" font-size="11" fill="var(--plan-b)">695 studs</text>
+      <!-- C: 216 x 904 -->
+      <rect x="430" y="146.9" width="60.5" height="253.1" fill="var(--plan-c)" fill-opacity=".22" stroke="var(--plan-c)" stroke-width="1.5"/>
+      <text x="408" y="445" font-size="12" fill="var(--fg)">C · 0.65 stud/ft</text>
+      <text x="498" y="156" font-size="11" fill="var(--plan-c)">904 studs</text>
+      <!-- D: 332 x 1391 -->
+      <rect x="610" y="10.5" width="93" height="389.5" fill="var(--plan-d)" fill-opacity=".22" stroke="var(--plan-d)" stroke-width="1.5"/>
+      <text x="598" y="445" font-size="12" fill="var(--fg)">D · human scale</text>
+      <text x="612" y="28" font-size="11" fill="var(--muted)">1,391 studs</text>
+      <!-- Yonge side marker -->
+      <text x="298" y="390" font-size="10" fill="var(--muted)">Yonge →</text>
+    </svg>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Option</th><th>Footprint (studs)</th><th>20 ft shop / 40 ft corridor</th><th>Block change</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>A · fit current block</td><td class="num">49 × 205</td><td class="num">3 / 6 studs</td><td>none</td><td>Not walkable; can't be faithful</td></tr>
+      <tr><td>B · 0.5 stud/ft</td><td class="num">166 × 695</td><td class="num">10 / 20 studs</td><td>Dundas and everything north +490 studs; Bay St ~25 studs west</td><td><span class="tag rec">recommended</span></td></tr>
+      <tr><td>C · 0.65 stud/ft</td><td class="num">216 × 904</td><td class="num">13 / 26 studs</td><td>+700 studs north; Bay St ~75 studs west</td><td>Roomier, longer walks, bigger shift</td></tr>
+      <tr><td>D · full human scale</td><td class="num">332 × 1,391</td><td class="num">20 / 40 studs</td><td>+1,190 studs north; Bay St pushed into City Hall</td><td>Most accurate, but dwarfs the rest of downtown</td></tr>
+    </tbody>
+  </table></div>
+  <p>Why B: players are about 2 studs wide and 5 tall, so 10-stud shopfronts and 13–20-stud corridors feel generous; heights stay at full scale (about 20 studs per level), so the galleria rises roughly 80 studs to the vault and feels enormous. The subway between Queen and Dundas gets about 490 studs longer, roughly 10 seconds of extra ride, and the station path checks and minimap rebuild automatically from the layout data. Proportions stay exactly those of the plans because the whole floor plan is scaled by one factor.</p>
+</section>
+
+<section aria-labelledby="align">
+  <h2 id="align">Alignment to the streets</h2>
+  <ul>
+    <li>Plan right (north) maps to world −Z; plan down (Yonge) maps to world +X. One rigid transform per level, anchored at the Queen &amp; Yonge corner.</li>
+    <li>The Yonge facade sits on the existing Yonge sidewalk; Queen facade on Queen; the Dundas end faces Sankofa Square across Yonge, as it does in reality.</li>
+    <li>James Street becomes a real lane along the west side, with the Trinity Square tunnel and James St doors opening onto it.</li>
+    <li>The concourse floor sits at the station concourse height (y −17), so Queen and Dundas stations connect through level passages, no stairs needed.</li>
+    <li>The block growth is applied as one offset in <code>TorontoLayout.lua</code>. I'll list every moved item and re-run the station path checks before touching the mall.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="miss">
+  <h2 id="miss">Missing or uncertain information</h2>
+  <ul>
+    <li><strong>South concourse.</strong> The concourse sheets only cover the Urban Eatery. I'd infer the rest from the Level 1 structure and the station positions. If you have a full concourse plan or directory map, it would replace that guess.</li>
+    <li><strong>Heights and the vault shape.</strong> No sections or elevations. I'd use about 20 studs per level and a barrel vault matched to the galleria width, refined from photos.</li>
+    <li><strong>Exterior facades.</strong> Not in the plans. I'd keep the current exterior style and rebuild it to the new footprint.</li>
+    <li><strong>Art installations.</strong> The geese sculpture in the galleria is a copyrighted artwork. I'd leave it out or use a generic hanging installation.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="plan">
+  <div class="label">Phases 3–10 · Build plan</div>
+  <h2 id="plan">Construction sequence, with a check at each step</h2>
+  <ol class="steps">
+    <li><div><h3>Extract the plans into data</h3><p>A script turns the PDF vectors into per-level geometry: walls, unit outlines with unit number and square footage, voids, escalators, lifts, stairs, entrances. Each unit's traced area is checked against its labelled square footage, and anything more than 10% off is flagged. You get a top-down image of each level to compare with the PDFs.</p></div></li>
+    <li><div><h3>Grow the block</h3><p>Apply the layout offset, rebuild, re-run every station path check, confirm the minimap, the subway and cars.</p></div></li>
+    <li><div><h3>Shell and galleria</h3><p>Footprint, floor plates with real void openings, columns, glass barrel vault, balcony edges and railings. Top-down comparison per level.</p></div></li>
+    <li><div><h3>Corridors and vertical connections</h3><p>Corridor geometry from the plans, working escalators (moving treads players ride), lifts using the existing elevator system, stairs, bridges, the Queen St bridge, subway links.</p></div></li>
+    <li><div><h3>Unit footprints and storefronts</h3><p>Every unit at its real outline. One storefront module sized to each frontage: glazing, sign band, display window, door.</p></div></li>
+    <li><div><h3>Materials, lighting, signage, furniture</h3><p>Polished stone, brushed steel, glass, ceiling panels; recessed and storefront lighting; one signage family for directories, washrooms, lifts, exits and subway.</p></div></li>
+    <li><div><h3>Interiors and tenants</h3><p>Reusable interior templates per category (clothing, electronics, beauty, restaurant, food stall, department store) filled from the tenant registry. Grind Coffee and Metro Threads move into proper units with their job stations intact.</p></div></li>
+    <li><div><h3>Interactions, performance, validation</h3><p>Interactive directories, doors, seating, washrooms. Part budget for the whole mall (target under 25,000 parts) with streaming. Final top-down comparison to the PDFs and a full walkthrough: street → corridors → floors → atrium → stores → concourse → subway.</p></div></li>
+  </ol>
+  <p class="note">Code lives in a new <code>World/EatonCentre/</code> module folder (data per level, shell, galleria, units, storefronts, circulation, interiors) and a shared tenant registry. In game it builds into <code>EatonCentre / Exterior, Level_Concourse, Level_01–03, Vertical_Connections, Signage, Lighting, Interactive_Objects</code>.</p>
+</section>
+</div>
