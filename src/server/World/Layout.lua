@@ -1,10 +1,12 @@
 -- Where everything sits in the world (studs; X west->east, north is -Z).
 -- Districts and highways read these so their roads meet up.
+local TorontoLayout = require(script.Parent.TorontoLayout)
+
 local Layout = {}
 
-Layout.CHANNEL = { minZ = -800, maxZ = -730 } -- water between downtown and North York
+Layout.CHANNEL = { minZ = -800, maxZ = -730 } -- the harbour between downtown and Toronto
 
-Layout.NORTH_YORK = { minX = -1200, maxX = 700, minZ = -2000, maxZ = -800 }
+Layout.TORONTO = TorontoLayout.BOUNDS -- Toronto: see TorontoLayout.lua for everything inside
 Layout.SUBURBS = { minX = -1800, maxX = -700, minZ = -730, maxZ = 1200 }
 Layout.INDUSTRIAL = { minX = -700, maxX = 594, minZ = 700, maxZ = 1200 }
 Layout.VICE_BEACH = { minX = 1100, maxX = 2300, minZ = -300, maxZ = 1300 }
@@ -12,27 +14,8 @@ Layout.VICE_BEACH = { minX = 1100, maxX = 2300, minZ = -300, maxZ = 1300 }
 ---------------------------------------------------------------------------
 -- Surface roads that several districts need to agree on
 ---------------------------------------------------------------------------
--- North York: perimeter roads, cross arterials and side streets. The expressway is
--- at street level north of -1460, so -1500 meets it at a junction; -1100 passes under.
-Layout.NY_NORTH_Z = -1960
-Layout.NY_SOUTH_Z = -836
-Layout.NY_WEST_X = -1150
-Layout.NY_EAST_X = 640
-Layout.NY_CROSS_Z = { -1100, -1500 } -- -1100 is "King St" (streetcar line)
-Layout.NY_SIDE_STREETS_Z = { -1240, -1740 }
-Layout.NY_SIDE_STREETS_X = { -560, 220 }
-Layout.NY_BRIDGE_AVENUES = { -360, 20, 400 } -- downtown avenues that cross the channel
-
--- Toronto landmarks (centres are Vector2 x, z; rects are min/max).
-Layout.NEEDLE = Vector2.new(-90, -955) -- CN Tower-inspired, on the waterfront
-Layout.DOME = Vector2.new(-225, -965) -- stadium right beside it, like the Rogers Centre
-Layout.UNION = Vector2.new(145, -968) -- Union Station-style colonnade
-Layout.CITY_HALL = { minX = -282, maxX = -70, minZ = -1340, maxZ = -1152 } -- towers + square
-Layout.ROM = Vector2.new(-667, -1360) -- museum with a crystal
-Layout.TWIN_TOWERS = { Vector2.new(120, -1640), Vector2.new(172, -1596) } -- Mississauga-style curves
-Layout.FINANCIAL = Vector2.new(210, -1300) -- bank towers cluster around here
-Layout.MALL = Vector2.new(-985, -1370) -- Yorkgate Centre (walkable)
-Layout.NY_PARK = { minX = -1085, maxX = -865, minZ = -1700, maxZ = -1550 }
+-- Toronto landmarks the other modules need (TorontoLayout has the full list).
+Layout.FINANCIAL = TorontoLayout.FINANCIAL -- bank towers cluster around King & Bay
 
 -- Vice Causeway: a street-level bridge from downtown's waterfront drive straight
 -- across the river to Vice Beach (passes under the Harbor Freeway).
@@ -69,10 +52,14 @@ Layout.RAMP_WIDTH = 38
 local EX = Layout.EXPRESSWAY_X
 local EAST_LANES = EX + 25 -- centre of the expressway's east-side lanes
 
--- Expressway: North York (street level) -> rises -> over the channel -> down the
+-- Expressway: from Highway 401 (on its deck), down to street level as the Allen
+-- Road / Spadina corridor through Toronto -> rises -> over the harbour -> down the
 -- west side of downtown -> along the industrial south edge -> the bridge.
+local H401 = TorontoLayout.HWY401_Z
 Layout.EXPRESSWAY = {
-	Vector3.new(EX, S, Layout.NY_NORTH_Z),
+	Vector3.new(EX, 26, H401),
+	Vector3.new(EX, 26, H401 + 90),
+	Vector3.new(EX, S, H401 + 380),
 	Vector3.new(EX, S, -1460),
 	Vector3.new(EX, 26, -1180),
 	Vector3.new(EX, 26, 960),
@@ -80,6 +67,19 @@ Layout.EXPRESSWAY = {
 	Vector3.new(EX + 48, 26, 1082),
 	Vector3.new(EX + 110, 26, 1100),
 	Vector3.new(560, 26, 1100),
+}
+
+-- Highway 401: across North York on a deck, down to street level at Toronto's
+-- west and east edge roads.
+local TX0, TX1 = TorontoLayout.BOUNDS.minX + 50, TorontoLayout.BOUNDS.maxX - 50
+Layout.HWY401_WIDTH = 120
+Layout.HWY401 = {
+	Vector3.new(TX0, S, H401),
+	Vector3.new(TX0 + 20, S, H401),
+	Vector3.new(TX0 + 240, 26, H401), -- up to full height before the expressway joins
+	Vector3.new(TX1 - 240, 26, H401),
+	Vector3.new(TX1 - 20, S, H401),
+	Vector3.new(TX1, S, H401),
 }
 
 -- Suspension bridge to Vice Beach (continues the expressway).
@@ -174,6 +174,8 @@ end
 -- Overhead gantry signs: placed at the highway sample nearest to `at`.
 Layout.SIGNS = {
 	Expressway = {
+		{ at = Vector2.new(EX, H401 + 700), text = "ALLEN RD  ·  DOWNTOWN" },
+		{ at = Vector2.new(EX, -3054), text = "BLOOR ST  ·  1 KM" },
 		{ at = Vector2.new(EX, -1300), text = "DOWNTOWN  ·  HARBOR FWY" },
 		{ at = Vector2.new(EX, -200), text = "DOWNTOWN  EXIT" },
 		{ at = Vector2.new(EX, 760), text = "INDUSTRIAL  ·  VICE BEACH" },
@@ -183,6 +185,10 @@ Layout.SIGNS = {
 		{ at = Vector2.new(-1000, -725), text = "DOWNTOWN  ·  EXPRESSWAY" },
 		{ at = Vector2.new(0, -745), text = "HARBOR FWY  EAST" },
 		{ at = Vector2.new(637, 300), text = "VICE BEACH" },
+	},
+	Highway401 = {
+		{ at = Vector2.new(-200, H401), text = "401  EXPRESS  ·  YONGE ST" },
+		{ at = Vector2.new(500, H401), text = "401  ·  BAYVIEW AVE" },
 	},
 	SuspensionBridge = {
 		{ at = Vector2.new(1100, 1100), text = "WELCOME TO VICE BEACH" },

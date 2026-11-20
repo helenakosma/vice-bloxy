@@ -2,6 +2,7 @@
 -- steam stacks, the park, the river and parked cars.
 local Util = require(script.Parent.Util)
 local Roads = require(script.Parent.Roads)
+local Billboards = require(script.Parent.Billboards)
 
 local Props = {}
 
@@ -114,8 +115,9 @@ local function busStop(folder, p, dir)
 	Util.deco(folder, V3(10, 0.3, 4), cf * CFrame.new(0, 8, 0), Color3.fromRGB(50, 50, 52), M.Metal)
 	local back = Util.solid(folder, V3(10, 7.5, 0.2), cf * CFrame.new(0, 4, 1.9), Color3.fromRGB(180, 200, 205), M.Glass)
 	back.Transparency = 0.6
-	local ad = Util.deco(folder, V3(0.2, 6, 3.6), cf * CFrame.new(4.9, 4, 0), Color3.fromRGB(240, 230, 210), M.Neon)
-	ad.Transparency = 0.3
+	-- Lit ad panel at the end of the shelter (rotates with the city's other ads).
+	local ad = Util.deco(folder, V3(0.25, 6, 3.6), cf * CFrame.new(4.9, 4, 0), Color3.fromRGB(240, 240, 240), M.SmoothPlastic)
+	Billboards.face(ad, Enum.NormalId.Right, Billboards.pick(nil), false)
 	Util.solid(folder, V3(7, 0.4, 1.4), cf * CFrame.new(0, 2, 1.1), Color3.fromRGB(60, 60, 62), M.Metal)
 end
 
@@ -211,7 +213,7 @@ local function placeFurniture(folder, inRoad, rng, roads, opts)
 					trashCan(folder, kerbSide)
 				elseif r < 0.64 and onSidewalk(kerbSide) then
 					newsBox(folder, kerbSide, towardRoad, rng)
-				elseif road.main and r < 0.7 and onSidewalk(midWalk) then
+				elseif road.main and r < 0.665 and onSidewalk(midWalk) then
 					busStop(folder, midWalk, towardRoad)
 				end
 				t = t + rng:NextNumber(14, 26)

@@ -249,6 +249,7 @@ function Highways.layout(shared)
 	local W = Layout.RAMP_WIDTH
 	add({ name = "Expressway", width = Layout.EXPRESSWAY_WIDTH, lanes = 3, control = Layout.EXPRESSWAY, median = true, pillarsInWater = true })
 	add({ name = "HarborFreeway", width = Layout.HARBOR_WIDTH, lanes = 2, control = Layout.HARBOR, median = true, pillarsInWater = true, lift = 0.03 })
+	add({ name = "Highway401", width = Layout.HWY401_WIDTH, lanes = 4, control = Layout.HWY401, median = true })
 	add({ name = "SuspensionBridge", width = Layout.EXPRESSWAY_WIDTH, lanes = 3, control = Layout.BRIDGE, median = true, towersX = Layout.BRIDGE_TOWERS_X })
 	for _, name in ipairs({ "NorthConnector", "SouthConnector", "Industrial" }) do
 		add({ name = name .. "Ramp", width = W, lanes = 1, control = Layout.RAMPS[name], pillarsInWater = true, lift = 0.05 })

@@ -1,4 +1,4 @@
--- North York building styles (Toronto-inspired): slim glass condo towers on
+-- Toronto building styles: slim glass condo towers on
 -- podiums with white balcony bands, brick-and-glass mid-rises, and suburban strip
 -- plazas set back behind their parking lots. Each style is (folder, cf, w, d, ctx);
 -- the front faces local -Z.
@@ -6,6 +6,7 @@ local Util = require(script.Parent.Util)
 local Stores = require(script.Parent.Stores)
 local Buildings = require(script.Parent.Buildings)
 local Layout = require(script.Parent.Layout)
+local Props = require(script.Parent.Props)
 
 local TorontoStyles = {}
 
@@ -188,6 +189,73 @@ function TorontoStyles.bankTower(folder, cf, w, d, ctx)
 	end
 	Util.deco(folder, V3(w * 0.7, 8, d * 0.7), cf * CFrame.new(0, h + 4, 0), bank.frame, M.Metal)
 	Util.deco(folder, V3(w * 0.72, 0.5, d * 0.72), cf * CFrame.new(0, h + 8.3, 0), Color3.fromRGB(255, 255, 255), M.Neon)
+end
+
+-- Detached house on a lawn (York Mills, Lawrence, Rosedale): two storeys of brick
+-- under a pitched roof, porch, chimney, driveway and usually a tree out front.
+local HOUSE_BRICK = {
+	Color3.fromRGB(150, 84, 62), Color3.fromRGB(122, 74, 56), Color3.fromRGB(186, 160, 128),
+	Color3.fromRGB(160, 110, 80), Color3.fromRGB(226, 220, 206),
+}
+local ROOFS = { Color3.fromRGB(56, 56, 60), Color3.fromRGB(84, 64, 56), Color3.fromRGB(70, 76, 84) }
+function TorontoStyles.torontoHouse(folder, cf, w, d, ctx)
+	local rng = ctx.rng
+	local hw = math.clamp(w - 6, 12, rng:NextNumber(18, 26))
+	local hd = math.clamp(d - 14, 12, rng:NextNumber(16, 22))
+	local front = -d / 2 + rng:NextNumber(7, 11)
+	local zc = front + hd / 2
+	local h = 20
+	local lawn = Util.deco(folder, V3(w - 1, 0.2, d - 1), cf * CFrame.new(0, 0.1, 0), Color3.fromRGB(90, 116, 66), M.Grass)
+	lawn.CastShadow = false
+	local colour = Util.pick(rng, HOUSE_BRICK)
+	Util.solid(folder, V3(hw, h, hd), cf * CFrame.new(0, h / 2, zc), colour, M.Brick)
+	-- Gable roof, ridge along the street.
+	local pitch = math.rad(32)
+	local slope = (hd / 2 + 1) / math.cos(pitch)
+	local rise = (hd / 2) * math.tan(pitch)
+	local roofColour = Util.pick(rng, ROOFS)
+	for _, s in ipairs({ -1, 1 }) do
+		Util.solid(folder, V3(hw + 1.6, 0.8, slope), cf * CFrame.new(0, h + rise / 2, zc + s * hd / 4) * CFrame.Angles(s * pitch, 0, 0), roofColour, M.Slate)
+	end
+	-- Gable ends.
+	for _, sx in ipairs({ -1, 1 }) do
+		local gable = Instance.new("WedgePart")
+		gable.Anchored = true
+		gable.Size = V3(0.6, rise, hd / 2)
+		gable.Color = colour
+		gable.Material = M.Brick
+		for _, s in ipairs({ -1, 1 }) do
+			local g = gable:Clone()
+			g.CFrame = cf * CFrame.new(sx * (hw / 2 - 0.3), h + rise / 2, zc + s * hd / 4) * CFrame.Angles(0, s > 0 and math.pi or 0, 0) -- a wedge's high side is its back (+Z); face it toward the ridge
+			g.Parent = folder
+			Util.tick()
+		end
+	end
+	Util.solid(folder, V3(2.6, 9, 2.6), cf * CFrame.new(hw / 2 - 3, h + rise * 0.5 + 3, zc + hd / 4), Util.shade(colour, 0.8), M.Brick)
+	-- Front: porch, door, windows.
+	Util.solid(folder, V3(8, 0.8, 4), cf * CFrame.new(0, 0.6, front - 2), Color3.fromRGB(170, 166, 158), M.Concrete)
+	Util.deco(folder, V3(3.4, 7.4, 0.3), cf * CFrame.new(0, 4.4, front - 0.1), Color3.fromRGB(90, 40, 34), M.Wood)
+	for _, x in ipairs({ -hw / 3.2, hw / 3.2 }) do
+		for _, y in ipairs({ 5.5, 14.5 }) do
+			local win = Util.deco(folder, V3(3.6, 4.2, 0.3), cf * CFrame.new(x, y, front - 0.1), Color3.fromRGB(46, 56, 64), M.Glass)
+			Util.nightWindow(win, 0.4)
+		end
+	end
+	-- Driveway to the street, and a tree.
+	local side = rng:NextNumber() < 0.5 and -1 or 1
+	if w - hw > 9 then
+		Util.deco(folder, V3(6, 0.25, -front + d / 2 - 0.5), cf * CFrame.new(side * (hw / 2 + 3.5), 0.15, (front - d / 2) / 2), Color3.fromRGB(70, 70, 72), M.Asphalt)
+	end
+	if rng:NextNumber() < 0.7 then
+		local p = (cf * CFrame.new(-side * (hw / 4), 0, -d / 2 + 4)).Position
+		Props.tree(folder, Vector2.new(p.X, p.Z), rng, rng:NextNumber(1, 1.3))
+	end
+end
+
+-- Plain massing block: a placeholder sized by neighbourhood (Stage 2 skeleton).
+function TorontoStyles.massing(folder, cf, w, d, ctx)
+	local h = math.clamp(ctx.rng:NextNumber(28, 70) * ctx.heightFactor, 14, 360)
+	Buildings.filler(folder, cf, math.max(8, w - 2), math.max(8, d - 3), h, ctx.rng, true)
 end
 
 for name, fn in pairs(TorontoStyles) do

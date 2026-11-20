@@ -45,7 +45,7 @@ return {
 
 	-- Subway Line 1 service.
 	Transit = {
-		Headway = 60, -- target seconds between trains (the number of trains is worked out from this)
+		Headway = 90, -- target seconds between trains (the number of trains is worked out from this)
 		Cars = 4, -- cars per train
 		Speed = 80, -- studs per second between stations
 		Accel = 9, -- studs per second squared (speeding up and braking)

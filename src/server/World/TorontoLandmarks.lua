@@ -1,4 +1,4 @@
--- Toronto-inspired landmarks for North York: City Hall's two curved towers around
+-- Toronto landmarks (placed by Districts/Toronto.lua): City Hall's two curved towers around
 -- the council "saucer" with the square, arches and a 3D TORONTO sign; a Union
 -- Station-style colonnade; a museum with an angular crystal; Mississauga's
 -- twisting "Marilyn" towers; and a red streetcar line with overhead wires.
@@ -143,9 +143,9 @@ end
 ---------------------------------------------------------------------------
 -- Union Station
 ---------------------------------------------------------------------------
-function TorontoLandmarks.union(folder, centre)
+function TorontoLandmarks.union(folder, centre, facing)
 	local w, d, h = 100, 42, 26
-	local base = Util.groundCF(centre, Vector2.new(0, 1), 0) -- faces the lakeshore (south)
+	local base = Util.groundCF(centre, facing or Vector2.new(0, 1), 0) -- the portico faces this way
 	local body = Util.solid(folder, V3(w, h, d), base * CFrame.new(0, h / 2, 6), STONE, M.Limestone)
 	Util.texture(body, Front, "limestone", 12, 12)
 	-- Recessed portico with a row of tall columns.

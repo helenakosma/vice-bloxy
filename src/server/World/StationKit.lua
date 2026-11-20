@@ -283,10 +283,10 @@ function Kit.mapBoard(folder, cf, w, h, title, stations, here)
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 24
+	gui.PixelsPerStud = 40
 	gui.LightInfluence = 0.3
 	local head = Instance.new("TextLabel")
-	head.Size = UDim2.fromScale(1, 0.2)
+	head.Size = UDim2.fromScale(1, 0.16)
 	head.BackgroundColor3 = SIGN_BLACK
 	head.BorderSizePixel = 0
 	head.TextColor3 = WHITE
@@ -294,35 +294,49 @@ function Kit.mapBoard(folder, cf, w, h, title, stations, here)
 	head.TextScaled = true
 	head.Text = title
 	head.Parent = gui
+	-- The line along the bottom, a dot per station, names slanted up from each dot
+	-- (like a real line map) so twenty stations never overlap.
+	local lineY = 0.8
 	local bar = Instance.new("Frame")
-	bar.Size = UDim2.fromScale(0.9, 0.05)
-	bar.Position = UDim2.fromScale(0.05, 0.5)
+	bar.AnchorPoint = Vector2.new(0, 0.5)
+	bar.Size = UDim2.new(0.92, 0, 0, 8)
+	bar.Position = UDim2.fromScale(0.04, lineY)
 	bar.BackgroundColor3 = C(250, 200, 30)
 	bar.BorderSizePixel = 0
 	bar.Parent = gui
+	local many = #stations > 10
 	for i, name in ipairs(stations) do
-		local x = 0.05 + 0.9 * (i - 1) / math.max(#stations - 1, 1)
+		local x = 0.04 + 0.92 * (i - 1) / math.max(#stations - 1, 1)
+		local isHere = name == here
 		local dot = Instance.new("Frame")
 		dot.AnchorPoint = Vector2.new(0.5, 0.5)
-		dot.Position = UDim2.fromScale(x, 0.525)
-		dot.Size = UDim2.fromOffset(18, 18)
-		dot.BackgroundColor3 = name == here and TTC_RED or WHITE
+		dot.Position = UDim2.fromScale(x, lineY)
+		dot.Size = UDim2.fromOffset(many and 14 or 18, many and 14 or 18)
+		dot.BackgroundColor3 = isHere and TTC_RED or WHITE
 		dot.BorderSizePixel = 0
 		Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
 		local stroke = Instance.new("UIStroke")
 		stroke.Thickness = 3
 		stroke.Parent = dot
 		dot.Parent = gui
+		-- A zero-size holder at the dot, rotated; the name runs out from it.
+		local holder = Instance.new("Frame")
+		holder.BackgroundTransparency = 1
+		holder.Size = UDim2.fromOffset(0, 0)
+		holder.Position = UDim2.new(x, 0, lineY, -12)
+		holder.Rotation = -55
+		holder.Parent = gui
 		local label = Instance.new("TextLabel")
-		label.AnchorPoint = Vector2.new(0.5, 0)
-		label.Position = UDim2.fromScale(x, i % 2 == 0 and 0.62 or 0.3)
-		label.Size = UDim2.fromScale(0.22, 0.14)
 		label.BackgroundTransparency = 1
-		label.TextColor3 = name == here and TTC_RED or SIGN_BLACK
-		label.Font = name == here and Enum.Font.GothamBlack or Enum.Font.GothamBold
-		label.TextScaled = true
-		label.Text = name == here and (name .. " ●") or name
-		label.Parent = gui
+		label.AnchorPoint = Vector2.new(0, 0.5)
+		label.Position = UDim2.fromOffset(4, 0)
+		label.Size = UDim2.fromOffset(150, 16)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextSize = many and 12 or 15
+		label.TextColor3 = isHere and TTC_RED or SIGN_BLACK
+		label.Font = isHere and Enum.Font.GothamBlack or Enum.Font.GothamBold
+		label.Text = isHere and ("● " .. name) or name
+		label.Parent = holder
 	end
 	gui.Parent = panel
 	return panel
@@ -705,7 +719,7 @@ function Kit.entrance(folder, e, station, geo, rng)
 	for _, face in ipairs({ Front, Enum.NormalId.Back }) do
 		Util.sign(board, face, "TTC   SUBWAY", TTC_RED, Enum.Font.GothamBlack).LightInfluence = 0
 	end
-	Kit.marker(board, "🚇 " .. station.name, TTC_RED)
+	Kit.marker(board, "🚇 " .. station.name, TTC_RED, 650)
 	local band = Util.deco(folder, V3(34, 1.8, 0.5), at(0, kerb + E.HOUSE_H - 4.5, E.CANOPY + 0.2) * turn, SIGN_BLACK, M.SmoothPlastic)
 	band.CastShadow = false
 	for _, face in ipairs({ Front, Enum.NormalId.Back }) do

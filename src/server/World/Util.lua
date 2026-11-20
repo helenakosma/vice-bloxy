@@ -17,7 +17,7 @@ Util.RIVER_X = 594 -- the east river starts here (downtown's east edge)
 
 -- Whole-world grid covering every district. Cells start as water; districts
 -- claim their land with Util.markRect(..., Util.FREE).
-Util.GRID = { minX = -1900, maxX = 2400, minZ = -2100, maxZ = 1400 }
+Util.GRID = { minX = -1900, maxX = 2400, minZ = -8400, maxZ = 1400 }
 
 Util.FREE = 0
 Util.ROAD = 1

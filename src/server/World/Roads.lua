@@ -14,6 +14,8 @@ Roads.KINDS = {
 	alley = { width = 14, walk = 0 },
 	-- Outer districts
 	arterial = { width = 64, walk = 10, main = true },
+	yonge = { width = 56, walk = 12, main = true }, -- Yonge St, downtown and midtown (4 lanes)
+	yongeNorth = { width = 84, walk = 14, main = true }, -- Yonge St in North York (6 lanes and a median)
 	boulevard = { width = 44, walk = 14, main = true },
 	bridge = { width = 60, walk = 6, main = true },
 	residential = { width = 30, walk = 7 },

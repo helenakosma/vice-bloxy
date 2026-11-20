@@ -483,8 +483,20 @@ function Buildings.background(folder, rng)
 	-- Each ring is kept under 2048 studs across (the Roblox part size limit).
 	ring(G.minX - 900, G.minX - 500, -1800, -250, 40, 40, 220) -- far west
 	ring(G.minX - 900, G.minX - 500, -250, 1200, 40, 40, 220)
-	ring(-1400, -250, G.minZ - 800, G.minZ - 450, 40, 60, 260) -- far north
-	ring(-250, 900, G.minZ - 800, G.minZ - 450, 40, 60, 260)
+	-- The rest of Toronto, either side of the playable corridor and to the north
+	-- (land right up to the corridor's edges, low-detail buildings on it).
+	local T = require(script.Parent.TorontoLayout)
+	local tb = T.BOUNDS
+	local chunk = (tb.maxZ - tb.minZ) / 5
+	for k = 0, 4 do
+		local z0, z1 = tb.minZ + k * chunk + 40, tb.minZ + (k + 1) * chunk - 40
+		local tall = z1 > T.DOWNTOWN_FROM_Z and 260 or 150
+		ring(G.minX + 40, tb.minX - 40, z0, z1, 26, 30, tall) -- west of Toronto
+		ring(tb.maxX + 40, G.maxX - 40, z0, z1, 30, 30, tall) -- east of Toronto
+	end
+	for _, span in ipairs({ { G.minX + 40, -500 }, { -500, 900 }, { 900, G.maxX - 40 } }) do
+		ring(span[1], span[2], tb.minZ - 520, tb.minZ - 40, 24, 30, 160) -- north of Steeles
+	end
 	ring(-1600, 300, G.maxZ + 450, G.maxZ + 800, 60, 30, 140) -- far south
 end
 

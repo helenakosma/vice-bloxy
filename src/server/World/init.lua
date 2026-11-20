@@ -23,7 +23,7 @@ local SEED = 1986
 -- Order matters: later districts connect to roads from earlier ones.
 local DISTRICTS = {
 	require(script.Districts.Downtown),
-	require(script.Districts.NorthYork),
+	require(script.Districts.Toronto),
 	require(script.Districts.Industrial),
 	require(script.Districts.Suburbs),
 	require(script.Districts.ViceBeach),
@@ -42,7 +42,7 @@ end
 local function buildWater(folder)
 	local tile = 2000
 	for x = -3000, 3000, tile do
-		for z = -3000, 3000, tile do
+		for z = -9000, 3000, tile do
 			Util.waterBox(folder, Vector3.new(x - tile / 2, -3, z - tile / 2), Vector3.new(x + tile / 2, -2, z + tile / 2))
 			local bed = Util.solid(folder, Vector3.new(tile, 2, tile), CFrame.new(x, -63, z), Color3.fromRGB(40, 38, 34), Enum.Material.Mud)
 			bed.CastShadow = false
@@ -137,7 +137,7 @@ function World.build(Cars)
 	Util.beginDistrict("Transit")
 	local transitFolder = makeFolder(root, "Transit")
 	local transitInfo = Transit.build(transitFolder)
-	reportDistrict(transitFolder, "Transit", 9000, transitStart)
+	reportDistrict(transitFolder, "Transit", 70000, transitStart)
 	info.safeZones = transitInfo.safeZones
 	reportDistrict(highways, "Highways", 6000, highwayStart)
 

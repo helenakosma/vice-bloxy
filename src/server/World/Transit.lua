@@ -1,9 +1,9 @@
 -- Transit: subway Line 1 and the King St streetcar.
 --
--- Line 1 runs straight along x = LINE_X from Finch (North York) south through
--- Queen and Union, under the channel, through downtown (Harbour, Central), then
--- climbs out through an open cut onto a viaduct to the elevated Portlands terminal
--- in the industrial district. Underground stations have street entrance buildings, passages to a
+-- Line 1 runs straight under Yonge Street (x = LINE_X) through the 17 Toronto
+-- stations from Finch to Union (positions in TorontoLayout), under the harbour to
+-- Harbour and Central in the other city, then climbs out through an open cut onto
+-- a viaduct to the elevated Portlands terminal in the industrial district. Underground stations have street entrance buildings, passages to a
 -- ticket hall just under the street, and stairs to an island platform between
 -- the two tracks (see StationKit).
 --
@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Util = require(script.Parent.Util)
 local Roads = require(script.Parent.Roads)
 local Layout = require(script.Parent.Layout)
+local TorontoLayout = require(script.Parent.TorontoLayout)
 local Kit = require(script.Parent.StationKit)
 local Billboards = require(script.Parent.Billboards)
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -44,14 +45,19 @@ local ELEVATED = 16 -- track bed on the viaduct
 local PORT_HALF = 100 -- elevated station half-length
 local PARK_Y = -300 -- where vehicle models wait on the server
 
-local STATIONS = {
-	{ name = "FINCH", z = -1860, tile = Color3.fromRGB(210, 196, 120) },
-	{ name = "QUEEN", z = -1300, tile = Color3.fromRGB(120, 160, 200) },
-	{ name = "UNION", z = -980, tile = Color3.fromRGB(200, 120, 90) },
-	{ name = "HARBOUR", z = -560, tile = Color3.fromRGB(110, 170, 150) },
-	{ name = "CENTRAL", z = 0, tile = Color3.fromRGB(190, 160, 200) },
-	{ name = "PORTLANDS", z = 962, elevated = true },
-}
+-- Line 1: the 17 Toronto stations from Finch to Union (TorontoLayout), then the
+-- extension under the harbour to the other cities.
+local STATIONS = {}
+for _, st in ipairs(TorontoLayout.STATIONS) do
+	table.insert(STATIONS, { name = st.name, z = st.z, tile = st.tile, tier = st.tier })
+end
+table.insert(STATIONS, { name = "HARBOUR", z = -560, tile = Color3.fromRGB(110, 170, 150), tier = "major" })
+table.insert(STATIONS, { name = "CENTRAL", z = 0, tile = Color3.fromRGB(190, 160, 200), tier = "major" })
+table.insert(STATIONS, { name = "PORTLANDS", z = 962, elevated = true })
+local STATION_NAMES = {}
+for _, st in ipairs(STATIONS) do
+	table.insert(STATION_NAMES, st.name)
+end
 local LINE_START = STATIONS[1].z - STATION_HALF - 30 -- tail tunnel past Finch
 local LINE_END = STATIONS[#STATIONS].z + PORT_HALF + 4
 
@@ -229,7 +235,8 @@ local function findEntrances(station)
 	for _, side in ipairs({ -1, 1 }) do
 		local b = best[side]
 		local north = b and b.route == "north"
-		if b and b.dist < 480 and not (north and northTaken) then
+		local enough = station.tier == "minor" and #found >= 1
+		if b and b.dist < 480 and not (north and northTaken) and not enough then
 			local centre = b.c + Vector2.new(0, ENTRANCE_MID * b.sz)
 			-- The other side's pick may overlap this one: check again before claiming.
 			if Util.rectFree(centre, fwd, right, ENTRANCE_W, ENTRANCE_D) then
@@ -246,7 +253,7 @@ end
 function Transit.layout(shared)
 	-- 1. Vertical profile: deep until the last road it passes under, then up to the
 	--    viaduct, high enough to clear the industrial north road.
-	local southZ = STATIONS[5].z + STATION_HALF
+	local southZ = STATIONS[#STATIONS - 1].z + STATION_HALF -- south end of the last underground station
 	local northRoadZ = Layout.INDUSTRIAL_NORTH_Z
 	local lastUnder = southZ + 125
 	for _, c in ipairs(crossings(southZ, northRoadZ - 30)) do
@@ -566,7 +573,7 @@ local function buildStation(folder, station, entrances)
 			if k < 2 then
 				local ap = V3(inner - side * 0.05, platformTop + 4.9, nz + 20)
 				if k == 0 then
-					Kit.mapBoard(folder, CFrame.lookAt(ap, ap + facing), 17, 7, "LINE 1 YONGE", { "FINCH", "QUEEN", "UNION", "HARBOUR", "CENTRAL", "PORTLANDS" }, station.name)
+					Kit.mapBoard(folder, CFrame.lookAt(ap, ap + facing), 17, 7, "LINE 1 YONGE", STATION_NAMES, station.name)
 				else
 					Kit.adPanel(folder, CFrame.lookAt(ap, ap + facing), 17, 7, rng)
 				end
@@ -975,7 +982,7 @@ end
 ---------------------------------------------------------------------------
 local SUB_LEN, SUB_W, SUB_H, SUB_GAP = 48, 11.5, 12, 1.5
 local SUB_DOORS, SUB_DOOR_W, SUB_DOOR_H = { -16, 0, 16 }, 6.5, 10
-local LINE_TEXT = "FINCH · QUEEN · UNION · HARBOUR · CENTRAL · PORTLANDS"
+local LINE_TEXT = "LINE 1 YONGE  ·  FINCH ◀▶ UNION ◀▶ PORTLANDS"
 
 local function makeSubwayCar(parent, name, rng)
 	local model = Instance.new("Model")
@@ -1361,7 +1368,7 @@ end
 local function surfaceRoutes(vehicles, folder)
 	local routes = {}
 	local king = findRoad(function(road)
-		return road.kind == "arterial" and math.abs(road.points[1].Y - Layout.NY_CROSS_Z[1]) < 1
+		return road.name == "King St"
 	end)
 	if king then
 		table.insert(routes, roadLoopRoute(vehicles, folder, king, {
@@ -1372,7 +1379,7 @@ local function surfaceRoutes(vehicles, folder)
 	end
 	-- Buses run in the lane next to the centre line, clear of cars parked at the kerb.
 	local bay = findRoad(function(road)
-		return road.kind == "avenue" and math.abs(road.points[1].X - 20) < 40 and math.abs(road.points[1].Y - Util.MIN_Z) < 1
+		return road.name == "Bay St"
 	end)
 	if bay then
 		table.insert(routes, roadLoopRoute(vehicles, folder, bay, {
@@ -1382,7 +1389,7 @@ local function surfaceRoutes(vehicles, folder)
 		}))
 	end
 	local yonge = findRoad(function(road)
-		return road.kind == "arterial" and math.abs(road.points[1].X - 20) < 45 and math.abs(road.points[1].Y - (Layout.NORTH_YORK.maxZ - 5)) < 1
+		return road.name == "Yonge St North"
 	end)
 	if yonge then
 		table.insert(routes, roadLoopRoute(vehicles, folder, yonge, {
