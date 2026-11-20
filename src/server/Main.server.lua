@@ -4,6 +4,7 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(script.Parent.Remotes)
+require(script.Parent.Fares) -- transit card, fare gates, bus fares
 local Cars = require(script.Parent.Cars)
 local World = require(script.Parent.World)
 

@@ -61,3 +61,34 @@ local function update()
 end
 cash.Changed:Connect(update)
 update()
+
+-- Transit Card balance (and a running transfer) under the cash.
+local cardLabel = Instance.new("TextLabel")
+cardLabel.AnchorPoint = Vector2.new(1, 0)
+cardLabel.Position = UDim2.new(1, -24, 0, 60)
+cardLabel.Size = UDim2.fromOffset(300, 26)
+cardLabel.BackgroundTransparency = 1
+cardLabel.Font = Enum.Font.GothamBold
+cardLabel.TextSize = 20
+cardLabel.TextXAlignment = Enum.TextXAlignment.Right
+cardLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
+cardLabel.TextStrokeTransparency = 0.3
+cardLabel.Visible = false
+cardLabel.Parent = gui
+
+task.spawn(function()
+	while true do
+		if player:GetAttribute("HasTransitCard") then
+			local text = "TRANSIT CARD $" .. tostring(player:GetAttribute("CardBalance") or 0)
+			local left = (player:GetAttribute("FareValidUntil") or 0) - workspace:GetServerTimeNow()
+			if left > 0 then
+				text = text .. string.format("  ·  TRANSFER %d:%02d", math.floor(left / 60), math.floor(left % 60))
+			end
+			cardLabel.Text = text
+			cardLabel.Visible = true
+		else
+			cardLabel.Visible = false
+		end
+		task.wait(0.5)
+	end
+end)

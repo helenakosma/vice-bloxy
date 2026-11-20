@@ -81,6 +81,15 @@ return {
 		},
 	},
 
+	-- Transit fares: a stored-value card from the ticket machines.
+	Fares = {
+		CardPrice = 5, -- cash for a new card
+		StartBalance = 6, -- loaded on a new card
+		LoadAmount = 20, -- each top-up
+		Fare = 3, -- per subway entry or bus/streetcar boarding
+		TransferSeconds = 120, -- after paying, rides in this window are free
+	},
+
 	-- City advertising (billboards, station screens, train ads).
 	Ads = {
 		RotateEvery = 20, -- seconds before each panel moves on to the next ad

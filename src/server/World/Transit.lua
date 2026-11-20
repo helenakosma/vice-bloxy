@@ -789,6 +789,14 @@ local function buildElevatedStation(folder, station)
 	for _, side in ipairs({ -1, 1 }) do
 		Util.solid(folder, V3(PLAT_HALF - 4.4, 4.4, 0.3), CFrame.new(LINE_X + side * (4.4 + (PLAT_HALF - 4.4) / 2), platformTop + 2.2, zc + PORT_HALF - 1.2), Color3.fromRGB(230, 190, 40), M.Metal)
 	end
+	-- Fare gates at the top of the stairs (the platform is the paid side), with
+	-- glass from the gates to the end railings so you can't walk round them.
+	local gz = zc + PORT_HALF - 5
+	local gEnd = Kit.fareGates(folder, LINE_X - 4.45, gz, platformTop, -1, station.name, { { w = 2.8, entry = true }, { w = 2.8, entry = false } })
+	for _, gx in ipairs({ LINE_X - 4.45, gEnd }) do
+		local g = Util.solid(folder, V3(0.3, 4.4, 3.8), CFrame.new(gx, platformTop + 2.2, gz + 1.9), Color3.fromRGB(200, 220, 228), M.Glass)
+		g.Transparency = 0.5
+	end
 	Util.solid(folder, V3(PLAT_HALF * 2, 4.4, 0.3), CFrame.new(LINE_X, platformTop + 2.2, zc - PORT_HALF + 1.2), Color3.fromRGB(230, 190, 40), M.Metal)
 	local streetSign = nameSign(folder, CFrame.new(LINE_X, Util.WALK_TOP + 9, zc + PORT_HALF + 24) * CFrame.Angles(0, math.rad(180), 0), V3(10, 2.4, 0.3), "SUBWAY", TTC_RED)
 	marker(streetSign, "🚇 " .. station.name, TTC_RED)

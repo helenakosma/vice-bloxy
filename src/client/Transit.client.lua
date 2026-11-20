@@ -629,6 +629,22 @@ end
 local lastEvent = nil
 local wasRiding = false
 
+-- Buses and streetcars charge a fare when you get on (server decides); without a
+-- card or a transfer you're put back off at the door.
+local remotes = ReplicatedStorage:WaitForChild("Remotes")
+local boardVehicle, boardResult = remotes:WaitForChild("BoardVehicle"), remotes:WaitForChild("BoardResult")
+local boardedCar = nil
+boardResult.OnClientEvent:Connect(function(name, ok)
+	if ok or not boardedCar or boardedCar.model.Name ~= name or not boardedCar.last then
+		return
+	end
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.CFrame = boardedCar.last * CFrame.new(4.5 + 4, 3, 0)
+	end
+end)
+
 RunService.PreSimulation:Connect(function()
 	local now = Workspace:GetServerTimeNow()
 	local svc = serviceTime(now)
@@ -744,11 +760,20 @@ RunService.PreSimulation:Connect(function()
 	end
 	wasRiding = ridingAny
 
+	local onSurface = nil
 	for _, r in ipairs(surface) do
 		local cars = r.carModels
 		for k, car in ipairs(cars) do
 			local leg, s = legAt(r, now + r.cycle * (k - 1) / #cars)
-			place(car, carCFrame(r.pathObj, s, r.carLength, 1), leg.dwell == true, r.platformX, root, r.carLength, 4.6, 11)
+			if place(car, carCFrame(r.pathObj, s, r.carLength, 1), leg.dwell == true, r.platformX, root, r.carLength, 4.6, 11) then
+				onSurface = car
+			end
+		end
+	end
+	if onSurface ~= boardedCar then
+		boardedCar = onSurface
+		if onSurface then
+			boardVehicle:FireServer(onSurface.model.Name)
 		end
 	end
 end)

@@ -5,7 +5,7 @@ local folder = Instance.new("Folder")
 folder.Name = "Remotes"
 
 local Remotes = {}
-for _, name in ipairs({ "EnterBegin", "EnterDone", "ExitRequest", "ExitBegin", "Notify" }) do
+for _, name in ipairs({ "EnterBegin", "EnterDone", "ExitRequest", "ExitBegin", "Notify", "FareGate", "BoardVehicle", "BoardResult" }) do
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
 	event.Parent = folder

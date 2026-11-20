@@ -13,6 +13,7 @@ local CollectionService = game:GetService("CollectionService")
 local Util = require(script.Parent.Util)
 local Billboards = require(script.Parent.Billboards)
 local Stores = require(script.Parent.Stores)
+local Fares = require(script.Parent.Parent.Fares)
 
 local Kit = {}
 
@@ -253,11 +254,12 @@ function Kit.clock(folder, cf)
 end
 
 function Kit.ticketMachine(folder, cf)
-	Util.solid(folder, V3(4, 8.6, 2.4), cf * CFrame.new(0, 4.3, 0), C(48, 50, 56), M.Metal)
+	local body = Util.solid(folder, V3(4, 8.6, 2.4), cf * CFrame.new(0, 4.3, 0), C(48, 50, 56), M.Metal)
+	Fares.attachMachine(body)
 	Util.deco(folder, V3(4.1, 1, 2.5), cf * CFrame.new(0, 8.2, 0), TTC_RED, M.SmoothPlastic)
 	local screen = Util.deco(folder, V3(3, 2.2, 0.1), cf * CFrame.new(0, 5.6, -1.22), C(40, 120, 200), M.Neon)
 	screen.CastShadow = false
-	local gui = Util.sign(screen, Front, "TICKETS · TAP OR CARD", WHITE, Enum.Font.GothamBold)
+	local gui = Util.sign(screen, Front, "TRANSIT CARDS · TOP UP", WHITE, Enum.Font.GothamBold)
 	gui.LightInfluence = 0
 	Util.deco(folder, V3(1.6, 0.7, 0.2), cf * CFrame.new(0, 3.7, -1.25), C(20, 20, 20), M.SmoothPlastic)
 	Util.deco(folder, V3(0.9, 0.9, 0.1), cf * CFrame.new(1.1, 4.5, -1.25), C(60, 200, 120), M.Neon).CastShadow = false
@@ -766,6 +768,53 @@ function Kit.entrance(folder, e, station, geo, rng)
 	end
 end
 
+-- A row of fare gates across x from x0 at z, floor y0. paidDir: +1 if the paid
+-- side is toward +z. lanes = list of { w = width, entry = true/false }.
+-- Flaps are solid; tapping a card at an entry lane's reader opens that lane for
+-- you, and exit lanes open by themselves as you walk up from the paid side
+-- (client/FareGates.client.lua). Returns the x where the row ends.
+local gateCount = 0
+function Kit.fareGates(folder, x0, z, y0, paidDir, stationName, lanes)
+	local cabW = 1.1
+	local x = x0
+	local function cabinet()
+		Util.solid(folder, V3(cabW, 4.6, 5.4), CFrame.new(x + cabW / 2, y0 + 2.3, z), C(56, 58, 64), M.Metal)
+		Util.deco(folder, V3(cabW, 0.15, 5.4), CFrame.new(x + cabW / 2, y0 + 4.68, z), C(200, 210, 216), M.Glass)
+	end
+	for _, lane in ipairs(lanes) do
+		cabinet()
+		gateCount = gateCount + 1
+		local gateId = stationName .. "_" .. gateCount
+		local lx = x + cabW + lane.w / 2
+		local entry = lane.entry
+		-- Reader on the cabinet, on the side you approach from.
+		local approach = entry and -paidDir or paidDir
+		local reader = Util.deco(folder, V3(0.9, 0.14, 0.9), CFrame.new(x + cabW / 2, y0 + 4.8, z + approach * 1.9), entry and C(60, 220, 110) or C(220, 70, 60), M.Neon)
+		reader.CastShadow = false
+		if entry then
+			Fares.attachGate(reader, gateId)
+		end
+		for _, s in ipairs({ -1, 1 }) do
+			local flap = Util.solid(folder, V3(lane.w / 2 - 0.25, 2.7, 0.2), CFrame.new(lx + s * (lane.w / 4), y0 + 2.7, z), C(200, 220, 228), M.Glass)
+			flap.Transparency = 0.4
+			flap.Name = "Flap"
+			flap:SetAttribute("GateId", gateId)
+			flap:SetAttribute("Entry", entry)
+			flap:SetAttribute("PaidDir", paidDir)
+			CollectionService:AddTag(flap, "FareGate")
+			-- The startup path check should treat the gates as passable.
+			local through = Instance.new("PathfindingModifier")
+			through.PassThrough = true
+			through.Parent = flap
+		end
+		local arrow = Util.deco(folder, V3(lane.w - 0.5, 0.05, 2.2), CFrame.new(lx, y0 + 0.03, z + approach * 4.2), entry and C(60, 200, 110) or C(210, 70, 60), M.SmoothPlastic)
+		arrow.CastShadow = false
+		x = x + cabW + lane.w
+	end
+	cabinet()
+	return x + cabW
+end
+
 ---------------------------------------------------------------------------
 -- Ticket hall (concourse) over the north end of the platform.
 -- geo = { x (line), floor, top, passageTop, z0, z1, fareZ, stair0, stair1,
@@ -829,35 +878,15 @@ function Kit.concourse(folder, station, geo, rng)
 	Kit.clock(folder, face(V3(X, y1 - 3.4, z1 - 0.05), V3(0, 0, -1)))
 	Kit.emergency(folder, face(V3(X + H - 4, y0 + 5, z1 - 0.05), V3(0, 0, -1)))
 
-	-- Fare line: six gates (three in, three out), a wide accessible gate, glass
-	-- barriers either side. Tagged "FareGate" so a fare system can drive the flaps.
-	local laneW, cabW = 4.6, 1.1
-	local x = X - 18
-	local gateStart = x
-	for i = 0, 7 do
-		Util.solid(folder, V3(cabW, 4.6, 5.4), CFrame.new(x + cabW / 2, y0 + 2.3, fz), C(56, 58, 64), M.Metal)
-		Util.deco(folder, V3(cabW, 0.15, 5.4), CFrame.new(x + cabW / 2, y0 + 4.68, fz), C(200, 210, 216), M.Glass)
-		if i < 7 then
-			local width = (i == 6) and 6.5 or laneW
-			local lx = x + cabW + width / 2
-			local entry = i < 3 or i == 6
-			local reader = Util.deco(folder, V3(0.8, 0.12, 0.8), CFrame.new(x + cabW / 2, y0 + 4.8, fz + (entry and -1.9 or 1.9)), entry and C(60, 220, 110) or C(220, 70, 60), M.Neon)
-			reader.CastShadow = false
-			for _, s in ipairs({ -1, 1 }) do
-				local flap = Util.deco(folder, V3(width / 2 - 0.25, 2.7, 0.2), CFrame.new(lx + s * (width / 4), y0 + 2.7, fz), C(200, 220, 228), M.Glass)
-				flap.Transparency = 0.4
-				flap.Name = "Flap"
-				CollectionService:AddTag(flap, "FareGate")
-				flap:SetAttribute("Entry", entry)
-			end
-			local arrow = Util.deco(folder, V3(width - 0.5, 0.05, 2.2), CFrame.new(lx, y0 + 0.03, fz + (entry and -4.2 or 4.2)), entry and C(60, 200, 110) or C(210, 70, 60), M.SmoothPlastic)
-			arrow.CastShadow = false
-			x = x + cabW + width
-		else
-			x = x + cabW
-		end
+	-- Fare line: three gates in, three out, a wide accessible gate in, glass
+	-- barriers either side. Tap a Transit Card to go in; exits open as you walk up.
+	local lanes = {}
+	for i = 1, 6 do
+		table.insert(lanes, { w = 4.6, entry = i <= 3 })
 	end
-	local gateEnd = x
+	table.insert(lanes, { w = 6.5, entry = true })
+	local gateStart = X - 18
+	local gateEnd = Kit.fareGates(folder, gateStart, fz, y0, 1, station.name, lanes)
 	for _, seg in ipairs({ { X - H, gateStart }, { gateEnd, X + H } }) do
 		if seg[2] - seg[1] > 0.5 then
 			local g = Util.solid(folder, V3(seg[2] - seg[1], 4.8, 0.3), CFrame.new((seg[1] + seg[2]) / 2, y0 + 2.4, fz), C(200, 220, 228), M.Glass)
