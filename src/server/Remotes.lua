@@ -11,6 +11,17 @@ for _, name in ipairs({ "EnterBegin", "EnterDone", "ExitRequest", "ExitBegin", "
 	event.Parent = folder
 	Remotes[name] = event
 end
+
+-- The society: the phone asks with Request (a RemoteFunction routed and checked by
+-- Services/Router) and the server tells the client about changes with Push.
+local request = Instance.new("RemoteFunction")
+request.Name = "Request"
+request.Parent = folder
+Remotes.Request = request
+local push = Instance.new("RemoteEvent")
+push.Name = "Push"
+push.Parent = folder
+Remotes.Push = push
 folder.Parent = ReplicatedStorage
 
 function Remotes.notify(player, text)

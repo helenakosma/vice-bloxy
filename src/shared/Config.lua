@@ -1,8 +1,6 @@
 -- Tunable game settings shared by server and client.
 return {
-	StartingCash = 500,
-	JobPayout = 150,
-	JobCooldown = 10, -- seconds before the job marker can be used again by the same player
+	-- Money, wages, rent and other economy numbers are in Shared/Economy.lua.
 
 	DayNight = {
 		Enabled = true,

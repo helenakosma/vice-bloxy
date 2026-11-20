@@ -1,9 +1,9 @@
 -- Ground-floor shops. Most are facades (lit display window, awning, sign); some are
 -- real interiors you can walk into and buy things at the counter.
-local Players = game:GetService("Players")
 
 local Util = require(script.Parent.Util)
 local Remotes = require(script.Parent.Parent.Remotes)
+local Economy = require(script.Parent.Parent.Services.Economy)
 
 local Stores = {}
 Stores.count = 0
@@ -35,20 +35,9 @@ local STORE_TYPES = {
 	{ kind = "clothes", names = { "CANAL THREADS", "UPTOWN APPAREL", "METRO WEAR" }, item = "New outfit", price = 60, effect = "outfit", light = Color3.fromRGB(255, 240, 225) },
 	{ kind = "electronics", names = { "VOLT ELECTRONICS", "BYTE SHOP", "TECH HUB" }, item = "Phone", price = 120, effect = "phone", light = Color3.fromRGB(225, 235, 255) },
 	{ kind = "pharmacy", names = { "CITY PHARMACY", "RX PLUS", "NEIGHBORHOOD DRUGS" }, item = "First aid kit", price = 25, effect = "heal", light = Color3.fromRGB(240, 250, 255) },
-	{ kind = "bank", names = { "FIRST METRO BANK", "LIBERTY SAVINGS" }, item = "Paycheck", price = 0, effect = "paycheck", light = Color3.fromRGB(255, 236, 205) },
+	{ kind = "bank", names = { "FIRST METRO BANK", "LIBERTY SAVINGS" }, item = "Banking", price = 0, effect = "bank", light = Color3.fromRGB(255, 236, 205) },
 	{ kind = "bar", names = { "THE BRASS RAIL", "NIGHT OWL TAVERN", "O'MALLEY'S" }, item = "Soda", price = 3, effect = "heal", light = Color3.fromRGB(255, 190, 120) },
 }
-
-local paycheckCooldown = {}
-
-Players.PlayerRemoving:Connect(function(player)
-	paycheckCooldown[player] = nil
-end)
-
-local function getCash(player)
-	local stats = player:FindFirstChild("leaderstats")
-	return stats and stats:FindFirstChild("Cash")
-end
 
 local function applyEffect(player, storeType)
 	local character = player.Character
@@ -100,33 +89,24 @@ local function applyEffect(player, storeType)
 		handle.Parent = tool
 		tool.Parent = player.Backpack
 		return true, "Bought a phone"
-	elseif effect == "paycheck" then
-		local last = paycheckCooldown[player]
-		if last and os.clock() - last < 120 then
-			return false, string.format("Next paycheck in %ds", math.ceil(120 - (os.clock() - last)))
-		end
-		paycheckCooldown[player] = os.clock()
-		local cash = getCash(player)
-		if cash then
-			cash.Value = cash.Value + 100
-		end
-		return true, "+$100 paycheck"
+	elseif effect == "bank" then
+		-- Bank branches open the Bank app on the phone.
+		Remotes.Push:FireClient(player, { type = "open", app = "bank" })
+		return true, "Opened your bank on your phone"
 	end
 	return false, nil
 end
 
 local function onPurchase(player, storeType, storeName)
-	local cash = getCash(player)
-	if not cash then
-		return
-	end
-	if cash.Value < storeType.price then
-		Remotes.notify(player, "Not enough cash")
+	if storeType.price > 0 and not Economy.canAfford(player, storeType.price) then
+		Remotes.notify(player, "Not enough money")
 		return
 	end
 	local ok, message = applyEffect(player, storeType)
 	if ok then
-		cash.Value = cash.Value - storeType.price
+		if storeType.price > 0 then
+			Economy.charge(player, storeType.price, "shopping", storeName .. " · " .. storeType.item)
+		end
 		local cost = storeType.price > 0 and (" (-$" .. storeType.price .. ")") or ""
 		Remotes.notify(player, storeName .. ": " .. (message or storeType.item) .. cost)
 	elseif message then
