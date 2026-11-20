@@ -9,12 +9,19 @@
 -- terminal is seamless. Each train is the same timetable shifted by the headway.
 -- Lights switch to the leading end, car screens show the next stop. If your
 -- character is inside a car it's carried along with it, so you can ride.
+--
+-- The subway runs on "service time" (server time minus delays the server has
+-- announced in TransitClock), so a delay slows every train to a stop together.
+-- Departure boards, signals and announcements all read the same timetable.
+local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local Workspace = game:GetService("Workspace")
 
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local player = Players.LocalPlayer
 local routesValue = ReplicatedStorage:WaitForChild("TransitRoutes")
 local vehicles = Workspace:WaitForChild("City"):WaitForChild("Transit"):WaitForChild("Vehicles")
@@ -52,6 +59,51 @@ local function hop(d, v, a)
 		local r = total - t
 		return d - 0.5 * a * r * r
 	end
+end
+
+---------------------------------------------------------------------------
+-- Service clock (delays)
+---------------------------------------------------------------------------
+local clockValue = ReplicatedStorage:WaitForChild("TransitClock")
+local clock = HttpService:JSONDecode(clockValue.Value)
+clockValue.Changed:Connect(function()
+	clock = HttpService:JSONDecode(clockValue.Value)
+end)
+
+-- Service seconds lost to one delay by wall time `wall`: the line slows to a stop
+-- over `ramp`, holds, then speeds back up over `ramp`.
+local function lostIn(e, wall)
+	local u = wall - e.t0
+	local R, hold = e.ramp, e.hold
+	if u <= 0 then
+		return 0
+	elseif u < R then
+		return u * u / (2 * R)
+	elseif u < R + hold then
+		return R / 2 + (u - R)
+	elseif u < 2 * R + hold then
+		local v = u - R - hold
+		return R / 2 + hold + (v - v * v / (2 * R))
+	end
+	return R + hold
+end
+
+local function serviceTime(wall)
+	local t = wall - clock.offset
+	for _, e in ipairs(clock.events) do
+		t = t - lostIn(e, wall)
+	end
+	return t
+end
+
+-- The delay announced or running now, and the service seconds it still has to cost.
+local function activeDelay(wall)
+	for _, e in ipairs(clock.events) do
+		if wall >= e.t0 - 4 and wall < e.t0 + 2 * e.ramp + e.hold then
+			return e, (e.ramp + e.hold) - lostIn(e, wall)
+		end
+	end
+	return nil, 0
 end
 
 ---------------------------------------------------------------------------
@@ -207,11 +259,39 @@ for _, data in ipairs(HttpService:JSONDecode(routesValue.Value)) do
 	if r.kind == "subway" then
 		r.pathObjs = { makePath(r.paths[1], false), makePath(r.paths[2], false) }
 		r.legs, r.cycle = subwayTimeline(r)
+		-- When (in the timetable) a train reaches each platform: dwell starts.
+		r.arrivals = {}
+		for _, leg in ipairs(r.legs) do
+			if leg.dwell then
+				r.arrivals[leg.station] = r.arrivals[leg.station] or {}
+				r.arrivals[leg.station][leg.path == 1 and "N" or "S"] = { o = leg.t0, dwell = leg.dur }
+			end
+		end
 		r.trainObjs = {}
 		for _, names in ipairs(r.trains) do
 			local train = { cars = {}, dir = nil, screenText = nil, destText = nil }
 			for _, name in ipairs(names) do
 				table.insert(train.cars, setupCar(name))
+			end
+			-- Optional sounds (Config.Transit.Sounds): a rumble that follows the train
+			-- and a door chime; both fade with distance.
+			local sounds = Config.Transit.Sounds
+			local holder = train.cars[math.ceil(#train.cars / 2)].parts[1]
+			if sounds.TrainRumble and sounds.TrainRumble ~= 0 and holder then
+				local rumble = Instance.new("Sound")
+				rumble.SoundId = "rbxassetid://" .. sounds.TrainRumble
+				rumble.Looped = true
+				rumble.Volume = 0.6
+				rumble.RollOffMaxDistance = 260
+				rumble.Parent = holder
+				rumble:Play()
+			end
+			if sounds.DoorChime and sounds.DoorChime ~= 0 and holder then
+				train.doorChime = Instance.new("Sound")
+				train.doorChime.SoundId = "rbxassetid://" .. sounds.DoorChime
+				train.doorChime.Volume = 0.7
+				train.doorChime.RollOffMaxDistance = 160
+				train.doorChime.Parent = holder
 			end
 			table.insert(r.trainObjs, train)
 		end
@@ -240,7 +320,7 @@ do
 end
 
 ---------------------------------------------------------------------------
--- Every frame
+-- Placing vehicles, lights and screens
 ---------------------------------------------------------------------------
 local function insideCar(cf, carLength, halfW, height, position)
 	local p = cf:PointToObjectSpace(position)
@@ -250,9 +330,11 @@ end
 local carried = false
 local function place(car, cf, doorsOpen, platformX, root, carLength, halfW, height)
 	-- Carry the local player along if they're inside this car.
+	local mine = false
 	if root and car.last and not carried and insideCar(car.last, carLength, halfW, height, root.Position) then
 		root.CFrame = cf * car.last:ToObjectSpace(root.CFrame)
 		carried = true
+		mine = true
 	end
 	car.last = cf
 	local platformSide = 0
@@ -272,6 +354,7 @@ local function place(car, cf, doorsOpen, platformX, root, carLength, halfW, heig
 		cframes[i] = target
 	end
 	Workspace:BulkMoveTo(car.parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
+	return mine
 end
 
 -- Headlights on the leading end, tail lights on the trailing end, the rest off.
@@ -319,39 +402,347 @@ local function setText(train, screen, dest)
 	end
 end
 
+---------------------------------------------------------------------------
+-- Announcements (captions, optional chime)
+---------------------------------------------------------------------------
+local announceSettings = Config.Transit.Announcements
+local soundSettings = Config.Transit.Sounds
+
+local captionGui = Instance.new("ScreenGui")
+captionGui.Name = "TransitAnnouncements"
+captionGui.ResetOnSpawn = false
+local captionFrame = Instance.new("Frame")
+captionFrame.AnchorPoint = Vector2.new(0.5, 1)
+captionFrame.Position = UDim2.new(0.5, 0, 1, -96)
+captionFrame.Size = UDim2.fromOffset(640, 62)
+captionFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+captionFrame.BackgroundTransparency = 0.15
+captionFrame.Visible = false
+captionFrame.Parent = captionGui
+Instance.new("UICorner", captionFrame).CornerRadius = UDim.new(0, 10)
+local captionTag = Instance.new("TextLabel")
+captionTag.BackgroundColor3 = Color3.fromRGB(206, 30, 40)
+captionTag.Position = UDim2.fromOffset(10, 10)
+captionTag.Size = UDim2.fromOffset(64, 42)
+captionTag.Font = Enum.Font.GothamBlack
+captionTag.TextColor3 = Color3.new(1, 1, 1)
+captionTag.TextScaled = true
+captionTag.Text = "🔊 TTC"
+captionTag.Parent = captionFrame
+Instance.new("UICorner", captionTag).CornerRadius = UDim.new(0, 6)
+local captionText = Instance.new("TextLabel")
+captionText.BackgroundTransparency = 1
+captionText.Position = UDim2.fromOffset(84, 6)
+captionText.Size = UDim2.new(1, -94, 1, -12)
+captionText.Font = Enum.Font.GothamMedium
+captionText.TextColor3 = Color3.new(1, 1, 1)
+captionText.TextSize = 19
+captionText.TextWrapped = true
+captionText.TextXAlignment = Enum.TextXAlignment.Left
+captionText.Parent = captionFrame
+captionGui.Parent = player:WaitForChild("PlayerGui")
+
+local chime = nil
+if soundSettings.Chime and soundSettings.Chime ~= 0 then
+	chime = Instance.new("Sound")
+	chime.SoundId = "rbxassetid://" .. soundSettings.Chime
+	chime.Volume = 0.5
+	chime.Parent = SoundService
+end
+local ambience = nil
+if soundSettings.StationAmbience and soundSettings.StationAmbience ~= 0 then
+	ambience = Instance.new("Sound")
+	ambience.SoundId = "rbxassetid://" .. soundSettings.StationAmbience
+	ambience.Volume = 0.25
+	ambience.Looped = true
+	ambience.Parent = SoundService
+end
+
+local queue = {}
+local lastSaid = 0
+local function say(text)
+	for _, queued in ipairs(queue) do
+		if queued == text then
+			return
+		end
+	end
+	if #queue < 3 then
+		table.insert(queue, text)
+	end
+end
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		local text = table.remove(queue, 1)
+		if text then
+			if chime then
+				chime:Play()
+			end
+			captionText.Text = text
+			captionFrame.Visible = true
+			lastSaid = os.clock()
+			task.wait(announceSettings.ShowFor)
+			captionFrame.Visible = false
+			task.wait(announceSettings.MinGap)
+		end
+	end
+end)
+
+local function nice(name)
+	return name:sub(1, 1) .. name:sub(2):lower()
+end
+
+local DELAY_MESSAGES = {
+	["MINOR DELAY"] = {
+		"Attention passengers. This train is experiencing a minor delay.",
+		"Service is currently delayed due to operational conditions. Please allow additional time for your journey.",
+	},
+	["MODERATE DELAY"] = {
+		"Attention passengers. Service on Line 1 is delayed. Please allow additional time for your journey.",
+	},
+	["MAJOR DELAY"] = {
+		"Attention passengers. Service on this line is temporarily delayed. We apologize for the inconvenience. Please listen for further announcements.",
+	},
+}
+
+-- Where the player is: the station they're in (underground, or up on the
+-- Portlands platform), if any.
+local function stationAround(line, root)
+	if not root then
+		return nil
+	end
+	local p = root.Position
+	if math.abs(p.X - line.platformX) > 140 then
+		return nil
+	end
+	for _, st in ipairs(line.stations) do
+		if st.elevated then
+			if p.Y > 12 and math.abs(p.X - line.platformX) < 40 and math.abs(p.Z - st.z) < 115 then
+				return st.name
+			end
+		elseif p.Y < -3 and math.abs(p.Z - st.z) < 170 then
+			return st.name
+		end
+	end
+	return nil
+end
+
+---------------------------------------------------------------------------
+-- Departure boards and signals (twice a second)
+---------------------------------------------------------------------------
+local function fmt(sec)
+	sec = math.max(0, math.floor(sec + 0.5))
+	return string.format("%d:%02d", sec // 60, sec % 60)
+end
+
+local ON_TIME = Color3.fromRGB(120, 230, 120)
+local MINOR = Color3.fromRGB(255, 190, 60)
+local MAJOR = Color3.fromRGB(255, 80, 70)
+
+local function setBoard(board, rows, statusColour)
+	for _, gui in ipairs(board:GetChildren()) do
+		if gui:IsA("SurfaceGui") then
+			for name, text in pairs(rows) do
+				local label = gui:FindFirstChild(name)
+				if label then
+					label.Text = text
+					if name == "Status" then
+						label.TextColor3 = statusColour
+					end
+				end
+			end
+		end
+	end
+end
+
+local function updateInfo(line)
+	local now = Workspace:GetServerTimeNow()
+	local svc = serviceTime(now)
+	local event, remaining = activeDelay(now)
+	local H = line.headway
+	for _, board in ipairs(CollectionService:GetTagged("DepartureBoard")) do
+		local station, bound = board:GetAttribute("Station"), board:GetAttribute("Bound")
+		local info = line.arrivals[station] and line.arrivals[station][bound]
+		if not info then
+			setBoard(board, {
+				Next = "NO SERVICE ON THIS PLATFORM",
+				Following = "TRAINS LEAVE FROM PLATFORM " .. (bound == "N" and "1" or "2"),
+				Status = "STATUS  —",
+			}, MINOR)
+		else
+			local since = (svc - info.o) % H
+			local untilNext = (info.o - svc) % H
+			local rows = {}
+			if since < info.dwell then
+				rows.Next = "NOW BOARDING"
+				rows.Following = "FOLLOWING       " .. fmt(untilNext + remaining)
+			elseif event then
+				rows.Next = "NEXT TRAIN      DELAYED"
+				rows.Following = "NEW ARRIVAL     " .. fmt(untilNext + remaining)
+			elseif untilNext < 10 then
+				rows.Next = "NEXT TRAIN      ARRIVING"
+				rows.Following = "FOLLOWING       " .. fmt(untilNext + H)
+			else
+				rows.Next = "NEXT TRAIN      " .. fmt(untilNext)
+				rows.Following = "FOLLOWING       " .. fmt(untilNext + H)
+			end
+			local colour = ON_TIME
+			if event then
+				rows.Status = "STATUS  " .. event.kind
+				colour = event.kind == "MINOR DELAY" and MINOR or MAJOR
+			else
+				rows.Status = "STATUS  ON TIME"
+			end
+			setBoard(board, rows, colour)
+		end
+	end
+	-- Signals: green while a train is about to leave or leaving that platform.
+	for _, head in ipairs(CollectionService:GetTagged("RailSignal")) do
+		local info = line.arrivals[head:GetAttribute("Station")] and line.arrivals[head:GetAttribute("Station")][head:GetAttribute("Bound")]
+		local green = false
+		if info then
+			local since = (svc - info.o) % H
+			green = since > info.dwell - 3 and since < info.dwell + 8
+		end
+		local red, grn = head:FindFirstChild("Red"), head:FindFirstChild("Green")
+		if red and grn then
+			red.Material = green and Enum.Material.SmoothPlastic or Enum.Material.Neon
+			red.Color = green and Color3.fromRGB(90, 20, 18) or Color3.fromRGB(255, 40, 30)
+			grn.Material = green and Enum.Material.Neon or Enum.Material.SmoothPlastic
+			grn.Color = green and Color3.fromRGB(60, 255, 120) or Color3.fromRGB(20, 70, 36)
+		end
+	end
+end
+
+if subway[1] then
+	task.spawn(function()
+		while true do
+			updateInfo(subway[1])
+			task.wait(0.5)
+		end
+	end)
+end
+
+---------------------------------------------------------------------------
+-- Every frame
+---------------------------------------------------------------------------
+local lastEvent = nil
+local wasRiding = false
+
 RunService.PreSimulation:Connect(function()
 	local now = Workspace:GetServerTimeNow()
+	local svc = serviceTime(now)
+	local event = activeDelay(now)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	carried = false
+	local ridingAny = false
 
 	for _, r in ipairs(subway) do
 		local spacing = r.carLength + r.carGap
 		local halfW, height = r.carWidth / 2 - 0.3, r.carHeight + 2
+		local here = stationAround(r, root)
 		for k, train in ipairs(r.trainObjs) do
-			local leg, s = legAt(r, now - (k - 1) * r.headway)
+			local tl = svc - (k - 1) * r.headway
+			local leg, s = legAt(r, tl)
 			local path = r.pathObjs[leg.path]
 			local sign = r.signs[leg.path]
 			local n = #train.cars
+			local riding = false
 			for c, car in ipairs(train.cars) do
 				local centre = s + sign * (c - (n + 1) / 2) * spacing
-				place(car, carCFrame(path, centre, r.carLength, sign), leg.dwell == true, r.platformX, root, r.carLength, halfW, height)
+				if place(car, carCFrame(path, centre, r.carLength, sign), leg.dwell == true, r.platformX, root, r.carLength, halfW, height) then
+					riding = true
+				end
 			end
+			ridingAny = ridingAny or riding
 			local dir = leg.path == 1 and "N" or "S"
 			if train.dir ~= dir then
 				train.dir = dir
 				setLights(train, dir)
 			end
 			local dest = r.dests[leg.path]
+			local names = r.stopNames[leg.path]
+			local lastStop = leg.station == names[#names]
+
+			-- Screens and destination signs.
 			local screen
 			if leg.dwell then
-				screen = leg.terminal and (leg.station .. " · TO " .. dest) or leg.station
+				screen = leg.terminal and (leg.station .. " · TO " .. dest) or ("NOW AT " .. leg.station)
+			elseif event then
+				screen = "DELAYED · NEXT: " .. leg.station
 			else
 				screen = "NEXT: " .. leg.station
 			end
 			setText(train, screen, "1  " .. dest)
+
+			-- Announcements when this train starts a new leg, and before its doors close.
+			if train.leg ~= leg then
+				local first = train.leg == nil
+				train.leg = leg
+				train.closingSaid = false
+				if not first then
+					if leg.dwell then
+						if riding then
+							if leg.terminal then
+								say(string.format("This is %s. This train now returns to %s.", nice(leg.station), nice(dest)))
+							else
+								say(string.format("This is %s station.", nice(leg.station)))
+							end
+						elseif here == leg.station then
+							say(string.format("The train to %s is now boarding. Please allow passengers to exit before boarding.", nice(dest)))
+						end
+					else
+						if riding then
+							if lastStop then
+								say(string.format("Next station: %s. This is the last stop.", nice(leg.station)))
+							else
+								say(string.format("Next station: %s.", nice(leg.station)))
+							end
+						elseif here == leg.station then
+							local goingTo = lastStop and r.dests[3 - leg.path] or dest
+							say(string.format("The next train to %s is now approaching. Please stand behind the yellow line.", nice(goingTo)))
+						end
+					end
+				end
+			end
+			if leg.dwell and not train.closingSaid and (leg.t0 + leg.dur - (tl % r.cycle)) < 3 then
+				train.closingSaid = true
+				if train.doorChime then
+					train.doorChime:Play()
+				end
+				if riding or here == leg.station then
+					say(string.format("Please stand clear of the doors. This train is going to %s.", nice(dest)))
+				end
+			end
+		end
+
+		-- Delay announcements for anyone in a station or on a train.
+		if event ~= lastEvent then
+			if (here or wasRiding) then
+				if event then
+					local options = DELAY_MESSAGES[event.kind] or DELAY_MESSAGES["MINOR DELAY"]
+					say(options[math.random(1, #options)])
+				else
+					say("Service on Line 1 is now resuming. Thank you for your patience.")
+				end
+			end
+			lastEvent = event
+		end
+		-- A quiet reminder now and then.
+		if here and os.clock() - lastSaid > announceSettings.ReminderEvery and #queue == 0 then
+			lastSaid = os.clock()
+			say("For your safety, please stand behind the yellow line.")
+		end
+		if ambience then
+			if here and not ambience.Playing then
+				ambience:Play()
+			elseif not here and ambience.Playing then
+				ambience:Stop()
+			end
 		end
 	end
+	wasRiding = ridingAny
 
 	for _, r in ipairs(surface) do
 		local cars = r.carModels

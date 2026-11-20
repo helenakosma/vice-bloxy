@@ -51,5 +51,38 @@ return {
 		Accel = 9, -- studs per second squared (speeding up and braking)
 		Dwell = 10, -- seconds with doors open at a station
 		TerminalDwell = 24, -- seconds at Finch and Portlands
+
+		-- Random service delays. Every CheckEvery seconds (when no delay is running)
+		-- one roll decides: most of the time nothing, sometimes a delay of a kind.
+		-- The whole line slows to a stop over Ramp seconds, holds, then moves off.
+		Delays = {
+			CheckEvery = 60,
+			Ramp = 3,
+			Kinds = {
+				{ Name = "MINOR DELAY", Chance = 0.12, Min = 5, Max = 10 },
+				{ Name = "MODERATE DELAY", Chance = 0.06, Min = 10, Max = 20 },
+				{ Name = "MAJOR DELAY", Chance = 0.02, Min = 20, Max = 35 },
+			},
+		},
+
+		-- Station and on-train announcements (shown as captions).
+		Announcements = {
+			MinGap = 4, -- seconds between captions
+			ShowFor = 5.5, -- seconds each caption stays up
+			ReminderEvery = 75, -- "stand behind the yellow line" when it's quiet
+		},
+
+		-- Optional sounds: paste Roblox audio asset ids (0 = off).
+		Sounds = {
+			Chime = 0, -- before each announcement
+			StationAmbience = 0, -- looped quietly while underground
+			TrainRumble = 0, -- looped on every train (fades with distance)
+			DoorChime = 0, -- when a train's doors are about to close
+		},
+	},
+
+	-- City advertising (billboards, station screens, train ads).
+	Ads = {
+		RotateEvery = 20, -- seconds before each panel moves on to the next ad
 	},
 }

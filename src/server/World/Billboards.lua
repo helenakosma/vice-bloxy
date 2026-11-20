@@ -1,12 +1,17 @@
 -- Advertising: rooftop billboards on mid-rise buildings and glowing LED screens on
--- the faces of taller ones, along the main roads. All brands are made up.
+-- the faces of taller ones, along the main roads. All brands are made up (see
+-- shared/Ads.lua). Every ad face is tagged "AdPanel" so clients rotate it.
 --
 -- Called by Buildings.placeFrontage for each building it makes. Uses its own
 -- random numbers (seeded from the lot position) so adding or changing ads never
 -- changes the layout of the city itself.
 local Workspace = game:GetService("Workspace")
 
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Util = require(script.Parent.Util)
+local Ads = require(ReplicatedStorage.Shared.Ads)
 
 local Billboards = {}
 
@@ -19,21 +24,8 @@ local STEEL = C(48, 50, 54)
 local MAX_ROOF, MAX_SCREENS = 70, 45
 local roofCount, screenCount = 0, 0
 
--- { headline, tagline, background, text colour, accent }
-local ADS = {
-	{ "BLOXY COLA", "TASTE THE CITY", C(200, 24, 34), C(255, 255, 255), C(255, 214, 80) },
-	{ "NOVA X", "THE PHONE THAT GETS YOU", C(18, 24, 48), C(120, 220, 255), C(255, 255, 255) },
-	{ "CLUCK HOUSE", "24 PIECE BUCKET  $9.99", C(250, 196, 40), C(150, 30, 20), C(150, 30, 20) },
-	{ "RADIO 6IX  99.1", "THE CITY'S HITS", C(110, 30, 160), C(255, 255, 255), C(255, 120, 220) },
-	{ "MAPLE TRUST", "BANKING THAT GROWS", C(20, 110, 70), C(255, 255, 255), C(200, 240, 200) },
-	{ "SUNSET TOWERS", "NOW LEASING · FROM $1,899", C(255, 140, 90), C(40, 20, 60), C(255, 255, 255) },
-	{ "VELOCITY MOTORS", "0-60 IN 2.9", C(16, 16, 18), C(255, 70, 50), C(240, 240, 240) },
-	{ "FROSTY'S", "SOFT SERVE · OPEN LATE", C(120, 210, 230), C(220, 30, 120), C(255, 255, 255) },
-	{ "LIBERTY TAXI", "ONE TAP. ANYWHERE.", C(255, 210, 20), C(20, 20, 20), C(20, 20, 20) },
-	{ "NEON NIGHTS", "LIVE  ·  FRI & SAT", C(30, 10, 40), C(255, 60, 200), C(80, 240, 255) },
-	{ "GRIND COFFEE", "FUEL FOR THE COMMUTE", C(70, 44, 30), C(250, 230, 200), C(220, 160, 90) },
-	{ "BLOX BET? NO.", "SAVE YOUR CASH · CITY CREDIT UNION", C(240, 240, 236), C(30, 60, 140), C(200, 30, 40) },
-}
+-- Ads come from the shared library so clients can rotate them in sync.
+local ADS = Ads.list
 
 local function rngFor(center)
 	return Random.new(math.floor(center.X * 7.31 + center.Y * 13.7) % 2147483647)
@@ -57,12 +49,14 @@ local function adFace(part, face, ad, emissive)
 	local bg = Instance.new("Frame")
 	bg.Size = UDim2.fromScale(1, 1)
 	bg.BorderSizePixel = 0
+	bg.Name = "Bg"
 	bg.BackgroundColor3 = ad[3]
 	bg.Parent = gui
 	local stripe = Instance.new("Frame")
 	stripe.Size = UDim2.fromScale(1, 0.06)
 	stripe.Position = UDim2.fromScale(0, 0.86)
 	stripe.BorderSizePixel = 0
+	stripe.Name = "Stripe"
 	stripe.BackgroundColor3 = ad[5]
 	stripe.Parent = bg
 	local title = Instance.new("TextLabel")
@@ -72,6 +66,7 @@ local function adFace(part, face, ad, emissive)
 	title.Font = Enum.Font.GothamBlack
 	title.TextScaled = true
 	title.TextColor3 = ad[4]
+	title.Name = "Title"
 	title.Text = ad[1]
 	title.Parent = bg
 	local tag = Instance.new("TextLabel")
@@ -81,9 +76,16 @@ local function adFace(part, face, ad, emissive)
 	tag.Font = Enum.Font.GothamBold
 	tag.TextScaled = true
 	tag.TextColor3 = ad[5]
+	tag.Name = "Tag"
 	tag.Text = ad[2]
 	tag.Parent = bg
+	gui.Name = "AdFace"
 	gui.Parent = part
+	-- Rotation: a seed so neighbouring panels show different ads.
+	if not part:GetAttribute("AdSeed") then
+		part:SetAttribute("AdSeed", math.random(0, 999))
+	end
+	CollectionService:AddTag(part, "AdPanel")
 	return gui
 end
 

@@ -12,6 +12,7 @@ local CollectionService = game:GetService("CollectionService")
 
 local Util = require(script.Parent.Util)
 local Billboards = require(script.Parent.Billboards)
+local Stores = require(script.Parent.Stores)
 
 local Kit = {}
 
@@ -410,9 +411,11 @@ end
 
 -- Railway signal on a mast: cf at the foot, Front facing approaching trains.
 -- Tagged "RailSignal"; shows green until the timetable drives it.
-function Kit.signal(folder, cf)
+function Kit.signal(folder, cf, stationName, bound)
 	Util.solid(folder, V3(0.5, 7, 0.5), cf * CFrame.new(0, 3.5, 0), C(40, 40, 44), M.Metal)
 	local head = Util.solid(folder, V3(1.4, 3.4, 1), cf * CFrame.new(0, 7.6, 0), C(20, 20, 22), M.Metal)
+	head:SetAttribute("Station", stationName)
+	head:SetAttribute("Bound", bound)
 	CollectionService:AddTag(head, "RailSignal")
 	local lamps = { { "Red", 1, C(90, 20, 18) }, { "Green", -1, C(60, 255, 120) } }
 	for _, l in ipairs(lamps) do
@@ -422,6 +425,60 @@ function Kit.signal(folder, cf)
 		lamp.Parent = head
 	end
 	Util.deco(folder, V3(1.8, 0.2, 0.6), cf * CFrame.new(0, 9.4, -0.4), C(20, 20, 22), M.Metal)
+end
+
+---------------------------------------------------------------------------
+-- Station shops: small walk-up stores set against a wall (counter at the front,
+-- shelves behind, a lit sign on top). Buying uses the city's store system.
+-- cf: on the floor at the wall face, Front facing into the room; w: width.
+---------------------------------------------------------------------------
+local SHOPS = {
+	{ kind = "coffee", name = "GRIND COFFEE", colour = C(70, 44, 30), accent = C(232, 176, 100) },
+	{ kind = "bodega", name = "NEWS & SNACKS", colour = C(28, 56, 140), accent = C(255, 214, 80) },
+	{ kind = "pizza", name = "SLICE STOP", colour = C(170, 36, 28), accent = C(255, 224, 160) },
+	{ kind = "pharmacy", name = "CITY PHARMACY", colour = C(236, 238, 236), accent = C(30, 140, 90) },
+	{ kind = "electronics", name = "PHONE FIX", colour = C(20, 24, 40), accent = C(90, 210, 255) },
+	{ kind = "coffee", name = "MAPLE DONUTS", colour = C(140, 30, 44), accent = C(255, 236, 220) },
+	{ kind = "clothes", name = "METRO SOCKS", colour = C(64, 40, 96), accent = C(255, 160, 220) },
+	{ kind = "bodega", name = "FRESH JUICE", colour = C(40, 120, 60), accent = C(255, 230, 90) },
+}
+local shopCount = 0
+
+function Kit.shop(folder, cf, w, rng)
+	shopCount = shopCount + 1
+	local shop = SHOPS[(shopCount + rng:NextInteger(0, 2)) % #SHOPS + 1]
+	local depth, h = 6, 9.5
+	local function at(x, y, z)
+		return cf * CFrame.new(x, y, z)
+	end
+	for _, x in ipairs({ -w / 2 + 0.25, w / 2 - 0.25 }) do
+		Util.solid(folder, V3(0.5, h, depth), at(x, h / 2, -depth / 2), shop.colour, M.SmoothPlastic)
+	end
+	Util.solid(folder, V3(w, 0.6, depth + 0.4), at(0, h + 0.3, -depth / 2 - 0.2), shop.colour, M.SmoothPlastic)
+	local header = Util.deco(folder, V3(w, 1.9, 0.4), at(0, h - 0.95, -depth - 0.2), shop.colour, M.SmoothPlastic)
+	header.CastShadow = false
+	Util.sign(header, Front, shop.name, shop.accent, Enum.Font.GothamBlack).LightInfluence = 0
+	local glow = Util.deco(folder, V3(w - 1, 0.15, 0.6), at(0, h - 2.05, -depth + 0.2), C(255, 246, 228), M.Neon)
+	glow.CastShadow = false
+	Kit.light(glow, Enum.NormalId.Bottom, 12, 1, C(255, 240, 214))
+	-- Inside: floor, back panel with shelves and goods.
+	Util.deco(folder, V3(w - 1, 0.1, depth), at(0, 0.05, -depth / 2), C(150, 112, 76), M.Wood)
+	Util.deco(folder, V3(w - 1, h - 2.4, 0.3), at(0, (h - 2.4) / 2 + 0.2, -0.25), Util.shade(shop.colour, 1.25), M.SmoothPlastic)
+	local goods = { C(220, 60, 50), C(250, 200, 60), C(60, 140, 220), C(240, 240, 236), C(90, 190, 110), shop.accent }
+	for _, y in ipairs({ 2.6, 4.6, 6.6 }) do
+		Util.deco(folder, V3(w - 2, 0.25, 1.3), at(0, y, -1), C(120, 90, 64), M.Wood)
+		local x = -w / 2 + 1.8
+		while x < w / 2 - 1.8 do
+			local size = V3(rng:NextNumber(0.6, 1.1), rng:NextNumber(0.7, 1.4), 0.8)
+			Util.deco(folder, size, at(x, y + 0.125 + size.Y / 2, -1), goods[rng:NextInteger(1, #goods)], M.SmoothPlastic)
+			x = x + size.X + rng:NextNumber(0.2, 0.6)
+		end
+	end
+	-- Counter across the front (buy from it), register on top.
+	Util.solid(folder, V3(w - 1, 3.6, 1.6), at(0, 1.8, -depth + 0.8), shop.colour, M.SmoothPlastic)
+	local top = Util.solid(folder, V3(w - 0.8, 0.25, 1.9), at(0, 3.72, -depth + 0.8), C(220, 216, 208), M.Marble)
+	Util.deco(folder, V3(1.4, 1, 1), at(w / 2 - 2.2, 4.35, -depth + 0.9), C(40, 40, 44), M.SmoothPlastic)
+	Stores.attachPurchase(top, shop.kind, shop.name)
 end
 
 ---------------------------------------------------------------------------
@@ -473,12 +530,26 @@ function Kit.passage(folder, alongX, a0, a1, c, half, y0, y1, accent, gaps, clos
 		end
 		return false
 	end
+	local shopAt = nil
+	if len >= 44 then
+		local mid2 = (a0 + a1) / 2
+		for _, side in ipairs({ -1, 1 }) do
+			local list = side < 0 and gaps.minus or gaps.plus
+			if not shopAt and not blocked(list, mid2, 8) then
+				shopAt = { a = mid2, side = side }
+				local p = pos(mid2, side * half, y0)
+				local inward = alongX and V3(0, 0, -side) or V3(-side, 0, 0)
+				Kit.shop(folder, CFrame.lookAt(p, p + inward), 14, rng)
+			end
+		end
+	end
 	local a = a0 + 12
 	local k = 0
 	while a < a1 - 12 do
 		local side = (k % 2 == 0) and -1 or 1
 		local list = side < 0 and gaps.minus or gaps.plus
-		if not blocked(list, a, 5) then
+		local nearShop = shopAt and shopAt.side == side and math.abs(a - shopAt.a) < 12
+		if not blocked(list, a, 5) and not nearShop then
 			local p = pos(a, side * half, y0 + TILE_H + 3.4)
 			local inward = alongX and V3(0, 0, -side) or V3(-side, 0, 0)
 			Kit.adPanel(folder, CFrame.lookAt(p + inward * 0.1, p + inward * 2), 9, 5.4, rng)
@@ -559,9 +630,9 @@ function Kit.entrance(folder, e, station, geo, rng)
 	-- steel balustrades with black handrails.
 	local escX = (E.ESC_X0 + E.ESC_X1) / 2
 	local escTop, escBottom = p3(escX, kerb, E.STAIR0), p3(escX, y0, E.STAIR1)
-	local belt = Kit.span(folder, escTop, escBottom, E.ESC_X1 - E.ESC_X0, 1, -0.5, C(70, 72, 76), M.DiamondPlate, true)
+	local belt = Kit.span(folder, escTop, escBottom, E.ESC_X1 - E.ESC_X0, 1, -0.5, C(150, 152, 158), M.DiamondPlate, true)
 	if belt then
-		belt.AssemblyLinearVelocity = (escTop - escBottom).Unit * 8
+		belt.AssemblyLinearVelocity = (escTop - escBottom).Unit * 6
 		belt.Name = "Escalator"
 	end
 	local balX = (E.STAIR_X1 + E.ESC_X0) / 2
@@ -705,26 +776,36 @@ function Kit.concourse(folder, station, geo, rng)
 	local z0, z1, fz = geo.z0, geo.z1, geo.fareZ
 	local s0, s1 = geo.stair0, geo.stair1
 	local H = geo.half
-	local O = 6.5 -- half-width of the opening over the platform stairs
+	local O = 6.25 -- half-width of the platform stairs
+	local A = 12 -- half-width of the open atrium over the platform
+	local a1 = z1 - 6 -- south end of the atrium
 	local accent = station.tile
 	local function face(p, dir)
 		return CFrame.lookAt(p, p + dir)
 	end
 
-	-- Floor with the opening over the platform stairs.
+	-- Floor round an open atrium over the platform: you look straight down on the
+	-- trains, and the stairs go down through it.
 	for _, side in ipairs({ -1, 1 }) do
-		Util.solid(folder, V3(H - O, 1, z1 - z0), CFrame.new(X + side * (O + (H - O) / 2), y0 - 0.5, (z0 + z1) / 2), FLOOR, M.Granite)
+		Util.solid(folder, V3(H - A, 1, z1 - z0), CFrame.new(X + side * (A + (H - A) / 2), y0 - 0.5, (z0 + z1) / 2), FLOOR, M.Granite)
 	end
-	Util.solid(folder, V3(O * 2, 1, s0 - z0), CFrame.new(X, y0 - 0.5, (z0 + s0) / 2), FLOOR, M.Granite)
-	Util.solid(folder, V3(O * 2, 1, z1 - s1), CFrame.new(X, y0 - 0.5, (s1 + z1) / 2), FLOOR, M.Granite)
-	-- Glass balustrade round the opening, tactile strip at the top step.
-	for _, side in ipairs({ -1, 1 }) do
-		local g = Util.solid(folder, V3(0.3, 4.4, s1 - s0), CFrame.new(X + side * (O + 0.25), y0 + 2.2, (s0 + s1) / 2), C(200, 220, 228), M.Glass)
+	Util.solid(folder, V3(A * 2, 1, s0 - z0), CFrame.new(X, y0 - 0.5, (z0 + s0) / 2), FLOOR, M.Granite)
+	Util.solid(folder, V3(A * 2, 1, z1 - a1), CFrame.new(X, y0 - 0.5, (a1 + z1) / 2), FLOOR, M.Granite)
+	local function glass(size, cf)
+		local g = Util.solid(folder, size, cf, C(200, 220, 228), M.Glass)
 		g.Transparency = 0.5
-		Util.deco(folder, V3(0.6, 0.3, s1 - s0), CFrame.new(X + side * (O + 0.25), y0 + 4.5, (s0 + s1) / 2), STEEL, M.Metal)
+		return g
 	end
-	local endGlass = Util.solid(folder, V3(O * 2 + 0.8, 4.4, 0.3), CFrame.new(X, y0 + 2.2, s1 + 0.15), C(200, 220, 228), M.Glass)
-	endGlass.Transparency = 0.5
+	for _, side in ipairs({ -1, 1 }) do
+		glass(V3(0.3, 4.4, a1 - s0), CFrame.new(X + side * (A + 0.15), y0 + 2.2, (s0 + a1) / 2))
+		Util.deco(folder, V3(0.6, 0.3, a1 - s0), CFrame.new(X + side * (A + 0.15), y0 + 4.5, (s0 + a1) / 2), STEEL, M.Metal)
+		-- North edge either side of the stair top.
+		glass(V3(A - O, 4.4, 0.3), CFrame.new(X + side * (O + (A - O) / 2), y0 + 2.2, s0 - 0.15))
+		-- Glass sides along the stairs.
+		Kit.span(folder, V3(X + side * (O + 0.2), y0, s0), V3(X + side * (O + 0.2), geo.platformTop, s1), 0.3, 4, 2, C(200, 220, 228), M.Glass, true).Transparency = 0.5
+	end
+	glass(V3(A * 2 + 0.6, 4.4, 0.3), CFrame.new(X, y0 + 2.2, a1 + 0.15))
+	Util.deco(folder, V3(A * 2 + 0.6, 0.3, 0.6), CFrame.new(X, y0 + 4.5, a1 + 0.15), STEEL, M.Metal)
 	Util.deco(folder, V3(O * 2 - 0.5, 0.06, 1.8), CFrame.new(X, y0 + 0.03, s0 - 1.4), C(250, 200, 30), M.SmoothPlastic)
 	Kit.stairs(folder, V3(X, y0, s0), V3(X, geo.platformTop, s1), O * 2 - 0.5)
 
@@ -805,16 +886,43 @@ function Kit.concourse(folder, station, geo, rng)
 	Kit.bench(folder, face(V3(X - 26, y0, fz - 3.5), V3(0, 0, -1)))
 	Kit.bin(folder, face(V3(X - 32, y0, fz - 2.5), V3(0, 0, -1)))
 
-	-- Paid side: benches and bins along the walls, sign over the stairs.
+	-- Paid side: benches looking over the atrium, bins, sign over the stairs.
 	for _, side in ipairs({ -1, 1 }) do
-		for _, z in ipairs({ s0 + 4, s1 - 4 }) do
-			Kit.bench(folder, face(V3(X + side * (H - 2.2), y0, z), V3(-side, 0, 0)))
+		for _, z in ipairs({ z0 + 56, z0 + 72 }) do
+			Kit.bench(folder, face(V3(X + side * (A + 4), y0, z), V3(-side, 0, 0)))
 		end
-		Kit.bin(folder, face(V3(X + side * (H - 1.8), y0, (s0 + s1) / 2), V3(-side, 0, 0)))
+		Kit.bin(folder, face(V3(X + side * (A + 4), y0, z0 + 64), V3(-side, 0, 0)))
 	end
 	Kit.hangingSign(folder, CFrame.new(X, y1 - 4.4, s0 - 4), 26, "▼ PLATFORM  ·  FINCH ◀▶ PORTLANDS", y1 - 0.5)
+	-- Hanging double-sided ad screens just past the gates.
+	for _, sx in ipairs({ X - 24, X + 24 }) do
+		local base = CFrame.new(sx, y1 - 5.2, fz + 9)
+		Kit.adPanel(folder, base, 10, 5.4, rng)
+		Kit.adPanel(folder, base * CFrame.Angles(0, math.pi, 0), 10, 5.4, rng)
+		for _, rx in ipairs({ -3.5, 3.5 }) do
+			local rod = base * CFrame.new(rx, 0, 0)
+			Util.deco(folder, V3(0.15, 2.6, 0.15), CFrame.new(rod.X, y1 - 0.5 - 1.3, rod.Z), Kit.DARK, M.Metal)
+		end
+	end
 
-	-- Ads on the side walls (clear of the openings), cameras in the corners.
+	-- Shops along both side walls (clear of the openings and the fare line).
+	for _, side in ipairs({ -1, 1 }) do
+		local list = side < 0 and geo.gapsWest or geo.gapsEast
+		for _, z in ipairs({ z0 + 11, z0 + 27, z0 + 47, z0 + 63, z0 + 79 }) do
+			local ok = true
+			for _, g in ipairs(list) do
+				if z + 8 > g[1] and z - 8 < g[2] then
+					ok = false
+				end
+			end
+			if ok then
+				local p = V3(X + side * (H - 0.05), y0, z)
+				Kit.shop(folder, face(p, V3(-side, 0, 0)), 14, rng)
+			end
+		end
+	end
+
+	-- Ads high on the side walls (above the shops), cameras in the corners.
 	local function clear(list, z)
 		for _, g in ipairs(list) do
 			if z + 6 > g[1] - 1 and z - 6 < g[2] + 1 then
@@ -827,8 +935,8 @@ function Kit.concourse(folder, station, geo, rng)
 		local list = side < 0 and geo.gapsWest or geo.gapsEast
 		for z = z0 + 9, z1 - 8, 16 do
 			if math.abs(z - fz) > 8 and clear(list, z) then
-				local p = V3(X + side * (H - 0.05), y0 + TILE_H + 3.6, z)
-				Kit.adPanel(folder, face(p, V3(-side, 0, 0)), 11, 6.2, rng)
+				local p = V3(X + side * (H - 0.05), y0 + 12.6, z)
+				Kit.adPanel(folder, face(p, V3(-side, 0, 0)), 10, 4.4, rng)
 			end
 		end
 		Kit.camera(folder, face(V3(X + side * (H - 1.2), y1 - 0.5, z0 + 1.2), V3(-side, 0, 1)))

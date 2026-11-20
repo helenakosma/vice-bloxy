@@ -12,6 +12,7 @@
 -- client moves the vehicles from the shared server clock, so they are smooth and
 -- in the same place for everyone (see client/Transit.client.lua).
 local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Util = require(script.Parent.Util)
@@ -51,7 +52,7 @@ local STATIONS = {
 	{ name = "CENTRAL", z = 0, tile = Color3.fromRGB(190, 160, 200) },
 	{ name = "PORTLANDS", z = 962, elevated = true },
 }
-local LINE_START = STATIONS[1].z - STATION_HALF - 40 -- tail tunnel past Finch
+local LINE_START = STATIONS[1].z - STATION_HALF - 30 -- tail tunnel past Finch
 local LINE_END = STATIONS[#STATIONS].z + PORT_HALF + 4
 
 local TTC_RED = Color3.fromRGB(206, 30, 40)
@@ -142,6 +143,8 @@ end
 local ENTRANCE_W, ENTRANCE_D, ENTRANCE_MID = 46, 68, 7.75
 local LOBBY_MID = 30 -- the passage leaves the lobby here (dz)
 local HALL_HALF, HALL_LEN, FARE_AT = 36, 90, 36 -- ticket hall: half-width, length, fare line
+local SPINE_OFF = HALL_HALF + 12 -- side passage runs alongside the hall at LINE_X +- this
+local HALL_DOOR = 18 -- side doorways into the hall are this far in from its north end
 
 -- When the side you walk in from touches a sidewalk across the full width, returns
 -- how far out the sidewalk starts; otherwise nil.
@@ -186,22 +189,34 @@ local function findEntrances(station)
 	local target = Vector2.new(LINE_X, cz0 + 15)
 	local fwd, right = Vector2.new(0, -1), Vector2.new(1, 0)
 	local best = {} -- side -> { c, sz, dist, reach }
-	for x = target.X - 300, target.X + 300, 4 do
+	-- How a passage from a lobby at passZ reaches the hall: straight into its side
+	-- wall, along the line into its north wall, or (from anywhere else) along a
+	-- side passage that runs beside the hall to a side doorway.
+	local function routeFor(x, passZ)
+		if passZ >= cz0 + 11 and passZ <= cz0 + FARE_AT - 11 then
+			return "inside", 0
+		elseif passZ <= cz0 - 14 then
+			return "north", 0
+		elseif math.abs(x - LINE_X) >= SPINE_OFF + 11 + 23 + 4 then
+			return "spine", 30
+		end
+		return nil, 0
+	end
+	for x = target.X - 360, target.X + 360, 4 do
 		if math.abs(x - LINE_X) >= HALL_HALF + 28 then
-			for z = target.Y - 280, target.Y + 220, 4 do
+			for z = target.Y - 300, target.Y + 320, 4 do
 				for _, sz in ipairs({ 1, -1 }) do
-					local passZ = z + LOBBY_MID * sz
-					local passOk = passZ <= cz0 - 14 or (passZ >= cz0 + 11 and passZ <= cz0 + FARE_AT - 11)
-					if passOk then
+					local route, penalty = routeFor(x, z + LOBBY_MID * sz)
+					if route then
 						local c = Vector2.new(x, z)
 						local side = x < LINE_X and -1 or 1
-						local dist = (c - target).Magnitude
+						local dist = (c - target).Magnitude + penalty
 						local current = best[side]
 						if not current or dist < current.dist then
 							local reach = frontsSidewalk(c, sz)
 							local centre = c + Vector2.new(0, ENTRANCE_MID * sz)
 							if reach and Util.rectFree(centre, fwd, right, ENTRANCE_W, ENTRANCE_D) then
-								best[side] = { c = c, sz = sz, dist = dist, reach = reach }
+								best[side] = { c = c, sz = sz, dist = dist, reach = reach, route = route }
 							end
 						end
 					end
@@ -213,8 +228,8 @@ local function findEntrances(station)
 	local northTaken = false -- only one passage can come in along the line from the north
 	for _, side in ipairs({ -1, 1 }) do
 		local b = best[side]
-		local north = b and (b.c.Y + LOBBY_MID * b.sz) <= cz0
-		if b and b.dist < 420 and not (north and northTaken) then
+		local north = b and b.route == "north"
+		if b and b.dist < 480 and not (north and northTaken) then
 			local centre = b.c + Vector2.new(0, ENTRANCE_MID * b.sz)
 			-- The other side's pick may overlap this one: check again before claiming.
 			if Util.rectFree(centre, fwd, right, ENTRANCE_W, ENTRANCE_D) then
@@ -299,7 +314,11 @@ function Transit.layout(shared)
 				end
 				local toward = LINE_X > spot.X and 1 or -1
 				local passZ = spot.Y + LOBBY_MID * sz
-				local inside = passZ > cz0
+				local route = e.route
+				local inside = route == "inside"
+				local sd = -toward -- which side of the line the entrance is on
+				local spineX = LINE_X + sd * SPINE_OFF
+				local hallZ = cz0 + HALL_DOOR
 				-- Entrance: open down to the stairs under the building, roofed beyond.
 				local a0, a1 = zr(-21.5, 11)
 				hole(V3(spot.X - 23.5, CONCOURSE - 1, a0), V3(spot.X + 23.5, 2, a1))
@@ -307,13 +326,22 @@ function Transit.layout(shared)
 				hole(V3(spot.X - 23.5, CONCOURSE - 1, b0), V3(spot.X + 23.5, -1.5, b1))
 				-- Passage along x from the lobby wall.
 				local xa = spot.X + toward * 23
-				local xb = inside and (LINE_X - toward * (HALL_HALF + 1)) or (LINE_X + toward * 11)
-				hole(V3(math.min(xa, xb), CONCOURSE - 1, passZ - 11), V3(math.max(xa, xb), PASSAGE_TOP + 1, passZ + 11))
-				if not inside then
-					hole(V3(LINE_X - 11, CONCOURSE - 1, passZ), V3(LINE_X + 11, PASSAGE_TOP + 1, cz0))
+				local xb
+				if route == "inside" then
+					xb = LINE_X - toward * (HALL_HALF + 1)
+				elseif route == "north" then
+					xb = LINE_X + toward * 11
+				else
+					xb = spineX + sd * 11
 				end
-				table.insert(list, { spot = spot, sz = sz, reach = e.reach, passZ = passZ, toward = toward, inside = inside, xa = xa, xb = xb })
-				print(string.format("[Transit] %s station entrance at x=%.0f, z=%.0f", station.name, spot.X, spot.Y))
+				hole(V3(math.min(xa, xb), CONCOURSE - 1, passZ - 11), V3(math.max(xa, xb), PASSAGE_TOP + 1, passZ + 11))
+				if route == "north" then
+					hole(V3(LINE_X - 11, CONCOURSE - 1, passZ), V3(LINE_X + 11, PASSAGE_TOP + 1, cz0))
+				elseif route == "spine" then
+					hole(V3(spineX - 11, CONCOURSE - 1, math.min(passZ, hallZ) - 11), V3(spineX + 11, PASSAGE_TOP + 1, math.max(passZ, hallZ) + 11))
+				end
+				table.insert(list, { spot = spot, sz = sz, reach = e.reach, passZ = passZ, toward = toward, inside = inside, route = route, xa = xa, xb = xb, sd = sd, spineX = spineX, hallZ = hallZ })
+				print(string.format("[Transit] %s station entrance at x=%.0f, z=%.0f (%s)", station.name, spot.X, spot.Y, route))
 			end
 			if #list == 0 then
 				warn("[Transit] no space for a street entrance at " .. station.name)
@@ -511,7 +539,7 @@ local function buildStation(folder, station, entrances)
 	end
 	local rng = Random.new(math.floor(zc) + 7)
 	local PAINT = Color3.fromRGB(226, 224, 218)
-	local bandTop = platformTop + 14 -- top of the tiled band on the track walls
+	local bandTop = platformTop + 9 -- top of the tiled band on the track walls
 
 	-- Track walls: concrete below the platform level, the station's tiles with its
 	-- name and big ads in the band, paint above. Each wall faces one direction of
@@ -525,19 +553,22 @@ local function buildStation(folder, station, entrances)
 		local inner = LINE_X + side * HALF
 		Util.deco(folder, V3(0.2, 0.5, L), CFrame.new(inner - side * 0.1, bandTop, zc), Util.shade(tile, 0.55), M.SmoothPlastic)
 		local facing = V3(-side, 0, 0)
-		local header = side > 0 and "LINE 1  ·  NORTHBOUND  ▸  FINCH" or "LINE 1  ·  SOUTHBOUND  ▸  PORTLANDS"
+		local header = side > 0 and "LINE 1  ·  NORTHBOUND TO FINCH  ·  PLATFORM 2" or "LINE 1  ·  SOUTHBOUND TO PORTLANDS  ·  PLATFORM 1"
+		if station == STATIONS[1] and side > 0 then
+			header = "NO SERVICE  ·  TRAINS LEAVE FROM PLATFORM 1"
+		end
 		for k = -2, 2 do
 			local nz = zc + k * 40
-			local p = V3(inner - side * 0.06, platformTop + 8, nz)
+			local p = V3(inner - side * 0.06, platformTop + 5.2, nz)
 			nameSign(folder, CFrame.lookAt(p, p + facing), V3(26, 4.6, 0.1), station.name, Util.shade(tile, 1.18), Color3.fromRGB(20, 20, 24))
-			local h = V3(inner - side * 0.06, bandTop + 1.8, nz)
+			local h = V3(inner - side * 0.06, bandTop + 1.4, nz)
 			nameSign(folder, CFrame.lookAt(h, h + facing), V3(28, 2, 0.1), header, Color3.fromRGB(22, 22, 26))
 			if k < 2 then
-				local ap = V3(inner - side * 0.05, platformTop + 8, nz + 20)
+				local ap = V3(inner - side * 0.05, platformTop + 4.9, nz + 20)
 				if k == 0 then
-					Kit.mapBoard(folder, CFrame.lookAt(ap, ap + facing), 17, 8.4, "LINE 1 YONGE", { "FINCH", "QUEEN", "UNION", "HARBOUR", "CENTRAL", "PORTLANDS" }, station.name)
+					Kit.mapBoard(folder, CFrame.lookAt(ap, ap + facing), 17, 7, "LINE 1 YONGE", { "FINCH", "QUEEN", "UNION", "HARBOUR", "CENTRAL", "PORTLANDS" }, station.name)
 				else
-					Kit.adPanel(folder, CFrame.lookAt(ap, ap + facing), 17, 8.4, rng)
+					Kit.adPanel(folder, CFrame.lookAt(ap, ap + facing), 17, 7, rng)
 				end
 			end
 		end
@@ -551,10 +582,10 @@ local function buildStation(folder, station, entrances)
 	Util.solid(folder, V3(HALF * 2 + 2, 1, z1 - cz1), CFrame.new(LINE_X, ceilY, (cz1 + z1) / 2), CEIL, M.SmoothPlastic)
 	local finishY = STATION_TOP - 0.3
 	for _, side in ipairs({ -1, 1 }) do
-		Util.deco(folder, V3(HALF - 4.5, 0.4, cz1 - z0), CFrame.new(LINE_X + side * (4.5 + (HALF - 4.5) / 2), finishY, (z0 + cz1) / 2), CEIL, M.SmoothPlastic)
+		Util.deco(folder, V3(HALF - 12, 0.4, cz1 - z0), CFrame.new(LINE_X + side * (12 + (HALF - 12) / 2), finishY, (z0 + cz1) / 2), CEIL, M.SmoothPlastic)
 	end
-	Util.deco(folder, V3(9, 0.4, stairZ0 - z0), CFrame.new(LINE_X, finishY, (z0 + stairZ0) / 2), CEIL, M.SmoothPlastic)
-	Util.deco(folder, V3(9, 0.4, cz1 - stairZ1), CFrame.new(LINE_X, finishY, (stairZ1 + cz1) / 2), CEIL, M.SmoothPlastic)
+	Util.deco(folder, V3(24, 0.4, stairZ0 - z0), CFrame.new(LINE_X, finishY, (z0 + stairZ0) / 2), CEIL, M.SmoothPlastic)
+	Util.deco(folder, V3(24, 0.4, 6), CFrame.new(LINE_X, finishY, cz1 - 3), CEIL, M.SmoothPlastic)
 	for z = z0 + 10, z1 - 5, 20 do
 		if not inStairs(z, 2) then
 			Util.deco(folder, V3(HALF * 2, 1.2, 1.4), CFrame.new(LINE_X, finishY - 0.8, z), Color3.fromRGB(200, 200, 196), M.Concrete)
@@ -645,15 +676,17 @@ local function buildStation(folder, station, entrances)
 		-- Northbound (east, +x) trains leave from the north end; southbound from the south.
 		local z = side > 0 and (z0 - 8) or (z1 + 8)
 		local facing = side > 0 and V3(0, 0, 1) or V3(0, 0, -1)
-		Kit.signal(folder, CFrame.lookAt(V3(LINE_X + side * (TRACK + 7.5), RAIL + 1.6, z), V3(LINE_X + side * (TRACK + 7.5), RAIL + 1.6, z) + facing))
+		Kit.signal(folder, CFrame.lookAt(V3(LINE_X + side * (TRACK + 7.5), RAIL + 1.6, z), V3(LINE_X + side * (TRACK + 7.5), RAIL + 1.6, z) + facing), station.name, side > 0 and "N" or "S")
 	end
 
 	-- Ticket hall, passages and street entrances (StationKit).
 	local gaps = { [-1] = {}, [1] = {} }
 	local north = {}
 	for _, e in ipairs(entrances) do
-		if e.inside then
-			table.insert(gaps[-e.toward], { e.passZ - 10, e.passZ + 10 })
+		if e.route == "inside" then
+			table.insert(gaps[e.sd], { e.passZ - 10, e.passZ + 10 })
+		elseif e.route == "spine" then
+			table.insert(gaps[e.sd], { e.hallZ - 10, e.hallZ + 10 })
 		else
 			table.insert(north, { LINE_X - 10, LINE_X + 10 })
 		end
@@ -682,8 +715,18 @@ local function buildStation(folder, station, entrances)
 
 	for _, e in ipairs(entrances) do
 		Kit.entrance(folder, e, station, { floor = CONCOURSE, passageTop = PASSAGE_TOP, ceilingTop = -1.5 }, rng)
-		if e.inside then
+		if e.route == "inside" then
 			Kit.passage(folder, true, e.xa, e.xb, e.passZ, 10, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
+		elseif e.route == "spine" then
+			-- Along x to the side passage, along it beside the hall, in through a side door.
+			Kit.passage(folder, true, e.xa, e.xb, e.passZ, 10, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
+			local outer = { { e.passZ - 10, e.passZ + 10 } }
+			local inner = { { e.hallZ - 10, e.hallZ + 10 } }
+			local spineGaps = e.sd > 0 and { minus = inner, plus = outer } or { minus = outer, plus = inner }
+			Kit.passage(folder, false, math.min(e.passZ, e.hallZ) - 10, math.max(e.passZ, e.hallZ) + 10, e.spineX, 10, CONCOURSE, PASSAGE_TOP, station.tile, spineGaps, true, true, rng)
+			-- Floor and ceiling through the doorway between the two walls.
+			Util.solid(folder, V3(2.4, 1, 20), CFrame.new(LINE_X + e.sd * (HALL_HALF + 1), CONCOURSE - 0.5, e.hallZ), Color3.fromRGB(176, 174, 168), M.Granite)
+			Util.deco(folder, V3(2.4, 0.5, 20), CFrame.new(LINE_X + e.sd * (HALL_HALF + 1), PASSAGE_TOP + 0.25, e.hallZ), Color3.fromRGB(214, 214, 210), M.SmoothPlastic)
 		else
 			-- Along x past the line, then along the line into the hall's north wall.
 			local towardHall = { { LINE_X - 10, LINE_X + 10 } }
@@ -1134,6 +1177,10 @@ local function subwayRoutes(vehicles)
 		table.insert(reversed, STATIONS[i])
 	end
 	local northStops, northNames = stopsOn(north, reversed)
+	local stationList = {}
+	for _, st in ipairs(STATIONS) do
+		table.insert(stationList, { name = st.name, z = st.z, elevated = st.elevated == true })
+	end
 	local southStops, southNames = stopsOn(south, STATIONS)
 
 	-- Cycle time, then as many trains as give about the target headway.
@@ -1178,6 +1225,7 @@ local function subwayRoutes(vehicles)
 			terminalDwell = settings.TerminalDwell,
 			headway = cycle / count,
 			platformX = LINE_X,
+			stations = stationList,
 		},
 	}
 end
@@ -1391,6 +1439,55 @@ function Transit.build(folder)
 	entranceData.Name = "SubwayEntrances"
 	entranceData.Value = HttpService:JSONEncode(entranceList)
 	entranceData.Parent = ReplicatedStorage
+
+	-- Service clock: the server decides when Line 1 is delayed. Clients run the
+	-- trains on "service time" = server time minus the delay so far, so every train
+	-- slows to a stop together, holds, and moves off again (they never bunch up or
+	-- overlap), and the boards and announcements all read the same numbers.
+	-- Published as JSON: { offset = delay from events already folded in,
+	-- events = { { t0, ramp, hold, kind } } }.
+	do
+		local delays = Config.Transit.Delays
+		local clockValue = Instance.new("StringValue")
+		clockValue.Name = "TransitClock"
+		local clock = { offset = 0, events = {} }
+		clockValue.Value = HttpService:JSONEncode(clock)
+		clockValue.Parent = ReplicatedStorage
+		local rng = Random.new()
+		task.spawn(function()
+			while true do
+				task.wait(delays.CheckEvery)
+				local now = Workspace:GetServerTimeNow()
+				local keep, active = {}, false
+				for _, e in ipairs(clock.events) do
+					local finish = e.t0 + 2 * e.ramp + e.hold
+					if now > finish + 60 then
+						clock.offset = clock.offset + e.ramp + e.hold
+					else
+						table.insert(keep, e)
+						if now < finish then
+							active = true
+						end
+					end
+				end
+				clock.events = keep
+				if not active then
+					local roll, acc = rng:NextNumber(), 0
+					for _, kind in ipairs(delays.Kinds) do
+						acc = acc + kind.Chance
+						if roll < acc then
+							local length = rng:NextNumber(kind.Min, kind.Max)
+							local ramp = delays.Ramp
+							table.insert(clock.events, { t0 = now + 4, ramp = ramp, hold = math.max(0, length - ramp), kind = kind.Name })
+							print(string.format("[Transit] %s: Line 1 held for %.0f s", kind.Name, length))
+							break
+						end
+					end
+				end
+				clockValue.Value = HttpService:JSONEncode(clock)
+			end
+		end)
+	end
 
 	local data = Instance.new("StringValue")
 	data.Name = "TransitRoutes"
