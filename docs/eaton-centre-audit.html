@@ -65,6 +65,36 @@ code { font-family: var(--mono); font-size: .9em; }
   <p class="lede">The leasing plans are vector drawings with a real scale bar, unit outlines, unit numbers and square footage, so the mall can be rebuilt from measured geometry. The real building does not fit the block our map gives it: it is about 4.8 times too big at the map's street spacing. Three decisions below need your call before any building changes.</p>
 </header>
 
+<section aria-labelledby="cp3">
+  <div class="label">Checkpoint 3 · circulation</div>
+  <h2 id="cp3">Escalators, the concourse and the subway link</h2>
+  <p>Nine escalator banks, each an up/down pair, at the positions drawn on the plans: the Queen, centre and north courts and the Yonge &amp; Dundas corner between Levels 1–2 and 2–3, and the escalator beside the Gap down to the concourse. The Urban Eatery concourse is built from its plan at the subway's ticket-hall level, and a tiled passage runs from its north edge to Dundas station's ticket hall.</p>
+  <div class="shots">
+    <figure><img src="eaton/circ-escalator-l1.jpg" alt="Escalator pair rising from Level 1 at the centre court"><figcaption>Centre court, Level 1: the pair up to Level 2</figcaption></figure>
+    <figure><img src="eaton/circ-centre-court.jpg" alt="Looking down into the centre court opening from Level 2"><figcaption>From Level 2, down through the opening</figcaption></figure>
+    <figure><img src="eaton/circ-concourse.jpg" alt="The concourse with the escalator up to Level 1"><figcaption>Concourse (Urban Eatery) and the escalator up to Level 1</figcaption></figure>
+    <figure><img src="eaton/circ-station-passage.jpg" alt="Passage from the concourse to Dundas station"><figcaption>The passage from the concourse to Dundas station</figcaption></figure>
+  </div>
+  <h3>Tested in Studio</h3>
+  <ul>
+    <li>Every escalator rides correctly both ways: a player placed at the foot of each "up" escalator is carried to the next floor, and each "down" one brings them back (18 of 18 rides).</li>
+    <li>New startup check: walking from the Eaton Centre concourse to the Dundas platform succeeds; all the existing station checks still pass.</li>
+    <li>The passage opens its own doorway into Dundas station's ticket hall, before the fare gates (Dundas's west entrance comes in from the north, so there was no passage to join).</li>
+  </ul>
+  <h3>How the escalators are placed</h3>
+  <ul>
+    <li>Position and direction: the escalator outlines on the plans (pairs of parallel handrail lines inside each floor opening), listed with their source in <code>Data/Circulation.lua</code>.</li>
+    <li>The top end is the drawn end that leads on to corridor on the upper floor. Our storeys are twice the plan's height, so each run is extended back across the lower floor to keep a 35° slope.</li>
+    <li>On the plans each escalator is its own outlined shape, which the trace had counted as floor; the upper floor is now cut open over each escalator, with balustrades along the cut, and walls and columns are kept out of its path.</li>
+  </ul>
+  <h3>Not done yet</h3>
+  <ul>
+    <li>Stairs aren't built (escalators and lifts cover every floor).</li>
+    <li>The concourse plan only covers the north half, so there's no concourse under the Queen end and no link to Queen station yet.</li>
+    <li>Storefronts, finishes, lighting and signage come next.</li>
+  </ul>
+</section>
+
 <section aria-labelledby="cp2">
   <div class="label">Checkpoint 2 · the shell, built from the plans</div>
   <h2 id="cp2">In game now</h2>

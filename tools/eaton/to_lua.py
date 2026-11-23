@@ -152,7 +152,11 @@ def main(pdf):
     import pymupdf as fitz
 
     doc = fitz.open(pdf)
-    levels = {k: json.load(open(os.path.join(OUT, k + ".json"))) for k in ("L1", "L2", "L3")}
+    levels = {k: json.load(open(os.path.join(OUT, k + ".json"))) for k in ("L1", "L2", "L3", "concourse")}
+    # Where the concourse lies under Level 1, Level 1's floor openings are real
+    # (escalators and light wells down to the Urban Eatery); elsewhere Level 1
+    # sits on solid ground.
+    under = raster(levels["concourse"]["footprint"])
     summary = []
 
     # Columns: from Level 1 (they run through every floor), kept where they
@@ -172,11 +176,96 @@ def main(pdf):
             columns.append((round(u, 1), round(v, 1)))
 
     arrows = {name: entrance_arrows(doc[d["page"] - 1], d) for name, d in levels.items()}
+
+    # Escalators (src/server/World/EatonCentre/Data/Circulation.lua, read off the
+    # plans). On the plans each escalator is its own outlined shape inside a floor
+    # opening, which the trace counts as floor; here the upper floor is cut open
+    # over each escalator (except over its low end, where there's headroom), with
+    # balustrades along the cut, and the foot gets a patch of floor if it lands
+    # over an opening. The top end is the drawn end that leads on to corridor on
+    # the upper floor; the run is long enough for a 35-degree climb at our storey
+    # heights (Level 1 0.75, Levels 2-3 every 20 studs, concourse -17).
+    import re as _re
+    circ_src = open(os.path.join(DEST, "Circulation.lua"), encoding="utf-8").read()
+    banks = []
+    for m in _re.finditer(r"\{ from = (\d), to = (\d), u = ([-\d.]+), v = ([-\d.]+), axis = \{ ([-\d.]+), ([-\d.]+) \}, length = ([-\d.]+)", circ_src):
+        banks.append(dict(zip(("from", "to", "u", "v", "au", "av", "length"), (int(m.group(1)), int(m.group(2)), *map(float, m.group(3, 4, 5, 6, 7))))))
+    level_names = {0: "concourse", 1: "L1", 2: "L2", 3: "L3"}
+    level_y = {0: -17.0, 1: 0.75, 2: 20.75, 3: 40.75}
+    STUDS_PER_FT = 0.5
+    PAIR_HALF_FT = 13 + 1  # an up/down pair is 13 studs wide (26 ft), plus a margin
+    HEADROOM_FT = 30  # floor can stay over the lowest 30 ft of the run
+    esc_cuts = {k: [] for k in levels}  # level -> oriented boxes to open
+    esc_patches = {k: [] for k in levels}  # level -> oriented boxes to fill
+    esc_rails = {k: [] for k in levels}
+    esc_paths = {k: [] for k in levels}  # level -> the escalator's whole footprint
+    esc_list = []
+
+    def box_mask(cu, cv, au, av, half_along, half_across):
+        m = np.zeros_like(raster([]))
+        pts = []
+        for sa, sb in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+            u = cu + sa * half_along * au - sb * half_across * av
+            v = cv + sa * half_along * av + sb * half_across * au
+            pts.append([(u - U0) / G, (V1 - v) / G])
+        cv2.fillPoly(m.view(np.uint8), [np.array(pts, np.int32)], 1)
+        return m
+
+    for bk in banks:
+        nrm = math.hypot(bk["au"], bk["av"])
+        au, av = bk["au"] / nrm, bk["av"] / nrm
+        upper = levels[level_names[bk["to"]]]
+        up_common = raster(upper["common"])
+        up_foot = raster(upper["footprint"])
+        rise = level_y[bk["to"]] - level_y[bk["from"]]
+        run = max(bk["length"], rise / math.tan(math.radians(35)) / STUDS_PER_FT)
+        best = None
+        for sgn in (1, -1):
+            eu, ev = bk["u"] + sgn * au * bk["length"] / 2, bk["v"] + sgn * av * bk["length"] / 2
+            # How much corridor lies just beyond this end on the upper floor?
+            score = sum(1 for d in range(2, 14, 2) if at(up_common, eu + sgn * au * d, ev + sgn * av * d))
+            if best is None or score > best[0]:
+                best = (score, sgn, eu, ev)
+        _, sgn, tu, tv = best
+        du, dv = sgn * au, sgn * av
+        bu, bv = tu - du * run, tv - dv * run
+        esc_list.append({"from": bk["from"], "to": bk["to"], "bottom": [round(bu, 1), round(bv, 1)], "top": [round(tu, 1), round(tv, 1)]})
+        # Open the upper floor over the escalator, from the top end back to where
+        # the steps are low enough to pass under it.
+        cut_len = max(10.0, run - HEADROOM_FT)
+        cu, cv = tu - du * cut_len / 2, tv - dv * cut_len / 2
+        esc_cuts[level_names[bk["to"]]].append(box_mask(cu, cv, du, dv, cut_len / 2, PAIR_HALF_FT))
+        # Balustrades: both long sides and the low end of the cut (not the top end).
+        corners = {}
+        for name_, sa, sb in (("bl", -1, -1), ("tl", 1, -1), ("tr", 1, 1), ("br", -1, 1)):
+            corners[name_] = (cu + sa * cut_len / 2 * du - sb * PAIR_HALF_FT * dv, cv + sa * cut_len / 2 * dv + sb * PAIR_HALF_FT * du)
+        for a_, b_ in (("bl", "tl"), ("br", "tr"), ("bl", "br")):
+            esc_rails[level_names[bk["to"]]].append((corners[a_], corners[b_]))
+        # Keep walls and columns out of the escalator's path on both floors.
+        path = box_mask((tu + bu) / 2, (tv + bv) / 2, du, dv, run / 2 + 4, PAIR_HALF_FT - 1)
+        esc_paths[level_names[bk["to"]]].append(path)
+        esc_paths[level_names[bk["from"]]].append(path)
+        # A floor patch under the foot (and the comb plate) on the lower floor.
+        esc_patches[level_names[bk["from"]]].append(box_mask(bu - du * 4, bv - dv * 4, du, dv, 8, PAIR_HALF_FT))
+
+    # Columns that would stand in an escalator's way are left out.
+    columns = [c for c in columns if not any(at(pm, *c) for lst in esc_paths.values() for pm in lst)]
+
     for name, d in levels.items():
         foot = raster(d["footprint"])
+        if name == "concourse":
+            # The concourse plan runs on under the Yonge St roadway; the building's
+            # concourse stops at the Yonge wall (v = 0), clear of the subway tunnel.
+            foot[int(V1 / G) + 1:, :] = False
         common = raster(d["common"])
         voids = raster(d["voids"])
-        slab = foot & ~voids if name != "L1" else foot.copy()
+        if name == "L1":
+            voids = voids & under
+        slab = foot & ~voids if name != "concourse" else foot.copy()
+        for pm in esc_patches[name]:
+            slab |= pm & foot
+        for cm in esc_cuts[name]:
+            slab &= ~cm
         slabs = rects(slab)
 
         walls = []
@@ -260,13 +349,25 @@ def main(pdf):
                     pull = 0.4
                     walls.append((round(a[0] - nx * pull, 1), round(a[1] - ny * pull, 1), round(b[0] - nx * pull, 1), round(b[1] - ny * pull, 1), kind))
 
+        def in_path(w):
+            mu, mv = (w[0] + w[2]) / 2, (w[1] + w[3]) / 2
+            return any(at(pm, mu, mv) for pm in esc_paths[name])
+        walls = [w for w in walls if not in_path(w)]
+
         rails = []
-        if name != "L1":
+        if name != "concourse":
             for p in d["voids"]:
                 for a, b, L, _ in edges(p):
-                    if inside_clip(*a) and inside_clip(*b):
+                    mid_u, mid_v = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+                    if any(at(cm, mid_u, mid_v) for cm in esc_cuts[name] + esc_patches[name]):
+                        continue
+                    if inside_clip(*a) and inside_clip(*b) and (name != "L1" or (at(under, *a) and at(under, *b))):
                         rails.append((round(a[0], 1), round(a[1], 1), round(b[0], 1), round(b[1], 1)))
 
+        for (ra, rb) in esc_rails[name]:
+            # Only where there's floor beside the cut to fall from.
+            mid = ((ra[0] + rb[0]) / 2, (ra[1] + rb[1]) / 2)
+            rails.append((round(ra[0], 1), round(ra[1], 1), round(rb[0], 1), round(rb[1], 1)))
         lifts = [{"u": c["u"], "v": c["v"], "w": c["width"], "d": c["length"]} for c in d["circulation"]
                  if c["kind"] == "lift" and c["public"] and inside_clip(c["u"], c["v"])]
         escalators = [{"u": b["u"], "v": b["v"], "dir": b["dir"], "length": b["length"], "width": b["width"], "source": b["source"]}
@@ -340,6 +441,8 @@ def main(pdf):
     shared += [f"\t\t{lua_value(v)}," for v in vault]
     shared += ["\t},", "\troof = {"]
     shared += [f"\t\t{lua_value(r)}," for r in roof]
+    shared += ["\t},", "\tescalators = {"]
+    shared += [f"\t\t{lua_value(e)}," for e in esc_list]
     shared += ["\t},", "\tskylights = {"]
     shared += [f"\t\t{lua_value(r)}," for r in glass]
     shared += ["\t},", "}", ""]

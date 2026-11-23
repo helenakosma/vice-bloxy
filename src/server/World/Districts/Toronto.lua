@@ -159,6 +159,7 @@ function Toronto.layout(ctx)
 	local m = T.YONGE_EGLINTON_CENTRE
 	Util.markRect(m.X - MALL_SIZE.X / 2, m.X + MALL_SIZE.X / 2, m.Y - MALL_SIZE.Y / 2, m.Y + MALL_SIZE.Y / 2, Util.BUILT)
 	claimFree(T.EATON, Util.BUILT)
+	EatonCentre.layout(T.EATON) -- dig out the concourse before the ground is built
 	claimFree(T.SANKOFA, Util.PARK)
 	for _, rect in ipairs({ T.DUNDAS_NE, T.DUNDAS_NW, T.TMU_SLC, T.TMU_KERR, T.TMU_SOUTH, T.UOFT_SOUTH, T.UOFT_NORTH }) do
 		claimFree(rect, Util.BUILT)

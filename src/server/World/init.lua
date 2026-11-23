@@ -144,6 +144,10 @@ function World.build(Cars)
 	local transitInfo = Transit.build(transitFolder)
 	reportDistrict(transitFolder, "Transit", 70000, transitStart)
 	info.safeZones = transitInfo.safeZones
+	-- The Eaton Centre's concourse is underground too.
+	for _, zone in ipairs(require(script.EatonCentre).safeZones) do
+		table.insert(info.safeZones, zone)
+	end
 	reportDistrict(highways, "Highways", 6000, highwayStart)
 
 	Util.beginDistrict("Shared")

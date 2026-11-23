@@ -122,6 +122,10 @@ T.UNION = Vector2.new(-260, -935) -- Union Station on Front St, between Bay and 
 T.FINANCIAL = Vector2.new(T.BAY_X, -1293) -- King & Bay
 T.CITY_HALL = { minX = -352, maxX = -202, minZ = -1860, maxZ = -1668 } -- Queen & Bay, north-west
 T.EATON = { minX = -109, maxX = 57, minZ = -1866, maxZ = -1661 } -- Yonge to James St, Queen to Dundas (stretched below)
+-- The passage from the Eaton Centre's concourse to Dundas station leaves the
+-- concourse's north edge here (plan feet: u north of Queen St, v west of Yonge).
+-- Transit fills in .x (the passage's world x) when it lays the station out.
+T.EATON_LINK = { station = "DUNDAS", u = 1278, v = 40 }
 T.SANKOFA = { minX = 142, maxX = 258, minZ = -1866, maxZ = -1787 } -- south-east corner of Yonge & Dundas
 -- The billboard buildings round Yonge & Dundas (with the Eaton Centre's corner).
 T.DUNDAS_NE = { minX = 144, maxX = 262, minZ = -2052, maxZ = -1957 } -- "10 Dundas East" screens

@@ -6,31 +6,69 @@
 -- Here 1 plan foot = 0.5 studs across the floor plan (agreed scale); heights use
 -- full human scale (20 studs a level), so the galleria rises about 80 studs.
 --
--- Built: floor plates with the real floor openings, exterior walls with the
--- street entrances, unit walls and storefront headers on their traced lines,
--- glass balustrades round the openings, the columns that stand in public space,
--- the glass barrel vault over the galleria, the roof, and working lifts.
--- Later phases: escalators and stairs, the concourse, storefronts, interiors.
+-- Built: the concourse (Urban Eatery) and Levels 1-3 with the real floor
+-- openings, exterior walls with the street entrances, unit walls and storefront
+-- headers on their traced lines, glass balustrades round the openings, the
+-- columns that stand in public space, the glass barrel vault over the galleria,
+-- the roof, working escalators (Data/Circulation.lua) and lifts, and the opening
+-- for the passage to Dundas station (built by Transit).
+-- Later phases: storefronts, finishes, signage, interiors.
 local CollectionService = game:GetService("CollectionService")
 
 local Util = require(script.Parent.Util)
 local Kit = require(script.Parent.StationKit)
 local Workplaces = require(script.Parent.Workplaces)
+local TorontoLayout = require(script.Parent.TorontoLayout)
 
 local DATA = script.Data
 local LEVEL_DATA = {
-	{ key = "L1", name = "Level_01", label = "Level 1", data = require(DATA.L1) },
-	{ key = "L2", name = "Level_02", label = "Level 2", data = require(DATA.L2) },
-	{ key = "L3", name = "Level_03", label = "Level 3", data = require(DATA.L3) },
+	{ idx = 0, key = "concourse", name = "Level_Concourse", label = "Concourse", data = require(DATA.concourse) },
+	{ idx = 1, key = "L1", name = "Level_01", label = "Level 1", data = require(DATA.L1) },
+	{ idx = 2, key = "L2", name = "Level_02", label = "Level 2", data = require(DATA.L2) },
+	{ idx = 3, key = "L3", name = "Level_03", label = "Level 3", data = require(DATA.L3) },
 }
+local BY_IDX = {}
+for _, L in ipairs(LEVEL_DATA) do
+	BY_IDX[L.idx] = L
+end
 local SHARED = require(DATA.Shared)
 
 local EatonCentre = {}
+EatonCentre.safeZones = {} -- underground spaces players may stand in (the concourse)
 
 local S = 0.5 -- studs per plan foot
 local LEVEL_H = 20
 local SLAB = 1
 local HEADER = 13 -- storefront header starts this high above the floor
+local CONCOURSE_Y = -17 -- the same floor height as the subway ticket halls
+local ESC_W = 5 -- one escalator's width (studs)
+local ESC_SPEED = 7
+
+-- Is plan point (u, v) on a floor plate of level idx?
+local function onSlab(idx, u, v)
+	for _, r in ipairs(BY_IDX[idx].data.slabs) do
+		if u >= r[1] and u <= r[3] and v >= r[2] and v <= r[4] then
+			return true
+		end
+	end
+	return false
+end
+
+-- Dig out the concourse before the ground is built (called from Toronto.layout).
+function EatonCentre.layout(rect)
+	local minU, maxU, minV, maxV = math.huge, -math.huge, math.huge, -math.huge
+	for _, r in ipairs(BY_IDX[0].data.slabs) do
+		minU, maxU = math.min(minU, r[1]), math.max(maxU, r[3])
+		minV, maxV = math.min(minV, r[2]), math.max(maxV, r[4])
+	end
+	local x0, x1 = rect.maxX - maxV * S, rect.maxX - math.max(0, minV) * S
+	local z0, z1 = rect.maxZ - maxU * S, rect.maxZ - minU * S
+	local min = Vector3.new(x0 - 1, CONCOURSE_Y - 1.5, z0 - 1)
+	local max = Vector3.new(x1, 0.2, z1 + 1)
+	Util.carve(min, max)
+	table.insert(EatonCentre.safeZones, { min = min - Vector3.new(2, 2, 2), max = max + Vector3.new(2, 6, 2) })
+end
+
 
 local V3 = Vector3.new
 local M = Enum.Material
@@ -61,6 +99,9 @@ function EatonCentre.build(root, rect)
 	end
 
 	local function levelY(i)
+		if i == 0 then
+			return CONCOURSE_Y
+		end
 		return base + (i - 1) * LEVEL_H
 	end
 	local roofY = levelY(4)
@@ -96,9 +137,26 @@ function EatonCentre.build(root, rect)
 	local levels = {}
 
 	---------------------------------------------------------------------------
+	-- Escalators: placed by tools/eaton/to_lua.py from Data/Circulation.lua (top
+	-- end at the drawn end that leads on to the upper corridor; the upper floor is
+	-- already cut open over each one, with balustrades along the cut).
+	---------------------------------------------------------------------------
+	local escPlans = {}
+	for _, e in ipairs(SHARED.escalators) do
+		table.insert(escPlans, { bank = e, top = e.top, bottom = e.bottom, dTop = 0, dBottom = 0 })
+	end
+	local function railCut()
+		return false
+	end
+	-- The opening in the concourse wall for the passage to the subway (Transit).
+	local link = TorontoLayout.EATON_LINK
+	local linkV = link and link.x and (yongeX - link.x) / S
+
+	---------------------------------------------------------------------------
 	-- Floors, walls, storefront headers, balustrades.
 	---------------------------------------------------------------------------
-	for i, L in ipairs(LEVEL_DATA) do
+	for _, L in ipairs(LEVEL_DATA) do
+		local i = L.idx
 		local y = levelY(i)
 		local f = folderIn(mall, L.name)
 		local arch = folderIn(f, "Architecture")
@@ -111,7 +169,7 @@ function EatonCentre.build(root, rect)
 			p.Name = "Floor"
 		end
 
-		local top = (i == 3) and (roofY - y) or (LEVEL_H - SLAB)
+		local top = (i == 3) and (roofY - y) or (i == 0 and (base - SLAB - y) or (LEVEL_H - SLAB))
 		for _, w in ipairs(L.data.walls) do
 			local a, b, kind = { w[1], w[2] }, { w[3], w[4] }, w[5]
 			if kind == 1 then
@@ -121,6 +179,20 @@ function EatonCentre.build(root, rect)
 				local h = panel(retail, a, b, y + HEADER, top - HEADER, 0.6, FASCIA, M.SmoothPlastic)
 				if h then
 					h.Name = "StorefrontHeader"
+				end
+			elseif kind == 3 and i == 0 and linkV and math.abs((a[1] + b[1]) / 2 - link.u) < 8 and math.max(a[2], b[2]) > linkV - 22 and math.min(a[2], b[2]) < linkV + 22 then
+				-- The passage to Dundas station opens through the concourse's north edge.
+				local lo, hi = linkV - 21, linkV + 21
+				if a[2] > b[2] then
+					a, b = b, a
+				end
+				local aV, bV = a[2], b[2]
+				local span = math.max(bV - aV, 0.01)
+				if aV < lo then
+					panel(arch, a, { a[1] + (b[1] - a[1]) * (lo - aV) / span, lo }, y, top, 1.2, FACADE, M.Concrete)
+				end
+				if bV > hi then
+					panel(arch, { a[1] + (b[1] - a[1]) * (hi - aV) / span, hi }, b, y, top, 1.2, FACADE, M.Concrete)
 				end
 			elseif kind == 3 then
 				local wall = panel(arch, a, b, y, top + ((i == 3) and 3 or 0), 1.2, FACADE, M.Concrete)
@@ -140,6 +212,9 @@ function EatonCentre.build(root, rect)
 
 		-- Glass balustrades with a steel handrail round every floor opening.
 		for _, r in ipairs(L.data.rails) do
+			if railCut(i, { r[1], r[2] }, { r[3], r[4] }) then
+				continue
+			end
 			local g = panel(atrium, { r[1], r[2] }, { r[3], r[4] }, y, 3.6, 0.25, GLASS, M.Glass)
 			if g then
 				g.Transparency = 0.55
@@ -151,16 +226,81 @@ function EatonCentre.build(root, rect)
 	end
 
 	---------------------------------------------------------------------------
+	-- Escalators: each bank is a pair, one running up and one down. The steps are
+	-- a sloped plate whose velocity carries you (a conveyor), with a steel truss,
+	-- glass balustrades and black handrails; comb plates and landings at the ends.
+	---------------------------------------------------------------------------
+	local vertical = folderIn(mall, "Vertical_Connections")
+	local escFolder = folderIn(vertical, "Escalators")
+	local RUBBER = C(24, 24, 26)
+	for _, plan in ipairs(escPlans) do
+		local bank = plan.bank
+		local yb, yt = levelY(bank.from), levelY(bank.to)
+		local pb = P(plan.bottom[1], plan.bottom[2], yb)
+		local pt = P(plan.top[1], plan.top[2], yt)
+		local flat = V3(pt.X - pb.X, 0, pt.Z - pb.Z)
+		local across = V3(-flat.Unit.Z, 0, flat.Unit.X)
+		for _, side in ipairs({ -1, 1 }) do
+			local off = across * side * (ESC_W / 2 + 0.75)
+			local a, b = pb + off, pt + off
+			local slope = b - a
+			local length = slope.Magnitude
+			local cf = CFrame.lookAt((a + b) / 2, b)
+			-- Steps (the moving surface): top face on the line from floor to floor.
+			local steps = Util.solid(escFolder, V3(ESC_W, 0.6, length), cf * CFrame.new(0, -0.3, 0), C(58, 60, 66), M.DiamondPlate)
+			steps.Name = side < 0 and "EscalatorUp" or "EscalatorDown"
+			local dir = side < 0 and 1 or -1
+			steps.AssemblyLinearVelocity = slope.Unit * ESC_SPEED * dir
+			steps:SetAttribute("Escalator", side < 0 and "up" or "down")
+			-- Truss under the steps.
+			Util.deco(escFolder, V3(ESC_W + 0.6, 3, length), cf * CFrame.new(0, -2.1, 0), C(186, 188, 192), M.Metal)
+			-- Balustrades and handrails.
+			for _, edge in ipairs({ -1, 1 }) do
+				local g = Util.solid(escFolder, V3(0.25, 3, length), cf * CFrame.new(edge * (ESC_W / 2 + 0.15), 1.5, 0), GLASS, M.Glass)
+				g.Transparency = 0.5
+				g.CastShadow = false
+				Util.deco(escFolder, V3(0.45, 0.35, length + 0.6), cf * CFrame.new(edge * (ESC_W / 2 + 0.15), 3.1, 0), RUBBER, M.Rubber)
+			end
+			-- Comb plates where you step on and off.
+			for _, info in ipairs({ { a, -slope.Unit }, { b, slope.Unit } }) do
+				local pos = info[1]
+				local out = V3(info[2].X, 0, info[2].Z).Unit
+				local comb = Util.solid(escFolder, V3(ESC_W + 0.6, 0.3, 3), CFrame.lookAt(pos + out * 1.5 + V3(0, -0.1, 0), pos + out * 3 + V3(0, -0.1, 0)), C(150, 152, 158), M.DiamondPlate)
+				comb.Name = "CombPlate"
+			end
+		end
+		-- Landings to the floors when an end sits over an opening.
+		local pairW = (ESC_W + 1.5) * 2
+		for _, info in ipairs({ { pt, plan.dTop, 1, yt }, { pb, plan.dBottom, -1, yb } }) do
+			local pos, dist, sgn, y = info[1], info[2], info[3], info[4]
+			if dist and dist > 0 then
+				local out = flat.Unit * sgn
+				local len = dist * S + 4
+				local centre = V3(pos.X, y - SLAB / 2, pos.Z) + out * (1.5 + len / 2)
+				local landingCF = CFrame.lookAt(centre, centre + out)
+				local landing = Util.solid(escFolder, V3(pairW, SLAB, len), landingCF, FLOOR, M.Marble)
+				landing.Name = "Landing"
+				for _, edge in ipairs({ -1, 1 }) do
+					local g = Util.solid(escFolder, V3(0.25, 3.6, len), landingCF * CFrame.new(edge * pairW / 2, SLAB / 2 + 1.8, 0), GLASS, M.Glass)
+					g.Transparency = 0.55
+					g.CastShadow = false
+				end
+			end
+		end
+	end
+
+	---------------------------------------------------------------------------
 	-- Columns (public spaces), floor to roof, with a soft light on each level.
 	---------------------------------------------------------------------------
 	local structure = folderIn(mall, "Structure")
 	for k, c in ipairs(SHARED.columns) do
 		local p = P(c[1], c[2], 0)
-		local height = roofY - base
-		Util.cylinder(structure, height, 1.8, CFrame.new(p.X, base + height / 2, p.Z), C(244, 244, 240), M.SmoothPlastic, true)
+		local foot = onSlab(0, c[1], c[2]) and CONCOURSE_Y or base
+		local height = roofY - foot
+		Util.cylinder(structure, height, 1.8, CFrame.new(p.X, foot + height / 2, p.Z), C(244, 244, 240), M.SmoothPlastic, true)
 		if k % 2 == 0 then
-			for i = 1, 3 do
-				local holder = Util.deco(structure, V3(0.2, 0.2, 0.2), CFrame.new(p.X, levelY(i) + LEVEL_H - 3, p.Z), C(255, 255, 255), M.Neon)
+			for i = (foot == CONCOURSE_Y) and 0 or 1, 3 do
+				local holder = Util.deco(structure, V3(0.2, 0.2, 0.2), CFrame.new(p.X, levelY(i) + (i == 0 and 14 or LEVEL_H - 3), p.Z), C(255, 255, 255), M.Neon)
 				holder.Transparency = 1
 				local light = Instance.new("PointLight")
 				light.Range = 26
@@ -253,10 +393,10 @@ function EatonCentre.build(root, rect)
 	-- Lifts: glass cabs at every level a shaft serves (from the plans' lift
 	-- symbols, grouped across levels). Prompts move you between floors.
 	---------------------------------------------------------------------------
-	local vertical = folderIn(mall, "Vertical_Connections")
 	local liftFolder = folderIn(vertical, "Elevators")
 	local shafts = {}
-	for i, L in ipairs(LEVEL_DATA) do
+	for _, L in ipairs(LEVEL_DATA) do
+		local i = L.idx
 		for _, lift in ipairs(L.data.lifts) do
 			local found
 			for _, s in ipairs(shafts) do
@@ -274,7 +414,7 @@ function EatonCentre.build(root, rect)
 	local liftCount = 0
 	for _, s in ipairs(shafts) do
 		local stops = {}
-		for i = 1, 3 do
+		for i = 0, 3 do
 			if s.stops[i] then
 				table.insert(stops, i)
 			end
@@ -308,7 +448,7 @@ function EatonCentre.build(root, rect)
 					if j ~= i then
 						local target = cabs[j]
 						local prompt = Instance.new("ProximityPrompt")
-						prompt.ActionText = "Go to " .. LEVEL_DATA[j].label
+						prompt.ActionText = "Go to " .. BY_IDX[j].label
 						prompt.ObjectText = "Elevator"
 						prompt.KeyboardKeyCode = n == 1 and Enum.KeyCode.E or (n == 2 and Enum.KeyCode.R or Enum.KeyCode.T)
 						prompt.HoldDuration = 0.2
@@ -334,7 +474,7 @@ function EatonCentre.build(root, rect)
 	---------------------------------------------------------------------------
 	local signage = folderIn(mall, "Signage")
 	local entrances = {}
-	for _, w in ipairs(LEVEL_DATA[1].data.walls) do
+	for _, w in ipairs(BY_IDX[1].data.walls) do
 		if w[5] == 4 then
 			local len = math.sqrt((w[3] - w[1]) ^ 2 + (w[4] - w[2]) ^ 2)
 			table.insert(entrances, { w = w, len = len })
@@ -363,7 +503,7 @@ function EatonCentre.build(root, rect)
 	-- Workplaces move into real units: Grind Coffee (a café counter) and
 	-- Metro Threads (a clothing store) on Level 1.
 	---------------------------------------------------------------------------
-	local units = LEVEL_DATA[1].data.units
+	local units = BY_IDX[1].data.units
 	local function frontInfo(u)
 		local f = u.front
 		if not f then
