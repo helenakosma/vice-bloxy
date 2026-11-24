@@ -358,7 +358,8 @@ function Transit.layout(shared)
 			local link = TorontoLayout.EATON_LINK
 			if link and link.station == station.name then
 				state.links = state.links or {}
-				local L = { mallZ = TorontoLayout.EATON.maxZ - link.u * 0.5, x = TorontoLayout.EATON.maxX - link.v * 0.5 }
+				local sc = TorontoLayout.EATON_SCALE
+				local L = { mallZ = TorontoLayout.EATON.maxZ - link.u * sc, x = TorontoLayout.EATON.maxX - link.v * sc }
 				local west
 				for _, e in ipairs(list) do
 					if e.sd == -1 then

@@ -14,6 +14,8 @@
 -- for the passage to Dundas station (built by Transit).
 -- Later phases: storefronts, finishes, signage, interiors.
 local CollectionService = game:GetService("CollectionService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Util = require(script.Parent.Util)
 local Kit = require(script.Parent.StationKit)
@@ -33,10 +35,33 @@ for _, L in ipairs(LEVEL_DATA) do
 end
 local SHARED = require(DATA.Shared)
 
+-- Tenants (made-up names; tools/eaton/tenants.py): "<level>:<unit>" -> record.
+local TENANTS = {}
+for _, t in ipairs(require(ReplicatedStorage.Shared.Catalog.EatonTenants)) do
+	TENANTS[t.level .. ":" .. t.unit] = t
+end
+
+-- Sign-band colours by category (the store name is white on the band).
+local CATEGORY_COLOUR = {
+	fashion = Color3.fromRGB(28, 28, 32),
+	footwear = Color3.fromRGB(96, 40, 30),
+	sports = Color3.fromRGB(20, 60, 120),
+	electronics = Color3.fromRGB(30, 34, 44),
+	beauty = Color3.fromRGB(150, 60, 100),
+	jewellery = Color3.fromRGB(120, 96, 40),
+	food = Color3.fromRGB(170, 50, 30),
+	cafe = Color3.fromRGB(90, 56, 36),
+	optical = Color3.fromRGB(30, 90, 100),
+	pharmacy = Color3.fromRGB(180, 30, 40),
+	books = Color3.fromRGB(40, 100, 60),
+	department = Color3.fromRGB(16, 16, 20),
+	services = Color3.fromRGB(60, 64, 72),
+}
+
 local EatonCentre = {}
 EatonCentre.safeZones = {} -- underground spaces players may stand in (the concourse)
 
-local S = 0.5 -- studs per plan foot
+local S = require(script.Parent.TorontoLayout).EATON_SCALE -- studs per plan foot (1: true scale)
 local LEVEL_H = 20
 local SLAB = 1
 local HEADER = 13 -- storefront header starts this high above the floor
@@ -81,6 +106,36 @@ local FACADE = C(168, 160, 150)
 local FACADE_DARK = C(92, 96, 104)
 local STEEL = C(196, 198, 202)
 local GLASS = C(196, 222, 232)
+local CEILING = C(240, 240, 238)
+local DOOR_W = 7 -- the opening in a shop's glass front (studs)
+
+-- A store name on one face of a header, on a coloured band at its foot.
+local function storeSign(part, face, name, colour, bandH)
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = face
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 24
+	gui.LightInfluence = 0
+	local band = Instance.new("Frame")
+	band.AnchorPoint = Vector2.new(0, 1)
+	band.Position = UDim2.fromScale(0, 1)
+	band.Size = UDim2.new(1, 0, 0, bandH * 24)
+	band.BackgroundColor3 = colour
+	band.BorderSizePixel = 0
+	band.Parent = gui
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.5)
+	label.Size = UDim2.fromScale(0.9, 0.7)
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.Text = string.upper(name)
+	label.Parent = band
+	gui.Parent = part
+	return gui
+end
 
 local function folderIn(parent, name)
 	local f = Instance.new("Folder")
@@ -167,18 +222,77 @@ function EatonCentre.build(root, rect)
 		for _, r in ipairs(L.data.slabs) do
 			local p = plate(arch, r, y, SLAB, FLOOR, M.Marble)
 			p.Name = "Floor"
+			-- A plain ceiling under the floors above people's heads (Levels 2-3, and
+			-- Level 1 where the concourse is below).
+			if i >= 2 or (i == 1 and onSlab(0, (r[1] + r[3]) / 2, (r[2] + r[4]) / 2)) then
+				local c = plate(arch, r, y - SLAB - 0.02, 0.2, CEILING, M.SmoothPlastic, false)
+				c.Name = "Ceiling"
+				c.CastShadow = false
+			end
+		end
+
+		-- The sign goes on each shop's longest storefront edge on this level.
+		local signEdge = {}
+		for k, w in ipairs(L.data.walls) do
+			if w[5] == 2 and w[6] then
+				local len = math.sqrt((w[3] - w[1]) ^ 2 + (w[4] - w[2]) ^ 2)
+				local best = signEdge[w[6]]
+				if not best or len > best.len then
+					signEdge[w[6]] = { k = k, len = len }
+				end
+			end
 		end
 
 		local top = (i == 3) and (roofY - y) or (i == 0 and (base - SLAB - y) or (LEVEL_H - SLAB))
-		for _, w in ipairs(L.data.walls) do
+		for wi, w in ipairs(L.data.walls) do
 			local a, b, kind = { w[1], w[2] }, { w[3], w[4] }, w[5]
 			if kind == 1 then
 				panel(retail, a, b, y, top, 0.5, PLASTER, M.SmoothPlastic)
 			elseif kind == 2 then
-				-- Storefront: a fascia band for the sign; the shop front opens below.
-				local h = panel(retail, a, b, y + HEADER, top - HEADER, 0.6, FASCIA, M.SmoothPlastic)
-				if h then
-					h.Name = "StorefrontHeader"
+				local tenant = w[6] and TENANTS[i .. ":" .. w[6]]
+				local len = math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2) * S
+				local isSign = w[6] and signEdge[w[6]] and signEdge[w[6]].k == wi
+				-- Which face of a panel along a->b looks out to the corridor.
+				local function outFace(part)
+					local out = V3(-(w[8] or 0), 0, -(w[7] or 0))
+					return part.CFrame.RightVector:Dot(out) > 0 and Enum.NormalId.Right or Enum.NormalId.Left
+				end
+				if not tenant or tenant.status == "back" then
+					panel(retail, a, b, y, top, 0.5, PLASTER, M.SmoothPlastic)
+				elseif tenant.status == "vacant" then
+					-- Hoarding across the front while the unit is empty.
+					local h = panel(retail, a, b, y, top, 0.5, C(232, 230, 224), M.SmoothPlastic)
+					if h and isSign and len >= 8 then
+						h.Name = "Hoarding"
+						storeSign(h, outFace(h), "Coming soon", C(70, 74, 84), 3)
+					end
+				else
+					-- Header with the store's sign band, glass front with a doorway.
+					local colour = CATEGORY_COLOUR[tenant.category] or FASCIA
+					local h = panel(retail, a, b, y + HEADER, top - HEADER, 0.6, FASCIA, M.SmoothPlastic)
+					if h then
+						h.Name = "Storefront"
+						h:SetAttribute("Unit", tenant.unit)
+						h:SetAttribute("Store", tenant.name)
+						if isSign and len >= 5 then
+							storeSign(h, outFace(h), tenant.name, colour, 3.5)
+						end
+					end
+					-- Anchors (department stores) open straight on to the mall, as the real
+					-- ones do: you walk through them from one wing to the next.
+					if len >= 12 and tenant.category ~= "department" then
+						local doorT = DOOR_W / 2 / len
+						for _, seg in ipairs({ { 0, 0.5 - doorT }, { 0.5 + doorT, 1 } }) do
+							local pa = { a[1] + (b[1] - a[1]) * seg[1], a[2] + (b[2] - a[2]) * seg[1] }
+							local pb = { a[1] + (b[1] - a[1]) * seg[2], a[2] + (b[2] - a[2]) * seg[2] }
+							local g = panel(retail, pa, pb, y, HEADER, 0.3, GLASS, M.Glass)
+							if g then
+								g.Transparency = 0.65
+								g.CastShadow = false
+								g.Name = "ShopWindow"
+							end
+						end
+					end
 				end
 			elseif kind == 3 and i == 0 and linkV and math.abs((a[1] + b[1]) / 2 - link.u) < 8 and math.max(a[2], b[2]) > linkV - 22 and math.min(a[2], b[2]) < linkV + 22 then
 				-- The passage to Dundas station opens through the concourse's north edge.
@@ -297,7 +411,7 @@ function EatonCentre.build(root, rect)
 		local p = P(c[1], c[2], 0)
 		local foot = onSlab(0, c[1], c[2]) and CONCOURSE_Y or base
 		local height = roofY - foot
-		Util.cylinder(structure, height, 1.8, CFrame.new(p.X, foot + height / 2, p.Z), C(244, 244, 240), M.SmoothPlastic, true)
+		Util.cylinder(structure, height, 2.6, CFrame.new(p.X, foot + height / 2, p.Z), C(244, 244, 240), M.SmoothPlastic, true)
 		if k % 2 == 0 then
 			for i = (foot == CONCOURSE_Y) and 0 or 1, 3 do
 				local holder = Util.deco(structure, V3(0.2, 0.2, 0.2), CFrame.new(p.X, levelY(i) + (i == 0 and 14 or LEVEL_H - 3), p.Z), C(255, 255, 255), M.Neon)
@@ -357,7 +471,7 @@ function EatonCentre.build(root, rect)
 		local u0, u1, v0, v1 = bay[1], bay[2], bay[3], bay[4]
 		local span = (v1 - v0) * S
 		local radius = span / 2
-		local rise = math.min(radius * 0.75, 10)
+		local rise = math.min(radius * 0.6, 22)
 		local length = (u1 - u0) * S
 		local centre = P((u0 + u1) / 2, (v0 + v1) / 2, roofY)
 		local function arc(a, z)
@@ -500,6 +614,143 @@ function EatonCentre.build(root, rect)
 	end
 
 	---------------------------------------------------------------------------
+	-- Wayfinding: one sign family (black plates, white type) for exits, lifts,
+	-- washrooms and the subway; a store directory at every escalator landing.
+	---------------------------------------------------------------------------
+	local function ceilingAbove(i)
+		return i == 3 and roofY or (i == 0 and base - SLAB or levelY(i + 1) - SLAB)
+	end
+	-- Exits: inside every street entrance.
+	local exitsDone = {}
+	for _, w in ipairs(BY_IDX[1].data.walls) do
+		if w[5] == 4 then
+			local pa, pb = P(w[1], w[2], 0), P(w[3], w[4], 0)
+			local mid = (pa + pb) / 2
+			if (pb - pa).Magnitude >= 5 then
+				local seen = false
+				for _, q in ipairs(exitsDone) do
+					if (q - mid).Magnitude < 12 then
+						seen = true
+					end
+				end
+				if not seen then
+					table.insert(exitsDone, mid)
+					local along = (pb - pa).Unit
+					local inward = V3(along.Z, 0, -along.X)
+					if (P(700, 160, 0) - mid):Dot(inward) < 0 then
+						inward = -inward
+					end
+					local at = mid + inward * 2 + V3(0, base + 11, 0)
+					Kit.exitSign(signage, CFrame.lookAt(at, at + inward), "EXIT · SORTIE")
+				end
+			end
+		end
+	end
+	-- Lifts: a sign over each stop.
+	for _, s in ipairs(shafts) do
+		local count = 0
+		for _ in pairs(s.stops) do
+			count += 1
+		end
+		if count >= 2 then
+			for i in pairs(s.stops) do
+				local p = P(s.u, s.v, levelY(i) + 11)
+				Kit.hangingSign(signage, CFrame.new(p), 7, "ELEVATOR", ceilingAbove(i), nil)
+			end
+		end
+	end
+	-- Washrooms, where the plans label them.
+	for _, L in ipairs(LEVEL_DATA) do
+		for _, wr in ipairs(L.data.washrooms or {}) do
+			local p = P(wr[1], wr[2], levelY(L.idx) + 11)
+			Kit.hangingSign(signage, CFrame.new(p), 9, "WASHROOMS", ceilingAbove(L.idx), nil)
+		end
+	end
+	-- The subway: down to the concourse, and the passage to Dundas station.
+	for _, plan in ipairs(escPlans) do
+		if plan.bank.from == 0 then
+			local top = P(plan.top[1], plan.top[2], levelY(1) + 12)
+			local bottom = P(plan.bottom[1], plan.bottom[2], levelY(0) + 11)
+			local dir = V3(top.X - bottom.X, 0, top.Z - bottom.Z).Unit
+			local s1 = top + dir * 6
+			Kit.hangingSign(signage, CFrame.lookAt(s1, s1 + dir), 14, "CONCOURSE · SUBWAY", ceilingAbove(1), C(255, 214, 90))
+		end
+	end
+	if link and link.x then
+		local p = V3(link.x, CONCOURSE_Y + 11, queenZ - link.u * S + 14)
+		Kit.hangingSign(signage, CFrame.lookAt(p, p + V3(0, 0, 1)), 16, "DUNDAS STATION · LINE 1", ceilingAbove(0), C(255, 214, 90))
+	end
+	-- Directories at the foot and head of every escalator: the level's stores.
+	local function directory(i, at, facing)
+		local names = {}
+		for _, t in pairs(TENANTS) do
+			if t.level == i and t.status == "open" and t.name then
+				names[t.name] = true
+			end
+		end
+		local list = {}
+		for n in pairs(names) do
+			table.insert(list, n)
+		end
+		table.sort(list)
+		local board = Util.solid(signage, V3(7, 9, 0.6), CFrame.lookAt(at + V3(0, 5, 0), at + V3(0, 5, 0) + facing), C(30, 32, 38), M.SmoothPlastic)
+		board.Name = "Directory"
+		for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+			local gui = Instance.new("SurfaceGui")
+			gui.Face = face
+			gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			gui.PixelsPerStud = 40
+			gui.LightInfluence = 0
+			local title = Instance.new("TextLabel")
+			title.BackgroundColor3 = C(206, 30, 40)
+			title.BorderSizePixel = 0
+			title.Size = UDim2.new(1, 0, 0, 44)
+			title.Font = Enum.Font.GothamBlack
+			title.TextScaled = true
+			title.TextColor3 = C(255, 255, 255)
+			title.Text = "EATON CENTRE · " .. string.upper(BY_IDX[i].label)
+			title.Parent = gui
+			local cols = 3
+			local per = math.ceil(#list / cols)
+			for c = 1, cols do
+				local col = Instance.new("TextLabel")
+				col.BackgroundTransparency = 1
+				col.Position = UDim2.new((c - 1) / cols, 6, 0, 52)
+				col.Size = UDim2.new(1 / cols, -10, 1, -58)
+				col.Font = Enum.Font.Gotham
+				col.TextSize = 11
+				col.TextXAlignment = Enum.TextXAlignment.Left
+				col.TextYAlignment = Enum.TextYAlignment.Top
+				col.TextColor3 = C(236, 236, 240)
+				col.Text = table.concat(list, string.char(10), (c - 1) * per + 1, math.min(#list, c * per))
+				col.Parent = gui
+			end
+			gui.Parent = board
+		end
+		Util.solid(signage, V3(1.2, 1, 1.2), CFrame.new(at + V3(0, 0.5, 0)), C(60, 62, 70), M.Metal)
+		return board
+	end
+	for _, plan in ipairs(escPlans) do
+		local bottom = P(plan.bottom[1], plan.bottom[2], levelY(plan.bank.from))
+		local top = P(plan.top[1], plan.top[2], levelY(plan.bank.to))
+		local dir = V3(top.X - bottom.X, 0, top.Z - bottom.Z).Unit
+		local side = V3(-dir.Z, 0, dir.X)
+		-- Tucked against the escalator's side (inside its footprint), so they never
+		-- stand out in a walkway.
+		local tuck = ESC_W + 2.5
+		directory(plan.bank.from, bottom + dir * 4 + side * tuck, side)
+		directory(plan.bank.to, top + dir * 4 + side * tuck, side)
+	end
+
+	-- Tell clients where "indoors" is (map tags and the subway pill hide there).
+	local zones = Instance.new("StringValue")
+	zones.Name = "IndoorZones"
+	zones.Value = HttpService:JSONEncode({
+		{ minX = rect.minX, maxX = rect.maxX, minZ = rect.minZ, maxZ = rect.maxZ, minY = CONCOURSE_Y - 4, maxY = roofY + 12 },
+	})
+	zones.Parent = ReplicatedStorage
+
+	---------------------------------------------------------------------------
 	-- Workplaces move into real units: Grind Coffee (a café counter) and
 	-- Metro Threads (a clothing store) on Level 1.
 	---------------------------------------------------------------------------
@@ -519,7 +770,7 @@ function EatonCentre.build(root, rect)
 	local best
 	for _, u in ipairs(units) do
 		local f, len = frontInfo(u)
-		if f and not u.inferred and math.abs(f[6]) > 0.9 and len >= 60 and (u.vmax - u.vmin) >= 62 then
+		if f and not u.inferred and math.abs(f[6]) > 0.9 and len * S >= 30 and (u.vmax - u.vmin) * S >= 31 then
 			if not best or (u.area or 0) > (best.area or 0) then
 				best = u
 			end
@@ -544,7 +795,7 @@ function EatonCentre.build(root, rect)
 	local cafe
 	for _, u in ipairs(units) do
 		local f, len = frontInfo(u)
-		if f and not u.inferred and u.unit ~= placed.threads and len >= 34 and math.min(u.umax - u.umin, u.vmax - u.vmin) >= 24 and (u.area or 0) > 0 and u.area < 4000 then
+		if f and not u.inferred and u.unit ~= placed.threads and len * S >= 17 and math.min(u.umax - u.umin, u.vmax - u.vmin) * S >= 12 and (u.area or 0) > 0 and u.area < 4000 then
 			local coffee = (u.name or ""):upper():find("COFFEE") ~= nil
 			if not cafe or (coffee and not cafe.coffee) or (coffee == cafe.coffee and (u.area or 0) < (cafe.u.area or 0)) then
 				cafe = { u = u, coffee = coffee }

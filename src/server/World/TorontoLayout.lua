@@ -16,7 +16,13 @@ local T = {}
 T.YONGE_X = 100
 -- Bay St sits west enough to leave James St (a pedestrian lane) between it and
 -- the Eaton Centre, whose floor plan is built at 0.5 studs per real foot.
-T.BAY_X = -161
+T.BAY_X = -325
+-- The Eaton Centre is built at true scale (1 stud per foot, Roblox characters are
+-- about 5 studs tall), so the west side of downtown sits further out: University
+-- Ave and Bathurst St move west with Bay St (the expressway moves too, Layout).
+T.EATON_SCALE = 1 -- studs per plan foot
+T.UNIVERSITY_X = -520
+T.BATHURST_X = -790
 T.BOUNDS = { minX = -1150, maxX = 1150, minZ = -8300, maxZ = -800 }
 T.WATERFRONT_Z = -836 -- Queens Quay, along the harbour
 T.FRONT_Z = -1040 -- Front St (Union Station's street)
@@ -65,26 +71,26 @@ local W, E = T.BOUNDS.minX + 40, T.BOUNDS.maxX - 40
 T.EAST_WEST = {
 	{ "Steeles Ave", -8240, "arterial", W, E },
 	{ "Finch Ave", -7864, "arterial", W, E },
-	{ "Park Home Ave", -7364, "street", -650, 850 },
+	{ "Park Home Ave", -7364, "street", T.BATHURST_X, 850 },
 	{ "Sheppard Ave", -7078, "arterial", W, E },
 	{ "York Mills Rd", -6387, "arterial", W, E },
 	{ "Lawrence Ave", -5691, "arterial", W, E },
 	{ "Eglinton Ave", -4921, "arterial", W, E },
-	{ "Davisville Ave", -4477, "street", -650, 850 },
+	{ "Davisville Ave", -4477, "street", T.BATHURST_X, 850 },
 	{ "St Clair Ave", -3960, "arterial", W, E },
-	{ "Summerhill Ave", -3626, "street", -650, 850 },
-	{ "Crescent Rd", -3354, "street", -650, 850 },
+	{ "Summerhill Ave", -3626, "street", T.BATHURST_X, 850 },
+	{ "Crescent Rd", -3354, "street", T.BATHURST_X, 850 },
 	{ "Bloor St", -3054, "arterial", W, E },
-	{ "Wellesley St", -2630, "street", -650, 1060 },
+	{ "Wellesley St", -2630, "street", T.BATHURST_X, 1060 },
 	{ "College St", -2247, "arterial", W, E },
-	{ "Gerrard St", -2080, "street", -650, 1060 },
+	{ "Gerrard St", -2080, "street", T.BATHURST_X, 1060 },
 	{ "Dundas St", -1911, "arterial", W, E },
 	{ "Shuter St", -1760, "street", 140, 1060 }, -- starts at Yonge, east only
 	{ "Queen St", -1616, "arterial", W, E },
-	{ "Richmond St", -1508, "street", -650, 1060 },
-	{ "Adelaide St", -1400, "street", -650, 1060 },
+	{ "Richmond St", -1508, "street", T.BATHURST_X, 1060 },
+	{ "Adelaide St", -1400, "street", T.BATHURST_X, 1060 },
 	{ "King St", -1293, "arterial", W, E },
-	{ "Wellington St", -1165, "street", -650, 1060 },
+	{ "Wellington St", -1165, "street", T.BATHURST_X, 1060 },
 	{ "Front St", T.FRONT_Z, "arterial", W, E },
 	{ "Queens Quay", T.WATERFRONT_Z, "arterial", W, E },
 }
@@ -93,15 +99,15 @@ T.EAST_WEST = {
 T.NORTH_SOUTH = {
 	{ "Yonge St", "yonge", { { T.YONGE_X, T.WATERFRONT_Z }, { T.YONGE_X, T.MIDTOWN_FROM_Z } } },
 	{ "Yonge St North", "yongeNorth", { { T.YONGE_X, T.MIDTOWN_FROM_Z }, { T.YONGE_X, -8240 } } },
-	{ "University Ave", "arterial", { { -404, T.FRONT_Z }, { -404, -3054 } } },
-	{ "Avenue Rd", "avenue", { { -404, -3054 }, { -185, -3960 }, { -170, -4921 }, { -200, -5691 }, { -230, -6387 } } },
+	{ "University Ave", "arterial", { { T.UNIVERSITY_X, T.FRONT_Z }, { T.UNIVERSITY_X, -3054 } } },
+	{ "Avenue Rd", "avenue", { { T.UNIVERSITY_X, -3054 }, { -185, -3960 }, { -170, -4921 }, { -200, -5691 }, { -230, -6387 } } },
 	{ "Bay St", "avenue", { { T.BAY_X, T.WATERFRONT_Z }, { T.BAY_X, -3054 } } },
 	{ "Church St", "street", { { 303, T.WATERFRONT_Z }, { 303, -3054 } } },
 	{ "Jarvis St", "street", { { 464, T.WATERFRONT_Z }, { 464, -3054 } } },
 	{ "Mount Pleasant Rd", "avenue", { { 464, -3054 }, { 430, -3960 }, { 420, -4921 }, { 420, -5691 } } },
 	{ "Sherbourne St", "street", { { 650, T.WATERFRONT_Z }, { 650, -3054 } } },
 	{ "Parliament St", "street", { { 900, T.WATERFRONT_Z }, { 900, -3054 } } },
-	{ "Bathurst St", "arterial", { { -650, T.FRONT_Z }, { -650, -8240 } } },
+	{ "Bathurst St", "arterial", { { T.BATHURST_X, T.FRONT_Z }, { T.BATHURST_X, -8240 } } },
 	{ "Bayview Ave", "arterial", { { 850, -3354 }, { 850, -8240 } } },
 	{ "Beecroft Rd", "street", { { -160, -7078 }, { -160, -7864 } } },
 	{ "Doris Ave", "street", { { 300, -7078 }, { 300, -7864 } } },
@@ -118,10 +124,10 @@ T.HWY401_Z = -6900
 ---------------------------------------------------------------------------
 T.NEEDLE = Vector2.new(-560, -935) -- CN Tower, between Front and the waterfront
 T.DOME = Vector2.new(-680, -938) -- Rogers Centre beside it
-T.UNION = Vector2.new(-260, -935) -- Union Station on Front St, between Bay and University
+T.UNION = Vector2.new(-421, -935) -- Union Station on Front St, between Bay and University
 T.FINANCIAL = Vector2.new(T.BAY_X, -1293) -- King & Bay
-T.CITY_HALL = { minX = -352, maxX = -202, minZ = -1860, maxZ = -1668 } -- Queen & Bay, north-west
-T.EATON = { minX = -109, maxX = 57, minZ = -1866, maxZ = -1661 } -- Yonge to James St, Queen to Dundas (stretched below)
+T.CITY_HALL = { minX = -474, maxX = -368, minZ = -1860, maxZ = -1668 } -- Queen & Bay, north-west
+T.EATON = { minX = -270, maxX = 57, minZ = -1866, maxZ = -1661 } -- Yonge to James St, Queen to Dundas (stretched below)
 -- The passage from the Eaton Centre's concourse to Dundas station leaves the
 -- concourse's north edge here (plan feet: u north of Queen St, v west of Yonge).
 -- Transit fills in .x (the passage's world x) when it lays the station out.
@@ -138,9 +144,9 @@ T.TMU_SOUTH = { minX = 330, maxX = 436, minZ = -2052, maxZ = -1957 }
 -- University of Toronto, between Bathurst and University Ave, College to Bloor:
 -- King's College Circle, University College and Convocation Hall to the south,
 -- Hart House and Robarts Library to the north.
-T.UOFT_SOUTH = { minX = -604, maxX = -450, minZ = -2600, maxZ = -2295 }
-T.UOFT_NORTH = { minX = -604, maxX = -450, minZ = -3006, maxZ = -2660 }
-T.ROM = Vector2.new(-480, -3150) -- Bloor & Avenue Rd
+T.UOFT_SOUTH = { minX = -726, maxX = -572, minZ = -2600, maxZ = -2295 }
+T.UOFT_NORTH = { minX = -726, maxX = -572, minZ = -3006, maxZ = -2660 }
+T.ROM = Vector2.new(-570, -3150) -- Bloor & Avenue Rd
 T.YONGE_EGLINTON_CENTRE = Vector2.new(258, -5040) -- walkable mall, north-east of Yonge & Eglinton
 T.MEL_LASTMAN = { minX = -130, maxX = 38, minZ = -7335, maxZ = -7125 } -- civic square, west of Yonge
 T.NY_TOWERS = { Vector2.new(360, -7240), Vector2.new(420, -7180) } -- twisting condo pair
@@ -198,7 +204,7 @@ end
 -- everything north of it (stations, streets, landmarks, building heights, the map
 -- bounds) shift together, so nothing north of Dundas changes shape.
 ---------------------------------------------------------------------------
-T.GROW = 505
+T.GROW = 1220
 T.GROW_CUT = -1700 -- between Queen St and the old Dundas St
 
 function T.shiftZ(z)

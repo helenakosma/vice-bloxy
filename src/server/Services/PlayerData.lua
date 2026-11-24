@@ -17,6 +17,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local IS_STUDIO = RunService:IsStudio()
 
 local Economy = require(ReplicatedStorage.Shared.Economy)
 
@@ -95,11 +96,14 @@ local function tryLoad(player)
 		return store:UpdateAsync(key(player), function(old)
 			old = old or template(player)
 			local lock = old.__lock
-			if lock and lock.id ~= SESSION and os.time() - (lock.t or 0) < Economy.SessionLockSeconds then
+			-- A lock left by an earlier Studio test (stopping Play often skips the
+			-- final save) is taken over in Studio; live servers' locks never are.
+			local staleStudio = IS_STUDIO and lock and lock.studio
+			if lock and lock.id ~= SESSION and not staleStudio and os.time() - (lock.t or 0) < Economy.SessionLockSeconds then
 				lockedElsewhere = true
 				return nil -- leave it alone; the other server still has it
 			end
-			old.__lock = { id = SESSION, t = os.time() }
+			old.__lock = { id = SESSION, t = os.time(), studio = IS_STUDIO or nil }
 			return old
 		end)
 	end)
@@ -148,7 +152,7 @@ local function save(player, entry, release)
 					lost = true -- another server took over: never overwrite its copy
 					return nil
 				end
-				data.__lock = (not release) and { id = SESSION, t = os.time() } or nil
+				data.__lock = (not release) and { id = SESSION, t = os.time(), studio = IS_STUDIO or nil } or nil
 				return data
 			end)
 		end)

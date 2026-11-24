@@ -45,7 +45,7 @@ end
 ---------------------------------------------------------------------------
 local S = 0.35 -- street level
 Layout.STREET = S
-Layout.EXPRESSWAY_X = -800
+Layout.EXPRESSWAY_X = -900 -- west of Bathurst St (TorontoLayout.BATHURST_X)
 Layout.EXPRESSWAY_WIDTH = 100
 Layout.HARBOR_WIDTH = 72
 Layout.RAMP_WIDTH = 38

@@ -344,7 +344,7 @@ function Toronto.build(ctx)
 		ads = true,
 	})
 	-- Fill the inside of downtown blocks so the core reads as solid city.
-	local filled = Buildings.fillGaps(buildings, rng, { minX = -640, maxX = 1060, minZ = T.shiftZ(-3200), maxZ = -900 })
+	local filled = Buildings.fillGaps(buildings, rng, { minX = T.BATHURST_X - 10, maxX = 1060, minZ = T.shiftZ(-3200), maxZ = -900 })
 
 	-- Street furniture on Yonge, the downtown streets and the main cross streets.
 	local furnished = {}

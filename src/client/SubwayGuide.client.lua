@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
+local IndoorZones = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IndoorZones"))
 local entrances = HttpService:JSONDecode(ReplicatedStorage:WaitForChild("SubwayEntrances").Value)
 if #entrances == 0 then
 	return
@@ -58,7 +59,7 @@ RunService.RenderStepped:Connect(function()
 			best, bestDist = e, d
 		end
 	end
-	pill.Visible = best ~= nil and pos.Y > -3 and bestDist > 10
+	pill.Visible = best ~= nil and pos.Y > -3 and bestDist > 10 and not IndoorZones.contains(pos)
 	if not pill.Visible then
 		return
 	end

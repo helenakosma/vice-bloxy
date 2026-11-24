@@ -147,6 +147,23 @@ def entrance_arrows(page, level):
     return [(sum(a for a, _ in c) / len(c), sum(b for _, b in c) / len(c)) for c in clusters]
 
 
+def labelled(page, level, words):
+    """Positions (plan feet) of words like WASHROOM on a level's sheet."""
+    import pymupdf as fitz
+    M = page.rotation_matrix
+    s = level["ptPerFt"]
+    q, y = level["registration"]["queenPx"] / X.RES, level["registration"]["yongePx"] / X.RES
+    out = []
+    for w in page.get_text("words"):
+        if w[4].upper().strip(".,") in words:
+            r = fitz.Rect(w[:4]) * M
+            u = (r.x0 + r.x1) / 2 / s - q
+            v = y - (r.y0 + r.y1) / 2 / s
+            if inside_clip(u, v) and not any(math.hypot(u - a, v - b) < 15 for a, b in out):
+                out.append((round(u, 1), round(v, 1)))
+    return out
+
+
 def main(pdf):
     os.makedirs(DEST, exist_ok=True)
     import pymupdf as fitz
@@ -183,7 +200,7 @@ def main(pdf):
     # over each escalator (except over its low end, where there's headroom), with
     # balustrades along the cut, and the foot gets a patch of floor if it lands
     # over an opening. The top end is the drawn end that leads on to corridor on
-    # the upper floor; the run is long enough for a 35-degree climb at our storey
+    # the upper floor; the run is long enough for a 30-degree climb at our storey
     # heights (Level 1 0.75, Levels 2-3 every 20 studs, concourse -17).
     import re as _re
     circ_src = open(os.path.join(DEST, "Circulation.lua"), encoding="utf-8").read()
@@ -192,9 +209,9 @@ def main(pdf):
         banks.append(dict(zip(("from", "to", "u", "v", "au", "av", "length"), (int(m.group(1)), int(m.group(2)), *map(float, m.group(3, 4, 5, 6, 7))))))
     level_names = {0: "concourse", 1: "L1", 2: "L2", 3: "L3"}
     level_y = {0: -17.0, 1: 0.75, 2: 20.75, 3: 40.75}
-    STUDS_PER_FT = 0.5
-    PAIR_HALF_FT = 13 + 1  # an up/down pair is 13 studs wide (26 ft), plus a margin
-    HEADROOM_FT = 30  # floor can stay over the lowest 30 ft of the run
+    STUDS_PER_FT = 1.0  # TorontoLayout.EATON_SCALE (true scale)
+    PAIR_HALF_FT = 13 / 2 / STUDS_PER_FT + 1  # an up/down pair is 13 studs wide, plus a margin
+    HEADROOM_FT = 20  # floor can stay over the lowest 20 ft of the run
     esc_cuts = {k: [] for k in levels}  # level -> oriented boxes to open
     esc_patches = {k: [] for k in levels}  # level -> oriented boxes to fill
     esc_rails = {k: [] for k in levels}
@@ -218,7 +235,7 @@ def main(pdf):
         up_common = raster(upper["common"])
         up_foot = raster(upper["footprint"])
         rise = level_y[bk["to"]] - level_y[bk["from"]]
-        run = max(bk["length"], rise / math.tan(math.radians(35)) / STUDS_PER_FT)
+        run = max(bk["length"], rise / math.tan(math.radians(30)) / STUDS_PER_FT)
         best = None
         for sgn in (1, -1):
             eu, ev = bk["u"] + sgn * au * bk["length"] / 2, bk["v"] + sgn * av * bk["length"] / 2
@@ -347,7 +364,11 @@ def main(pdf):
                         rec["front"] = [round(a[0], 1), round(a[1], 1), round(b[0], 1), round(b[1], 1), round(nx, 2), round(ny, 2)]
                     # Pull unit walls in a little so neighbours' walls don't overlap.
                     pull = 0.4
-                    walls.append((round(a[0] - nx * pull, 1), round(a[1] - ny * pull, 1), round(b[0] - nx * pull, 1), round(b[1] - ny * pull, 1), kind))
+                    w_ = (round(a[0] - nx * pull, 1), round(a[1] - ny * pull, 1), round(b[0] - nx * pull, 1), round(b[1] - ny * pull, 1), kind)
+                    if kind == 2:
+                        # Storefronts carry their unit, and which way is out (to the corridor).
+                        w_ = w_ + (un["unit"], round(nx, 2), round(ny, 2))
+                    walls.append(w_)
 
         def in_path(w):
             mu, mv = (w[0] + w[2]) / 2, (w[1] + w[3]) / 2
@@ -389,6 +410,8 @@ def main(pdf):
         body += ["\t},", "\tunits = {"]
         body += [f"\t\t{lua_value(u)}," for u in units]
         body += ["\t},", f"\tentranceArrows = {lua_value([[round(a, 1), round(b, 1)] for a, b in arrows[name]])},"]
+        washrooms = [list(p) for p in labelled(doc[d["page"] - 1], d, ("WASHROOM", "WASHROOMS"))]
+        body += [f"\twashrooms = {lua_value(washrooms)},"]
         body += [f"\tlifts = {lua_value(lifts)},", f"\tescalators = {lua_value(escalators)},", "}", ""]
         with open(os.path.join(DEST, name + ".lua"), "w", encoding="utf-8") as f:
             f.write("\n".join(body))
