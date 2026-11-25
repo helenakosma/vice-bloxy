@@ -248,7 +248,10 @@ end
 
 local function startShift(player, workplace)
 	local data = PlayerData.get(player)
-	local c = data and data.employment.current
+	if not data or not data.activeCharacterId then
+		return false, "Roll for your first character before working"
+	end
+	local c = data.employment.current
 	if not c then
 		return false, "You need a job first: open the Jobs app"
 	end

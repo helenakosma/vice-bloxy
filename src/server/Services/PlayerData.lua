@@ -23,7 +23,7 @@ local Economy = require(ReplicatedStorage.Shared.Economy)
 
 local PlayerData = {}
 
-local VERSION = 1
+local VERSION = 2
 local SESSION = HttpService:GenerateGUID(false)
 
 local store = nil
@@ -48,6 +48,8 @@ local function template(player)
 			privacy = { profile = "public", job = true, home = true, education = true },
 		},
 		money = { balance = Economy.StartingBalance, ledger = {}, seen = {} },
+		level = 1,
+		characters = {},
 		transit = { card = false, balance = 0 },
 		phone = { wallpaper = 1, theme = "dark", notify = { bank = true, jobs = true, system = true } },
 		inbox = {},
@@ -75,7 +77,6 @@ local function reconcile(data, base)
 end
 
 local function migrate(data)
-	-- Future: if data.version < 2 then ... end
 	data.version = VERSION
 	return data
 end

@@ -1,5 +1,11 @@
 -- Tunable game settings shared by server and client.
 return {
+	Characters = {
+		StartingLevel = 1,
+		StarterStatMin = 1,
+		StarterStatMax = 10,
+	},
+
 	-- Money, wages, rent and other economy numbers are in Shared/Economy.lua.
 
 	DayNight = {

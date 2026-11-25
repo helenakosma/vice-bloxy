@@ -1,5 +1,8 @@
 local Players = game:GetService("Players")
 
+-- Spawn only after the city and the player's profile are ready.
+Players.CharacterAutoLoads = false
+
 local Remotes = require(script.Parent.Remotes)
 require(script.Parent.Fares) -- transit card, fare gates, bus fares
 local Cars = require(script.Parent.Cars)
@@ -28,6 +31,7 @@ require(script.Parent.World.Atmosphere).startCycle()
 for _, spawn in ipairs(info.carSpawns) do
 	Cars.spawn(spawn.cframe, { taxi = spawn.taxi })
 end
+require(Services.Characters).start()
 
 -- Falling into the water is fatal (there's no swimming): respawn at the spawn point.
 -- The subway's underground spaces (info.safeZones) don't count.
