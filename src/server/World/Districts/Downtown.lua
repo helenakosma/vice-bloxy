@@ -65,7 +65,8 @@ function Downtown.build(ctx)
 	Roads.render(ctx.makeFolder(folder, "Roads"), roads, { ramps = hero and hero.contains })
 	Props.buildPark(ctx.makeFolder(folder, "Park"), rng)
 	local cz = Layout.CAUSEWAY_Z
-	Props.buildRiver(ctx.makeFolder(folder, "River"), { { minZ = cz - 45, maxZ = cz + 45 } })
+	-- The railing leaves a gap for Vice Beach's causeway only while that island is in the game.
+	Props.buildRiver(ctx.makeFolder(folder, "River"), Layout.VICE_BEACH_ACTIVE and { { minZ = cz - 45, maxZ = cz + 45 } } or {})
 	Util.seawall(ctx.makeFolder(folder, "Seawall"), Downtown.bounds, { east = true })
 
 	local buildings = ctx.makeFolder(folder, "Buildings")

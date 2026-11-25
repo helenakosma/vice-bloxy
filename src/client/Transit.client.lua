@@ -665,9 +665,11 @@ RunService.PreSimulation:Connect(function()
 			local sign = r.signs[leg.path]
 			local n = #train.cars
 			local riding = false
+			local outer = r.sidePlatformX and r.sidePlatformX[leg.station]
+			local platformX = outer and outer[leg.path] or r.platformX
 			for c, car in ipairs(train.cars) do
 				local centre = s + sign * (c - (n + 1) / 2) * spacing
-				if place(car, carCFrame(path, centre, r.carLength, sign), leg.dwell == true, r.platformX, root, r.carLength, halfW, height) then
+				if place(car, carCFrame(path, centre, r.carLength, sign), leg.dwell == true, platformX, root, r.carLength, halfW, height) then
 					riding = true
 				end
 			end

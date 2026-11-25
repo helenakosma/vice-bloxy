@@ -15,6 +15,7 @@ local Atmosphere = require(script.Atmosphere)
 local Highways = require(script.Highways)
 local Buildings = require(script.Buildings)
 local Transit = require(script.Transit)
+local Layout = require(script.Layout)
 
 local World = {}
 
@@ -26,8 +27,13 @@ local DISTRICTS = {
 	require(script.Districts.Toronto),
 	require(script.Districts.Industrial),
 	require(script.Districts.Suburbs),
-	require(script.Districts.ViceBeach),
 }
+-- Vice Beach (Miami-inspired) is inactive while the game is Toronto-only; see
+-- Layout.VICE_BEACH_ACTIVE. It goes last, so leaving it out changes no other
+-- district's random seed.
+if Layout.VICE_BEACH_ACTIVE then
+	table.insert(DISTRICTS, require(script.Districts.ViceBeach))
+end
 
 local function makeFolder(parent, name)
 	local f = Instance.new("Folder")

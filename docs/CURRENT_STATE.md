@@ -15,7 +15,16 @@ This snapshot covers the local working tree, including Eaton Centre and transit 
 | [src/client](../src/client), [src/shared](../src/shared) | Client UI, transit motion, driving and visual effects. Shared modules hold gameplay settings, balance values, catalogs, physics, and asset IDs. |
 | [assets/textures](../assets/textures), [tools/eaton](../tools/eaton) | Texture PNG sources and offline mall plan extraction, Lua generation and tenant tooling. Runtime texture IDs live in `Assets.lua`. `AssetCheck.client.lua` reports load failures. |
 
-The active build list contains Downtown (Manhattan-style), Toronto, Industrial, Suburbs, and Vice Beach (Miami-inspired). Industrial and Suburbs largely supply roads. The first district offering a player spawn wins, so list order matters. The README still describes the original neon-coast crime-game concept. The approved Toronto-only direction is documented in [Game Vision](GAME_VISION.md).
+The active build list contains Downtown (Manhattan-style), Toronto, Industrial, and Suburbs. Industrial and Suburbs largely supply roads. The first district offering a player spawn wins, so list order matters. Players still spawn in the legacy Downtown district.
+
+**Vice Beach (Miami-inspired) is disabled.** The game is Toronto-only. `Layout.VICE_BEACH_ACTIVE = false` leaves it out:
+- The district is not in the build list.
+- The suspension bridge isn't built, and the Expressway and Harbor Freeway end at "ROAD CLOSED" barriers.
+- Downtown's river railing is closed where the causeway crossed.
+- The Vice Beach gantry signs and the "Vice Beach" area name on the minimap and phone are gone.
+- The beach shuttle bus doesn't start, because there's no boulevard road for it.
+
+`Districts/ViceBeach.lua` and `ViceStyles.lua` are kept, inactive. Setting the switch to true restores the island, causeway, bridge and signs. The approved Toronto-only direction is in [Game Vision](GAME_VISION.md), and the society plans are in [Society Design](SOCIETY_DESIGN.md) and [Society Architecture](SOCIETY_ARCHITECTURE.md).
 
 ## Eaton Centre and station interface
 

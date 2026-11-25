@@ -252,10 +252,15 @@ end
 
 function Highways.layout(shared)
 	local W = Layout.RAMP_WIDTH
-	add({ name = "Expressway", width = Layout.EXPRESSWAY_WIDTH, lanes = 3, control = Layout.EXPRESSWAY, median = true, pillarsInWater = true })
-	add({ name = "HarborFreeway", width = Layout.HARBOR_WIDTH, lanes = 2, control = Layout.HARBOR, median = true, pillarsInWater = true, lift = 0.03 })
+	-- Without Vice Beach the expressway and the Harbor Freeway end where they
+	-- used to run on to the suspension bridge: closed off with a barrier.
+	local bridge = Layout.VICE_BEACH_ACTIVE
+	add({ name = "Expressway", width = Layout.EXPRESSWAY_WIDTH, lanes = 3, control = Layout.EXPRESSWAY, median = true, pillarsInWater = true, closedEnd = not bridge })
+	add({ name = "HarborFreeway", width = Layout.HARBOR_WIDTH, lanes = 2, control = Layout.HARBOR, median = true, pillarsInWater = true, lift = 0.03, closedEnd = not bridge })
 	add({ name = "Highway401", width = Layout.HWY401_WIDTH, lanes = 4, control = Layout.HWY401, median = true })
-	add({ name = "SuspensionBridge", width = Layout.EXPRESSWAY_WIDTH, lanes = 3, control = Layout.BRIDGE, median = true, towersX = Layout.BRIDGE_TOWERS_X })
+	if bridge then
+		add({ name = "SuspensionBridge", width = Layout.EXPRESSWAY_WIDTH, lanes = 3, control = Layout.BRIDGE, median = true, towersX = Layout.BRIDGE_TOWERS_X })
+	end
 	for _, name in ipairs({ "NorthConnector", "SouthConnector", "Industrial" }) do
 		add({ name = name .. "Ramp", width = W, lanes = 1, control = Layout.RAMPS[name], pillarsInWater = true, lift = 0.05 })
 	end
@@ -522,12 +527,38 @@ local function render(folder, hw)
 	end
 end
 
+-- A closed end: a concrete barrier across the deck with a "ROAD CLOSED" board.
+local function closeEnd(f, hw)
+	local pts = hw.points
+	local p, q = pts[#pts], pts[#pts - 1]
+	if not (p and q) then
+		return
+	end
+	local dir = Vector3.new(p.X - q.X, 0, p.Z - q.Z)
+	if dir.Magnitude < 0.01 then
+		return
+	end
+	dir = dir.Unit
+	local at = p - dir * 3 + V3(0, 2, 0)
+	local cf = CFrame.lookAt(at, at + dir)
+	local barrier = Util.solid(f, V3(hw.width + 2, 4, 2), cf, CONCRETE, M.Concrete)
+	barrier.Name = "RoadClosed"
+	for k = -2, 2 do
+		Util.deco(f, V3(hw.width / 6, 1, 0.2), cf * CFrame.new(k * hw.width / 5, 0.5, -1.05), k % 2 == 0 and YELLOW or Color3.fromRGB(30, 30, 30), M.SmoothPlastic)
+	end
+	local board = Util.deco(f, V3(18, 4, 0.4), cf * CFrame.new(0, 5, -0.6), WHITE, M.SmoothPlastic)
+	Util.sign(board, Enum.NormalId.Back, "ROAD CLOSED", Color3.fromRGB(200, 30, 30), Enum.Font.GothamBlack)
+end
+
 function Highways.build(folder)
 	for _, hw in ipairs(list) do
 		local f = Instance.new("Folder")
 		f.Name = hw.name
 		f.Parent = folder
 		render(f, hw)
+		if hw.closedEnd then
+			closeEnd(f, hw)
+		end
 	end
 end
 

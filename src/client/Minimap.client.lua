@@ -428,8 +428,6 @@ task.spawn(function()
 			if not name then
 				if p.Z < -800 then
 					name = "Toronto"
-				elseif p.X > 1100 then
-					name = "Vice Beach"
 				elseif p.Z > 700 then
 					name = "Port Lands"
 				else

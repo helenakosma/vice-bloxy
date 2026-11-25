@@ -239,7 +239,8 @@ function Exterior.build(folder, P, S, base, levelY, rng, names)
 			if k >= 6 and k <= 15 then
 				local leaf = glass(a, b, base, 12, C(200, 220, 230), 0.7, false)
 				leaf.Name = "Door"
-				if k % 2 == 0 then
+				-- Keep a clear swinging-door lane beside each revolving bay.
+				if k == 8 or k == 13 then
 					local mid = (pa + pb) / 2 - o * 3 + V3(0, base + 4.25, 0)
 					local revolving = Util.cylinder(f, 8.5, 5.5, CFrame.new(mid), C(200, 220, 230), M.Glass, false)
 					revolving.Transparency = 0.65
@@ -248,7 +249,9 @@ function Exterior.build(folder, P, S, base, levelY, rng, names)
 				glass(a, b, base, 12, C(176, 200, 214), 0.4).Name = "ShopWindow"
 			end
 			panelAt(a, b, base + 12, skinY - (base + 12), 0.8, FRAME, M.Metal)
-			Util.deco(f, V3(0.5, 12, 0.5), CFrame.new(pa + V3(0, base + 6, 0)), FRAME, M.Metal)
+			if k < 6 or k > 15 or k % 2 == 0 then
+				Util.deco(f, V3(0.5, 12, 0.5), CFrame.new(pa + V3(0, base + 6, 0)), FRAME, M.Metal)
+			end
 			local cm = (pa + pb) / 2 + o * 3 + V3(0, skinY - 0.4, 0)
 			Util.deco(f, V3((pb - pa).Magnitude + 0.5, 0.8, 7), CFrame.lookAt(cm, cm + o), WHITE, M.SmoothPlastic)
 			glass(a, b, skinY, l2 + 12 - skinY, C(150, 180, 205), 0.35).Reflectance = 0.25
@@ -323,15 +326,10 @@ function Exterior.build(folder, P, S, base, levelY, rng, names)
 	-- light frames and a panel band up to the cladding, or the store's doors.
 	local SILVER = C(200, 202, 206)
 	local function groundFace(a, b, doors)
-		local pa, pb = P(a[1], a[2], 0), P(b[1], b[2], 0)
+		local pa = P(a[1], a[2], 0)
 		if doors then
 			local leaf = glass(a, b, base, 12, C(200, 220, 230), 0.7, false)
 			leaf.Name = "Door"
-			local mid = (pa + pb) / 2
-			local inward = (P(KCU, KCV, 0) - mid)
-			inward = V3(inward.X, 0, inward.Z).Unit
-			local drum = Util.cylinder(f, 8.5, 5, CFrame.new(mid + inward * 2.7 + V3(0, base + 4.25, 0)), C(200, 220, 230), M.Glass, false)
-			drum.Transparency = 0.65
 			panelAt(a, b, base + 12, 2.5, 0.6, C(232, 228, 216), M.Glass, false).Transparency = 0.4
 		else
 			local g = glass(a, b, base, 14.5, C(238, 232, 222), 0.3)
@@ -370,8 +368,18 @@ function Exterior.build(folder, P, S, base, levelY, rng, names)
 		end
 		for k = 0, SEG - 1 do
 			cladding({ cp(k / SEG) }, { cp((k + 1) / SEG) })
-			-- Doors round the middle of the curve, windows at its ends.
-			groundFace({ cp(k / SEG) }, { cp((k + 1) / SEG) }, k >= 1 and k <= SEG - 2)
+			if k == 0 or k == SEG - 1 then
+				groundFace({ cp(k / SEG) }, { cp((k + 1) / SEG) }, false)
+			end
+		end
+		-- The upper sign wraps the corner above a recessed bank facing the crossing.
+		local au, av = cp(1 / SEG)
+		local bu, bv = cp(1 - 1 / SEG)
+		for bay = 0, 3 do
+			local function jamb(t)
+				return { au + (bu - au) * t, av + (bv - av) * t }
+			end
+			groundFace(jamb(bay / 4), jamb((bay + 1) / 4), bay == 1 or bay == 2)
 		end
 		local diag = (P(1, -1, 0) - P(0, 0, 0)).Unit
 		if names.dundas then

@@ -2,7 +2,7 @@
 
 ## Player experience
 
-Vice Bloxy is an open-world Roblox city and life simulator set in Toronto. Open-world exploration and driving are part of the experience alongside persistent multiplayer social and economic progression. Players choose how to spend their time. A player could take the subway to a shift, meet friends at a café, apply for school, save for a better apartment, or explore downtown without following a prescribed storyline. Toronto is the sole map direction. The older New York and Miami design influences have been superseded.
+Vice Bloxy is an open-world Roblox city and life simulator set in Toronto. Open-world exploration and driving are part of the experience alongside persistent multiplayer social and economic progression. Players choose how to spend their time. A player could take the subway to a shift, meet friends at a café, apply for school, save for a better apartment, or explore downtown without following a prescribed storyline. Toronto is the sole map direction. The older New York and Miami design influences have been superseded. The Miami-inspired Vice Beach district is disabled in the build (its source is kept inactive, see [Current State](CURRENT_STATE.md)). The legacy Manhattan-style Downtown, Industrial and Suburbs districts still build, and Downtown still holds the spawn, pending a decision. The society gameplay vision is in [Society Design](SOCIETY_DESIGN.md).
 
 ## Toronto and the built environment
 

@@ -11,6 +11,12 @@ Layout.SUBURBS = { minX = -1800, maxX = -700, minZ = -730, maxZ = 1200 }
 Layout.INDUSTRIAL = { minX = -700, maxX = 594, minZ = 700, maxZ = 1200 }
 Layout.VICE_BEACH = { minX = 1100, maxX = 2300, minZ = -300, maxZ = 1300 }
 
+-- Vice Beach (the Miami-inspired island) is out of the playable world: the game
+-- is Toronto-only. Its district module, building styles and the bridge stay in
+-- the source, inactive; setting this to true brings the island, its causeway,
+-- the suspension bridge and their signs back exactly as they were.
+Layout.VICE_BEACH_ACTIVE = false
+
 ---------------------------------------------------------------------------
 -- Surface roads that several districts need to agree on
 ---------------------------------------------------------------------------
@@ -178,21 +184,21 @@ Layout.SIGNS = {
 		{ at = Vector2.new(EX, TorontoLayout.shiftZ(-3054)), text = "BLOOR ST  ·  1 KM" },
 		{ at = Vector2.new(EX, -1300), text = "DOWNTOWN  ·  HARBOR FWY" },
 		{ at = Vector2.new(EX, -200), text = "DOWNTOWN  EXIT" },
-		{ at = Vector2.new(EX, 760), text = "INDUSTRIAL  ·  VICE BEACH" },
-		{ at = Vector2.new(-100, 1100), text = "VICE BEACH  ·  BRIDGE" },
+		{ at = Vector2.new(EX, 760), text = Layout.VICE_BEACH_ACTIVE and "INDUSTRIAL  ·  VICE BEACH" or "INDUSTRIAL  ·  PORT LANDS" },
+		Layout.VICE_BEACH_ACTIVE and { at = Vector2.new(-100, 1100), text = "VICE BEACH  ·  BRIDGE" } or nil,
 	},
 	HarborFreeway = {
 		{ at = Vector2.new(-1000, -725), text = "DOWNTOWN  ·  EXPRESSWAY" },
 		{ at = Vector2.new(0, -745), text = "HARBOR FWY  EAST" },
-		{ at = Vector2.new(637, 300), text = "VICE BEACH" },
+		Layout.VICE_BEACH_ACTIVE and { at = Vector2.new(637, 300), text = "VICE BEACH" } or nil,
 	},
 	Highway401 = {
 		{ at = Vector2.new(-200, H401), text = "401  EXPRESS  ·  YONGE ST" },
 		{ at = Vector2.new(500, H401), text = "401  ·  BAYVIEW AVE" },
 	},
-	SuspensionBridge = {
+	SuspensionBridge = Layout.VICE_BEACH_ACTIVE and {
 		{ at = Vector2.new(1100, 1100), text = "WELCOME TO VICE BEACH" },
-	},
+	} or {},
 }
 
 return Layout

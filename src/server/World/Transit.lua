@@ -23,6 +23,8 @@ local Kit = require(script.Parent.StationKit)
 local Billboards = require(script.Parent.Billboards)
 local Config = require(ReplicatedStorage.Shared.Config)
 
+local TMU = require(script.Parent.TMUStation)
+
 local Transit = {}
 
 local V3 = Vector3.new
@@ -308,6 +310,9 @@ function Transit.layout(shared)
 		if not station.elevated then
 			local zc = station.z
 			hole(V3(LINE_X - HALF - 1, RAIL - 2, zc - STATION_HALF - 1), V3(LINE_X + HALF + 1, STATION_TOP + 1, zc + STATION_HALF + 1))
+			if station.name == "DUNDAS" then
+				TMU.reserve(hole, LINE_X, zc - STATION_HALF, 2 * STATION_HALF, RAIL + FLOOR_UP, CONCOURSE)
+			end
 			-- Ticket hall over the north end of the platform.
 			local cz0, cz1 = zc - STATION_HALF, zc - STATION_HALF + HALL_LEN
 			hole(V3(LINE_X - HALL_HALF - 1.5, CONCOURSE - 1, cz0 - 1.5), V3(LINE_X + HALL_HALF + 1.5, CONCOURSE_TOP + 0.5, cz1 + 1.5))
@@ -324,7 +329,7 @@ function Transit.layout(shared)
 				local route = e.route
 				local inside = route == "inside"
 				local sd = -toward -- which side of the line the entrance is on
-				local spineX = LINE_X + sd * SPINE_OFF
+				local spineX = LINE_X + sd * (station.name == "DUNDAS" and 88 or SPINE_OFF)
 				local hallZ = cz0 + HALL_DOOR
 				-- Entrance: open down to the stairs under the building, roofed beyond.
 				local a0, a1 = zr(-21.5, 11)
@@ -345,6 +350,10 @@ function Transit.layout(shared)
 				if route == "north" then
 					hole(V3(LINE_X - 11, CONCOURSE - 1, passZ), V3(LINE_X + 11, PASSAGE_TOP + 1, cz0))
 				elseif route == "spine" then
+					if station.name == "DUNDAS" then
+						local wallX = LINE_X + sd * HALL_HALF
+						hole(V3(math.min(wallX, spineX)-1, CONCOURSE-1, hallZ-11), V3(math.max(wallX, spineX)+1, PASSAGE_TOP+1, hallZ+11))
+					end
 					hole(V3(spineX - 11, CONCOURSE - 1, math.min(passZ, hallZ) - 11), V3(spineX + 11, PASSAGE_TOP + 1, math.max(passZ, hallZ) + 11))
 				end
 				table.insert(list, { spot = spot, sz = sz, reach = e.reach, passZ = passZ, toward = toward, inside = inside, route = route, xa = xa, xb = xb, sd = sd, spineX = spineX, hallZ = hallZ })
@@ -571,7 +580,7 @@ end
 ---------------------------------------------------------------------------
 -- Underground stations
 ---------------------------------------------------------------------------
-local function buildStation(folder, station, entrances)
+local function buildIslandPlatform(folder, station, rng)
 	local zc = station.z
 	local platformTop = RAIL + FLOOR_UP
 	local z0, z1 = zc - STATION_HALF, zc + STATION_HALF
@@ -582,7 +591,6 @@ local function buildStation(folder, station, entrances)
 	local function inStairs(z, pad)
 		return z > stairZ0 - pad and z < stairZ1 + pad
 	end
-	local rng = Random.new(math.floor(zc) + 7)
 	local PAINT = Color3.fromRGB(226, 224, 218)
 	local bandTop = platformTop + 9 -- top of the tiled band on the track walls
 
@@ -716,6 +724,17 @@ local function buildStation(folder, station, entrances)
 		Util.sign(sign, Front, "NO ENTRY · AUTHORIZED PERSONNEL", Color3.fromRGB(250, 204, 30), Enum.Font.GothamBold).LightInfluence = 0.3
 	end
 
+end
+
+local function buildStation(folder, station, entrances)
+	local z0, z1 = station.z - STATION_HALF, station.z + STATION_HALF
+	local cz0, cz1 = z0, z0 + HALL_LEN
+	local stairZ0, stairZ1 = z0 + 50, z0 + 76
+	local platformTop = RAIL + FLOOR_UP
+	local rng = Random.new(math.floor(station.z) + 7)
+	if station.name ~= "DUNDAS" then
+		buildIslandPlatform(folder, station, rng)
+	end
 	-- Signals at the platform ends, on the walkway side of each track.
 	for _, side in ipairs({ -1, 1 }) do
 		-- Northbound (east, +x) trains leave from the north end; southbound from the south.
@@ -727,12 +746,14 @@ local function buildStation(folder, station, entrances)
 	-- Ticket hall, passages and street entrances (StationKit).
 	local gaps = { [-1] = {}, [1] = {} }
 	local north = {}
+	local northSide
 	for _, e in ipairs(entrances) do
 		if e.route == "inside" then
 			table.insert(gaps[e.sd], { e.passZ - 10, e.passZ + 10 })
 		elseif e.route == "spine" then
 			table.insert(gaps[e.sd], { e.hallZ - 10, e.hallZ + 10 })
 		else
+			northSide = e.sd
 			table.insert(north, { LINE_X - 10, LINE_X + 10 })
 		end
 	end
@@ -740,27 +761,36 @@ local function buildStation(folder, station, entrances)
 	if mallLink and mallLink.kind == "door" then
 		table.insert(gaps[-1], { mallLink.doorZ - 10, mallLink.doorZ + 10 })
 	end
-	local names = {}
-	for _, s in ipairs(STATIONS) do
-		table.insert(names, s.name)
+	if station.name == "DUNDAS" then
+		-- Contained: a failure here must not stop the rest of the world (cars,
+		-- trains) from being built.
+		local ok, err = pcall(TMU.build, folder, station, LINE_X, z0, 2 * STATION_HALF, TRACK, platformTop, CONCOURSE, HALL_HALF, gaps, north, northSide)
+		if not ok then
+			warn("[Transit] TMU station build failed: " .. tostring(err))
+		end
+	else
+		local names = {}
+		for _, s in ipairs(STATIONS) do
+			table.insert(names, s.name)
+		end
+		Kit.concourse(folder, station, {
+			x = LINE_X,
+			floor = CONCOURSE,
+			top = CONCOURSE_TOP,
+			passageTop = PASSAGE_TOP,
+			z0 = cz0,
+			z1 = cz1,
+			fareZ = cz0 + FARE_AT,
+			stair0 = stairZ0,
+			stair1 = stairZ1,
+			platformTop = platformTop,
+			half = HALL_HALF,
+			gapsWest = gaps[-1],
+			gapsEast = gaps[1],
+			gapsNorth = north,
+			stations = names,
+		}, rng)
 	end
-	Kit.concourse(folder, station, {
-		x = LINE_X,
-		floor = CONCOURSE,
-		top = CONCOURSE_TOP,
-		passageTop = PASSAGE_TOP,
-		z0 = cz0,
-		z1 = cz1,
-		fareZ = cz0 + FARE_AT,
-		stair0 = stairZ0,
-		stair1 = stairZ1,
-		platformTop = platformTop,
-		half = HALL_HALF,
-		gapsWest = gaps[-1],
-		gapsEast = gaps[1],
-		gapsNorth = north,
-		stations = names,
-	}, rng)
 
 	for _, e in ipairs(entrances) do
 		Kit.entrance(folder, e, station, { floor = CONCOURSE, passageTop = PASSAGE_TOP, ceilingTop = -1.5 }, rng)
@@ -777,6 +807,9 @@ local function buildStation(folder, station, entrances)
 			-- Left open at its south end when the Eaton Centre passage carries on from it.
 			local openSouth = joined and mallLink.kind == "spine"
 			Kit.passage(folder, false, math.min(e.passZ, e.hallZ) - 10, math.max(e.passZ, e.hallZ) + 10, e.spineX, 10, CONCOURSE, PASSAGE_TOP, station.tile, spineGaps, true, not openSouth, rng)
+			if station.name == "DUNDAS" then
+				Kit.passage(folder, true, LINE_X + e.sd * (HALL_HALF + 1), e.spineX - e.sd * 10, e.hallZ, 10, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
+			end
 			-- Floor and ceiling through the doorway between the two walls.
 			Util.solid(folder, V3(2.4, 1, 20), CFrame.new(LINE_X + e.sd * (HALL_HALF + 1), CONCOURSE - 0.5, e.hallZ), Color3.fromRGB(176, 174, 168), M.Granite)
 			Util.deco(folder, V3(2.4, 0.5, 20), CFrame.new(LINE_X + e.sd * (HALL_HALF + 1), PASSAGE_TOP + 0.25, e.hallZ), Color3.fromRGB(214, 214, 210), M.SmoothPlastic)
@@ -1324,6 +1357,7 @@ local function subwayRoutes(vehicles)
 			terminalDwell = settings.TerminalDwell,
 			headway = cycle / count,
 			platformX = LINE_X,
+			sidePlatformX = { DUNDAS = { LINE_X + TRACK + 12, LINE_X - TRACK - 12 } },
 			stations = stationList,
 		},
 	}
@@ -1600,7 +1634,7 @@ function Transit.build(folder)
 		for _, station in ipairs(STATIONS) do
 			for i, e in ipairs(state.entrances[station] or {}) do
 				local from = V3(e.spot.X, Util.WALK_TOP + 3, e.spot.Y - 18.5 * e.sz)
-				local to = V3(LINE_X + 3, RAIL + FLOOR_UP + 3, station.z)
+				local to = V3(LINE_X + (station.name == "DUNDAS" and e.sd * 35 or 3), RAIL + FLOOR_UP + 3, station.z)
 				local path = PathfindingService:CreatePath({ AgentRadius = 1.5, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 6 })
 				local ok, err = pcall(function()
 					path:ComputeAsync(from, to)
@@ -1611,7 +1645,7 @@ function Transit.build(folder)
 			local L = state.links and state.links[station]
 			if L then
 				local from = V3(L.x, CONCOURSE + 3, L.mallZ + 20)
-				local to = V3(LINE_X + 3, RAIL + FLOOR_UP + 3, station.z)
+				local to = V3(LINE_X + (station.name == "DUNDAS" and -35 or 3), RAIL + FLOOR_UP + 3, station.z)
 				local path = PathfindingService:CreatePath({ AgentRadius = 1.5, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 6 })
 				local ok, err = pcall(function()
 					path:ComputeAsync(from, to)

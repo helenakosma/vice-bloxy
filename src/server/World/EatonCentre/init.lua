@@ -399,8 +399,12 @@ function EatonCentre.build(root, rect)
 					end
 					-- Anchors (department stores) open straight on to the mall, as the real
 					-- ones do: you walk through them from one wing to the next.
+					-- Mall shops open across most of their front (as the real ones do,
+					-- behind roll-down grilles), with display glass either side; small
+					-- units are open full width.
 					if len >= 12 and tenant.category ~= "department" then
-						local doorT = DOOR_W / 2 / len
+						local opening = math.clamp(len * 0.6, DOOR_W, len - 4)
+						local doorT = opening / 2 / len
 						for _, seg in ipairs({ { 0, 0.5 - doorT }, { 0.5 + doorT, 1 } }) do
 							local pa = { a[1] + (b[1] - a[1]) * seg[1], a[2] + (b[2] - a[2]) * seg[1] }
 							local pb = { a[1] + (b[1] - a[1]) * seg[2], a[2] + (b[2] - a[2]) * seg[2] }
@@ -415,9 +419,57 @@ function EatonCentre.build(root, rect)
 				end
 			elseif kind == 3 then
 				for _, pc in ipairs(doorPieces(a, b, i)) do
-					local wall = panel(arch, pc[1], pc[2], y + pc[3], top + ((i == 3) and 3 or 0) - pc[3], 1.2, FACADE, M.Concrete)
-					if wall then
-						wall.Name = "ExteriorWall"
+					local h = top + ((i == 3) and 3 or 0) - pc[3]
+					local len = math.sqrt((pc[2][1] - pc[1][1]) ^ 2 + (pc[2][2] - pc[1][2]) ^ 2) * S
+					if i == 3 and pc[3] == 0 and len >= 6 then
+						-- Street level: display windows between piers, a dark band over
+						-- them, the facade above.
+						local bays = math.max(1, math.floor(len / 10 + 0.5))
+						for k = 0, bays - 1 do
+							local t0, t1 = k / bays, (k + 1) / bays
+							local pa = { pc[1][1] + (pc[2][1] - pc[1][1]) * t0, pc[1][2] + (pc[2][2] - pc[1][2]) * t0 }
+							local pb = { pc[1][1] + (pc[2][1] - pc[1][1]) * t1, pc[1][2] + (pc[2][2] - pc[1][2]) * t1 }
+							local g = panel(arch, pa, pb, y, 12, 0.6, C(214, 222, 226), M.Glass)
+							if g then
+								g.Transparency = 0.35
+								g.Reflectance = 0.15
+								g.CastShadow = false
+								g.Name = "StreetWindow"
+							end
+							local post = P(pa[1], pa[2], y + 6)
+							Util.deco(arch, V3(1.6, 12, 1.6), CFrame.new(post), FACADE, M.Concrete)
+						end
+						panel(arch, pc[1], pc[2], y + 12, 2, 1.4, FACADE_DARK, M.Metal)
+						-- A slim canopy over the windows, out over the sidewalk.
+						do
+							local du, dv = pc[2][1] - pc[1][1], pc[2][2] - pc[1][2]
+							local L2 = math.sqrt(du * du + dv * dv)
+							local nu, nv = -dv / L2, du / L2
+							local mu, mv = (pc[1][1] + pc[2][1]) / 2, (pc[1][2] + pc[2][2]) / 2
+							if onSlab(3, mu + nu * 3, mv + nv * 3) then
+								nu, nv = -nu, -nv -- the floor is that way: out is the other
+							end
+							local c0, c1 = P(mu, mv, y + 14.3), P(mu + nu * 3, mv + nv * 3, y + 14.3)
+							local cf = CFrame.lookAt((c0 + c1) / 2, (c0 + c1) / 2 + (c1 - c0))
+							Util.deco(arch, V3(len, 0.5, 3), cf, FACADE_DARK, M.Metal).CastShadow = false
+						end
+						local wall = panel(arch, pc[1], pc[2], y + 14, h - 14, 1.2, FACADE, M.Concrete)
+						if wall then
+							wall.Name = "ExteriorWall"
+						end
+					else
+						local wall = panel(arch, pc[1], pc[2], y + pc[3], h, 1.2, FACADE, M.Concrete)
+						if wall then
+							wall.Name = "ExteriorWall"
+							if i == 4 and len >= 6 then
+								-- A ribbon of windows along the upper floor.
+								local band = panel(arch, pc[1], pc[2], y + 6, 6, 1.5, C(70, 86, 100), M.Glass, false)
+								if band then
+									band.Reflectance = 0.3
+									band.CastShadow = false
+								end
+							end
+						end
 					end
 				end
 			elseif kind == 4 then
@@ -660,6 +712,16 @@ function EatonCentre.build(root, rect)
 		end
 		for _, side in ipairs({ -1, 1 }) do
 			Util.solid(vault, V3(1.4, 1.2, length), CFrame.new(centre.X + side * radius, springY + 0.6, centre.Z), RIB, M.Metal)
+		end
+		-- Long fabric banners hanging down the middle of the bay.
+		local BANNERS = { C(196, 40, 52), C(236, 232, 222), C(40, 70, 120) }
+		local nB = math.floor(length / 40)
+		for k = 1, nB do
+			local z = centre.Z - length / 2 + k * length / (nB + 1)
+			local b = Util.deco(vault, V3(0.15, 14, 3.5), CFrame.new(centre.X, springY - 6, z), BANNERS[(k % #BANNERS) + 1], M.Fabric)
+			b.CastShadow = false
+			Util.deco(vault, V3(0.3, 0.3, 4), CFrame.new(centre.X, springY + 1.2, z), RIB, M.Metal)
+			Util.deco(vault, V3(0.05, 7, 0.05), CFrame.new(centre.X, springY - 2.4, z), STEEL, M.Metal)
 		end
 		-- Clerestory walls along both sides (v0 is the east side: larger X), where
 		-- Level 4 doesn't run alongside; a white band closes each end of the bay.
@@ -1096,14 +1158,16 @@ function EatonCentre.build(root, rect)
 	if placed.grind then
 		skip[placed.grind] = true
 	end
-	local furnished = 0
+	local furnished, fieldFixtures, wallRuns = 0, 0, 0
 	for _, L in ipairs(LEVEL_DATA) do
 		local f = folderIn(levels[L.idx].folder, "Interiors")
 		furnished += Interiors.furnish(f, L.idx, L.data.units, P, S, levelY(L.idx), TENANTS, L.idx == 1 and skip or {}, L.idx * 101 + 7)
+		fieldFixtures += Interiors.fill(f, L.idx, L.data.units, P, S, levelY(L.idx), TENANTS, L.idx == 1 and skip or {}, L.idx * 131 + 3)
+		wallRuns += Interiors.walls(f, L.idx, L.data.units, P, S, levelY(L.idx), TENANTS, L.idx == 1 and skip or {}, L.idx * 151 + 9)
 	end
 	local seating = folderIn(levels[0].folder, "FoodCourt_Seating")
 	local seats = Interiors.foodCourt(seating, require(DATA.Furniture), P, S, levelY(0))
-	print(string.format("[EatonCentre] interiors: %d shops fitted out, %d food court pieces", furnished, seats))
+	print(string.format("[EatonCentre] interiors: %d shops fitted out, %d floor fixtures, %d wall displays, %d food court pieces", furnished, fieldFixtures, wallRuns, seats))
 
 	print(string.format("[EatonCentre] built from plans: %d lifts, %d vault bays, Metro Threads in %s, Grind Coffee in %s",
 		liftCount, #bays, tostring(placed.threads), tostring(placed.grind)))

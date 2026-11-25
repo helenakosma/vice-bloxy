@@ -306,6 +306,157 @@ function Interiors.furnish(folder, levelIdx, units, P, S, y, tenants, skip, seed
 	return count
 end
 
+-- Field fixtures: the rest of each shop's floor, beyond the storefront fit-out,
+-- on the grid of spots to_lua.py lays over the whole unit (Data: fill,
+-- fillAxis). About three parts each, so a 25,000 sq ft store reads as one.
+local FIELD = {}
+
+local function apparel(f, cf, rng, k)
+	if k % 3 == 2 then
+		-- A display table with folded stock.
+		block(f, V3(6, 2.8, 3.4), cf * CFrame.new(0, 1.4, 0), WOOD, M.Wood)
+		block(f, V3(5, 0.6, 2.6), cf * CFrame.new(0, 3.1, 0), GARMENTS[rng:NextInteger(1, #GARMENTS)], M.Fabric, false)
+	else
+		-- A double-sided rail of garments on a low plinth.
+		block(f, V3(6.4, 0.4, 2), cf * CFrame.new(0, 0.2, 0), DARK, M.SmoothPlastic)
+		block(f, V3(6.4, 0.25, 0.25), cf * CFrame.new(0, 5.3, 0), STEEL, M.Metal, false)
+		block(f, V3(6, 3.4, 1.8), cf * CFrame.new(0, 3.4, 0), GARMENTS[rng:NextInteger(1, #GARMENTS)], M.Fabric, false)
+	end
+end
+FIELD.fashion = apparel
+FIELD.sports = apparel
+FIELD.department = function(f, cf, rng, k)
+	if k % 4 == 3 then
+		FIELD.beauty(f, cf, rng, k)
+	else
+		apparel(f, cf, rng, k)
+	end
+end
+FIELD.footwear = function(f, cf, rng)
+	block(f, V3(6, 1.6, 3.4), cf * CFrame.new(0, 0.8, 0), WHITE)
+	block(f, V3(5, 0.7, 2.6), cf * CFrame.new(0, 1.95, 0), ({ C(230, 230, 226), C(40, 40, 44), C(180, 120, 80), C(200, 60, 60) })[rng:NextInteger(1, 4)], M.SmoothPlastic, false)
+	block(f, V3(2.2, 1.4, 1.4), cf * CFrame.new(0, 0.7, 2.8), C(70, 70, 76), M.Fabric) -- fitting bench
+end
+FIELD.beauty = function(f, cf, rng)
+	-- A gondola: a shelving island stocked on both sides.
+	block(f, V3(6, 5, 2.4), cf * CFrame.new(0, 2.5, 0), WHITE)
+	local goods = { C(220, 120, 160), C(240, 200, 200), C(180, 60, 90), C(250, 240, 230), C(120, 80, 140) }
+	block(f, V3(5.6, 3.6, 2.8), cf * CFrame.new(0, 2.6, 0), goods[rng:NextInteger(1, #goods)], M.SmoothPlastic, false)
+end
+local function gondola(colours)
+	return function(f, cf, rng)
+		block(f, V3(6, 5.5, 2.4), cf * CFrame.new(0, 2.75, 0), WHITE)
+		block(f, V3(5.6, 4, 2.8), cf * CFrame.new(0, 2.8, 0), colours[rng:NextInteger(1, #colours)], M.SmoothPlastic, false)
+	end
+end
+FIELD.pharmacy = gondola({ C(250, 250, 248), C(80, 140, 200), C(220, 80, 80), C(120, 190, 140) })
+FIELD.books = gondola({ C(150, 40, 40), C(40, 70, 120), C(220, 200, 160), C(60, 110, 70), C(30, 30, 34) })
+FIELD.services = gondola({ C(220, 222, 226), C(90, 110, 140) })
+FIELD.optical = function(f, cf)
+	block(f, V3(5, 3.4, 2.4), cf * CFrame.new(0, 1.7, 0), WHITE)
+	block(f, V3(4.6, 0.6, 2), cf * CFrame.new(0, 3.7, 0), DARK, M.SmoothPlastic, false)
+end
+FIELD.jewellery = function(f, cf)
+	-- A lit glass showcase.
+	block(f, V3(5, 3, 2.2), cf * CFrame.new(0, 1.5, 0), DARK)
+	local g = block(f, V3(5, 1, 2.2), cf * CFrame.new(0, 3.5, 0), GLASS, M.Glass, false)
+	g.Transparency = 0.5
+end
+FIELD.electronics = function(f, cf, rng)
+	-- A long demo table with devices.
+	block(f, V3(6.5, 3, 3), cf * CFrame.new(0, 1.5, 0), C(230, 230, 228), M.Wood)
+	for _, dx in ipairs({ -1.8, 1.8 }) do
+		block(f, V3(1.4, 0.15, 1), cf * CFrame.new(dx, 3.1, 0), DARK, M.Glass, false)
+	end
+end
+local function dining(f, cf)
+	-- A table with two chairs.
+	block(f, V3(3, 2.6, 3), cf * CFrame.new(0, 1.3, 0), WOOD, M.Wood)
+	for _, dz in ipairs({ -2.6, 2.6 }) do
+		block(f, V3(1.6, 1.6, 1.6), cf * CFrame.new(0, 0.8, dz), DARK, M.Fabric)
+	end
+end
+FIELD.food = dining
+FIELD.cafe = dining
+
+function Interiors.fill(folder, levelIdx, units, P, S, y, tenants, skip, seed)
+	local rng = Random.new(seed or 11)
+	local placed = 0
+	for _, u in ipairs(units) do
+		local t = tenants[levelIdx .. ":" .. u.unit]
+		local spots, axis = u.fill, u.fillAxis
+		if t and t.status == "open" and spots and axis and #spots > 0 and not skip[u.unit] and u.unit ~= "FA100" then
+			local fixture = FIELD[t.category] or apparel
+			local shop = folder:FindFirstChild(u.unit)
+			if not shop then
+				shop = Instance.new("Folder")
+				shop.Name = u.unit
+				shop.Parent = folder
+			end
+			local origin = P(0, 0, y)
+			local inward = (P(axis[3], axis[4], y) - origin)
+			inward = V3(inward.X, 0, inward.Z).Unit
+			for k, pt in ipairs(spots) do
+				local p = P(pt[1], pt[2], y)
+				local ok = pcall(fixture, shop, CFrame.lookAt(p, p + inward), rng, k)
+				if ok then
+					placed += 1
+				end
+			end
+		end
+	end
+	return placed
+end
+
+-- Wall displays along each shop's inner walls (Data: shelves = { u0, v0, u1,
+-- v1, nx, ny } already set in off the wall, n pointing into the shop). Two
+-- parts per run: the fixture and its stock.
+local WALL = {
+	fashion = { h = 7, d = 1.6, colour = WHITE, stock = GARMENTS, stockH = 4.4, stockD = 1.4, material = M.Fabric },
+	books = { h = 7.5, d = 1.6, colour = WOOD, stock = { C(150, 40, 40), C(40, 70, 120), C(220, 200, 160), C(60, 110, 70) }, stockH = 5.6, stockD = 1.2 },
+	beauty = { h = 7, d = 1.4, colour = WHITE, stock = { C(220, 120, 160), C(240, 200, 200), C(250, 240, 230) }, stockH = 4.6, stockD = 1.2 },
+	electronics = { h = 6, d = 1.2, colour = C(236, 236, 234), stock = { DARK }, stockH = 2.4, stockD = 0.3 },
+	jewellery = { h = 3.4, d = 1.8, colour = DARK, stock = { GLASS }, stockH = 1, stockD = 1.6, glass = true },
+	food = { h = 3.6, d = 2.4, colour = C(70, 72, 78), stock = { C(220, 220, 216) }, stockH = 0.3, stockD = 2.6 },
+}
+WALL.sports, WALL.department, WALL.footwear = WALL.fashion, WALL.fashion, WALL.fashion
+WALL.pharmacy, WALL.optical, WALL.services = WALL.beauty, WALL.jewellery, WALL.beauty
+WALL.cafe = WALL.food
+
+function Interiors.walls(folder, levelIdx, units, P, S, y, tenants, skip, seed)
+	local rng = Random.new(seed or 13)
+	local runs = 0
+	for _, u in ipairs(units) do
+		local t = tenants[levelIdx .. ":" .. u.unit]
+		if t and t.status == "open" and u.shelves and not skip[u.unit] and u.unit ~= "FA100" then
+			local spec = WALL[t.category] or WALL.fashion
+			local shop = folder:FindFirstChild(u.unit)
+			if not shop then
+				shop = Instance.new("Folder")
+				shop.Name = u.unit
+				shop.Parent = folder
+			end
+			for _, w in ipairs(u.shelves) do
+				local a, b = P(w[1], w[2], y), P(w[3], w[4], y)
+				local len = (b - a).Magnitude - 2
+				if len >= 4 then
+					local inward = P(w[5], w[6], y) - P(0, 0, y)
+					inward = V3(inward.X, 0, inward.Z).Unit
+					local mid = (a + b) / 2 + inward * (spec.d / 2)
+					local cf = CFrame.lookAt(mid, mid + (b - a))
+					block(shop, V3(spec.d, spec.h, len), cf * CFrame.new(0, spec.h / 2, 0), spec.colour, spec.material and M.SmoothPlastic or M.SmoothPlastic)
+					local stock = block(shop, V3(spec.stockD, spec.stockH, len - 0.6), cf * CFrame.new(0, spec.h - spec.stockH / 2 - 0.6, 0) + inward * (spec.d / 2), spec.stock[rng:NextInteger(1, #spec.stock)], spec.material or M.SmoothPlastic, false)
+					if spec.glass then
+						stock.Transparency = 0.5
+					end
+					runs += 1
+				end
+			end
+		end
+	end
+	return runs
+end
+
 -- The Urban Eatery's tables and chairs, where the concourse plan draws them.
 function Interiors.foodCourt(folder, items, P, S, y)
 	local seat = C(196, 60, 46)

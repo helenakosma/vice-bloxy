@@ -37,8 +37,6 @@ local function neighbourhood(player)
 			end
 		end
 		return nice(best) .. ", Toronto"
-	elseif p.X > 1100 then
-		return "Vice Beach"
 	elseif p.Z > 700 then
 		return "Port Lands"
 	elseif p.X < -700 then

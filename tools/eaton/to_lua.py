@@ -164,6 +164,53 @@ def labelled(page, level, words):
     return out
 
 
+FILL_ALONG, FILL_IN = 10, 9  # fixture grid spacing in a shop, across and into it (ft)
+FILL_MARGIN = 3  # keep fixtures this far off a shop's walls (ft)
+
+
+def fill_points(poly, front, box, avoid):
+    """Fixture spots filling a shop's whole floor, beyond the storefront box the
+    category template already furnishes: a grid aligned with the storefront
+    (rows parallel to it), kept off the walls, out of the doorway and out of any
+    escalator path. Returns (axis, points): axis = [au, av, iu, iv] (across the
+    front, and inward), points = [[u, v], ...]."""
+    m = raster([poly]).astype(np.uint8)
+    k = 2 * FILL_MARGIN + 1
+    inner = cv2.erode(m, np.ones((k, k), np.uint8)).astype(bool)
+    pts = poly["outer"]
+    if front:
+        fu0, fv0, fu1, fv1, nx, ny = front
+        au, av = fu1 - fu0, fv1 - fv0
+        L = math.hypot(au, av) or 1
+        au, av = au / L, av / L
+        iu, iv = -nx, -ny
+        ou, ov = (fu0 + fu1) / 2, (fv0 + fv1) / 2
+        z_start = 9  # leave the doorway clear
+    else:
+        au, av, iu, iv = 1.0, 0.0, 0.0, 1.0
+        ou, ov = min(x for x, _ in pts), min(y for _, y in pts)
+        z_start = 0
+    xs = [(x - ou) * au + (y - ov) * av for x, y in pts]
+    zs = [(x - ou) * iu + (y - ov) * iv for x, y in pts]
+    out = []
+    x = math.floor(min(xs) / FILL_ALONG) * FILL_ALONG + FILL_ALONG / 2
+    while x <= max(xs):
+        z = max(z_start, math.floor(min(zs) / FILL_IN) * FILL_IN + FILL_IN / 2)
+        while z <= max(zs):
+            u, v = ou + au * x + iu * z, ov + av * x + iv * z
+            ok = at(inner, u, v) and not any(at(pm, u, v) for pm in avoid)
+            if ok and box:
+                bx = (u - box["cu"]) * box["au"] + (v - box["cv"]) * box["av"]
+                bz = (u - box["cu"]) * iu + (v - box["cv"]) * iv
+                if abs(bx) <= box["width"] / 2 + 2 and -1 <= bz <= box["depth"] + 2:
+                    ok = False
+            if ok:
+                out.append([round(u, 1), round(v, 1)])
+            z += FILL_IN
+        x += FILL_ALONG
+    return [round(au, 3), round(av, 3), round(iu, 3), round(iv, 3)], out
+
+
 def interior_box(poly, front):
     """The largest rectangle inside a unit, measured from its storefront: in the
     front's frame (across the front, and inward from it). Returns
@@ -435,6 +482,7 @@ def main(pdf):
                        "inferred": bool(un.get("inferred")), "front": None}
                 units.append(rec)
                 rec["_poly"] = p
+                rec["_shelves"] = []
                 best_front = 0
                 for a, b, L, (nx, ny) in edges(p):
                     mu, mv = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
@@ -457,6 +505,13 @@ def main(pdf):
                     if kind == 2 and score > best_front:
                         best_front = score
                         rec["front"] = [round(a[0], 1), round(a[1], 1), round(b[0], 1), round(b[1], 1), round(nx, 2), round(ny, 2)]
+                    # Inner walls (to a neighbour or a service room) carry the shop's
+                    # wall displays: inset into the shop, with which way is in.
+                    if kind == 1 and L >= 6:
+                        inset = 1.4
+                        rec["_shelves"].append([round(a[0] - nx * inset, 1), round(a[1] - ny * inset, 1),
+                                                round(b[0] - nx * inset, 1), round(b[1] - ny * inset, 1),
+                                                round(-nx, 2), round(-ny, 2)])
                     # Pull unit walls in a little so neighbours' walls don't overlap.
                     pull = 0.4
                     w_ = (round(a[0] - nx * pull, 1), round(a[1] - ny * pull, 1), round(b[0] - nx * pull, 1), round(b[1] - ny * pull, 1), kind)
@@ -474,6 +529,10 @@ def main(pdf):
         for rec in units:
             poly = rec.pop("_poly", None)
             rec["box"] = interior_box(poly, rec["front"]) if poly and rec.get("front") else None
+            if poly:
+                rec["fillAxis"], rec["fill"] = fill_points(poly, rec["front"], rec["box"], esc_paths[name])
+            shelves = rec.pop("_shelves", [])
+            rec["shelves"] = [w for w in shelves if not any(at(pm, (w[0] + w[2]) / 2, (w[1] + w[3]) / 2) for pm in esc_paths[name])]
 
         rails = []
         if name != "concourse":
