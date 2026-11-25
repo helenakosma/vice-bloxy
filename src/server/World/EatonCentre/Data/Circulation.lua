@@ -22,4 +22,10 @@ return {
 	{ from = 2, to = 3, u = 1317, v = 52, axis = { 0.85, -0.52 }, length = 37, note = "Yonge & Dundas corner: diagonal, outline 37 ft (L3 sheet)" },
 	-- Concourse -> Level 1 (drawn in the Level 1 opening beside the Gap)
 	{ from = 0, to = 1, u = 817, v = 118, axis = { 0.71, -0.71 }, length = 24, note = "Opening by the Gap: diagonal outline 22-25 ft (L1 sheet)" },
+	-- Level 3 -> Level 4 (UP/DN labels on the Level 3 sheet; length not drawn, so
+	-- the 30-degree run for one storey, 35 ft)
+	{ from = 3, to = 4, u = 533, v = 303, axis = { 1, 0 }, length = 35, note = "Inside Indigo, James St side: UP/DN labels (L3 sheet)" },
+	-- (The Level 3 sheet also has UP/DN labels by the Yonge wall at u 700, v 15 and
+	-- u 753, v 30. Their direction isn't drawn, and run either way one end lands
+	-- on the facade, so they may belong to Level 2 -> 3; left out until known.)
 }

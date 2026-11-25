@@ -370,7 +370,7 @@ function Transit.layout(shared)
 				if west and west.route == "inside" and L.x - 10 > lo + 1 and L.x + 10 < hi - 1 then
 					-- Join the west entrance's passage through its south wall.
 					L.kind, L.e, L.endZ = "join", west, west.passZ + 10
-				elseif west and west.route == "spine" then
+				elseif west and west.route == "spine" and math.abs(L.x - west.spineX) < 0.5 then
 					-- Carry on south from the end of the west side passage.
 					L.kind, L.e, L.x = "spine", west, west.spineX
 					L.endZ = math.max(west.passZ, west.hallZ) + 10
@@ -382,6 +382,12 @@ function Transit.layout(shared)
 					hole(V3(L.x - 11, CONCOURSE - 1, L.doorZ - 11), V3(LINE_X - HALL_HALF - 1, PASSAGE_TOP + 1, L.doorZ + 11))
 				end
 				hole(V3(L.x - 11, CONCOURSE - 1, L.endZ - 1), V3(L.x + 11, PASSAGE_TOP + 1, L.mallZ + 1))
+				if link.well then
+					local sc2 = TorontoLayout.EATON_SCALE
+					L.wellN = TorontoLayout.EATON.maxZ - link.well.u1 * sc2
+					L.wellS = TorontoLayout.EATON.maxZ - link.well.u0 * sc2
+					hole(V3(L.x - 11, PASSAGE_TOP - 1, L.wellN), V3(L.x + 11, 0.5, L.wellS))
+				end
 				link.x = L.x -- the mall leaves its concourse wall open here
 				state.links[station] = L
 				print(string.format("[Transit] %s: passage to the Eaton Centre concourse (%s) at x=%.0f", station.name, L.kind, L.x))
@@ -784,16 +790,33 @@ local function buildStation(folder, station, entrances)
 	end
 
 	-- The Eaton Centre passage: from the mall's concourse north to the station.
+	-- Where the atrium's well comes down into it, it has no ceiling: floor and
+	-- tiled walls up to the underside of the mall floor.
+	local function mallPassage(a0, a1, x, gaps, closeA, closeB)
+		local link = mallLink
+		if not (link.wellN and link.wellS and link.wellN > a0 and link.wellS < a1) then
+			Kit.passage(folder, false, a0, a1, x, 10, CONCOURSE, PASSAGE_TOP, station.tile, gaps, closeA, closeB, rng)
+			return
+		end
+		Kit.passage(folder, false, a0, link.wellN, x, 10, CONCOURSE, PASSAGE_TOP, station.tile, gaps, closeA, false, rng)
+		local len = link.wellS - link.wellN
+		local mid = (link.wellN + link.wellS) / 2
+		Util.solid(folder, V3(20, 1, len), CFrame.new(x, CONCOURSE - 0.5, mid), Color3.fromRGB(176, 174, 168), M.Granite)
+		for _, side in ipairs({ -1, 1 }) do
+			Kit.wall(folder, false, link.wellN, link.wellS, x + side * 10.5, CONCOURSE, -0.3, {}, station.tile, nil)
+		end
+		Kit.passage(folder, false, link.wellS, a1, x, 10, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, closeB, rng)
+	end
 	if mallLink then
 		local link = mallLink
 		if link.kind == "door" then
 			-- Along z to the doorway line, then east into the hall's west side.
-			Kit.passage(folder, false, link.endZ, link.mallZ, link.x, 10, CONCOURSE, PASSAGE_TOP, station.tile, { minus = {}, plus = { { link.doorZ - 10, link.doorZ + 10 } } }, true, false, rng)
+			mallPassage(link.endZ, link.mallZ, link.x, { minus = {}, plus = { { link.doorZ - 10, link.doorZ + 10 } } }, true, false)
 			Kit.passage(folder, true, link.x + 10, LINE_X - HALL_HALF - 1, link.doorZ, 10, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
 			Util.solid(folder, V3(2.4, 1, 20), CFrame.new(LINE_X - (HALL_HALF + 1), CONCOURSE - 0.5, link.doorZ), Color3.fromRGB(176, 174, 168), M.Granite)
 			Util.deco(folder, V3(2.4, 0.5, 20), CFrame.new(LINE_X - (HALL_HALF + 1), PASSAGE_TOP + 0.25, link.doorZ), Color3.fromRGB(214, 214, 210), M.SmoothPlastic)
 		else
-			Kit.passage(folder, false, link.endZ, link.mallZ, link.x, 10, CONCOURSE, PASSAGE_TOP, station.tile, {}, false, false, rng)
+			mallPassage(link.endZ, link.mallZ, link.x, {}, false, false)
 		end
 		-- At the mall end, facing the mall: where the passage goes.
 		local toStation = Kit.nameSign(folder, CFrame.lookAt(V3(link.x, PASSAGE_TOP - 2, link.mallZ - 4), V3(link.x, PASSAGE_TOP - 2, link.mallZ)), V3(16, 2, 0.3), station.name .. " STATION", station.tile, Color3.fromRGB(255, 255, 255))

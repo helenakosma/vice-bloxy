@@ -307,4 +307,9 @@ return {
 	{ unit = "3110SB", level = 3, area = 620, status = "vacant", category = nil, name = nil, real = "Vacant", source = "plan" },
 	{ unit = "G316", level = 3, area = 466, status = "open", category = "jewellery", name = "Carat & Co Accessories", real = "Coach", source = "plan" },
 	{ unit = "C017S", level = 3, area = nil, status = "vacant", category = nil, name = nil, real = "Vacant", source = "plan" },
+	{ unit = "D018", level = 4, area = 24933, status = "open", category = "books", name = "Paper Lantern Games", real = "Indigo Books Music More", source = "directory" },
+	{ unit = "C301B", level = 4, area = 16703, status = "open", category = "fashion", name = "Quillon Tailors", real = "Uniqlo", source = "directory" },
+	{ unit = "C004B", level = 4, area = 14735, status = "open", category = "fashion", name = "Halden Threadworks", real = "Zara", source = "directory" },
+	{ unit = "C302", level = 4, area = 12055, status = "open", category = "services", name = "City Repair", real = "Bank Of Montreal", source = "directory" },
+	{ unit = "S403", level = 4, area = 85, status = "vacant", category = nil, name = nil, real = "Vacant", source = "plan" },
 }

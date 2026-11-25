@@ -131,7 +131,12 @@ T.EATON = { minX = -270, maxX = 57, minZ = -1866, maxZ = -1661 } -- Yonge to Jam
 -- The passage from the Eaton Centre's concourse to Dundas station leaves the
 -- concourse's north edge here (plan feet: u north of Queen St, v west of Yonge).
 -- Transit fills in .x (the passage's world x) when it lays the station out.
-T.EATON_LINK = { station = "DUNDAS", u = 1278, v = 40 }
+-- The mall's TMU (Dundas) entrance: the TTC puts it inside the Eaton Centre
+-- atrium at the SW corner of Yonge and Dundas, and the leasing plan draws it on
+-- Level 2 (one storey below the street, the same level as the station's
+-- passages). The passage runs north from the mall's Level 2 corner doors
+-- (u, v: plan feet) under Dundas St to the station.
+T.EATON_LINK = { station = "DUNDAS", u = 1412, v = 49.5 }
 T.SANKOFA = { minX = 142, maxX = 258, minZ = -1866, maxZ = -1787 } -- south-east corner of Yonge & Dundas
 -- The billboard buildings round Yonge & Dundas (with the Eaton Centre's corner).
 T.DUNDAS_NE = { minX = 144, maxX = 262, minZ = -2052, maxZ = -1957 } -- "10 Dundas East" screens

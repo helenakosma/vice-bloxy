@@ -40,7 +40,18 @@ LEVELS = {
     "L2": 2,
     "L3": 5,
     "L5": 7,  # roof level: the galleria skylight is labelled as a void here
+    "L2B": 4,  # the small mezzanine by 250 Yonge Street
+    "L4": 6,  # the partial fourth floor over the north end
 }
+
+# Sheets whose printed scale bar disagrees with the drawing: a factor on the
+# bar's pt/ft. Level 2B's units trace at ~2.45x their printed areas against the
+# bar (linear 1.56; traced areas usually run ~4% under printed, hence 1.597),
+# and with that factor Roots' frontage (54 ft) matches its 56 ft on Level 3.
+SCALE_FIX = {"L2B": 1.597}
+# Sheets with too few columns to register by the grid: a fixed offset (feet,
+# page -> Level 1 page) found by lining a shared unit up across levels.
+REG_FIX = {"L2B": (734.0, 751.0)}  # Roots C032A centred on its Level 3 unit, Yonge wall on v = 0
 
 UNIT_RE = re.compile(r"^[A-Z0-9]{2,8}[A-Z]?$")
 AREA_RE = re.compile(r"^\d{1,3}(,\d{3})*$")
@@ -462,7 +473,7 @@ def run(pdf_path):
     ref = {}
     for level, pi in LEVELS.items():
         page = doc[pi]
-        pt_per_ft = scale_bar(page)
+        pt_per_ft = scale_bar(page) * SCALE_FIX.get(level, 1.0)
         ppt = RES / pt_per_ft  # raster px per pt
         img = redraw(page, ppt, MIN_STROKE_FT * pt_per_ft)
         h, w = img.shape
@@ -704,11 +715,15 @@ def run(pdf_path):
         concourse_note = None
         if level != "L1" and ref:
             t, score, total = match_columns(grid_features(page, pt_per_ft), ref["cols"])
+            if level in REG_FIX:
+                t, score, total = np.array(REG_FIX[level], float), 0, 0
             # page-ft here + t = L1 page-ft; express Queen/Yonge walls in this raster.
             sq = (ref["queen_ft"] - t[0]) * pt_per_ft
             sy = (ref["yonge_ft"] - t[1]) * pt_per_ft
             sj = (ref["james_ft"] - t[1]) * pt_per_ft
             concourse_note = f"registered to Level 1 by column grid: offset {t[0]:.0f},{t[1]:.0f} ft, {score}/{total} columns match"
+            if level in REG_FIX:
+                concourse_note = f"registered by a unit shared with another level (REG_FIX): offset {t[0]:.0f},{t[1]:.0f} ft"
             reg_t, reg_score = t, score
         if sj is not None:
             james_px = int(round(sj * ppt))
@@ -822,7 +837,7 @@ def run(pdf_path):
             "page": pi + 1,
             "ptPerFt": round(pt_per_ft, 4),
             "registration": {"queenPx": int(queen_px), "yongePx": int(yonge_px), "jamesPx": int(james_px), "widthFt": round(float(span) / RES, 1),
-                             "method": "street walls" if level == "L1" else "column grid to Level 1", "note": concourse_note},
+                             "method": "street walls" if level == "L1" else ("shared unit" if level in REG_FIX else "column grid to Level 1"), "note": concourse_note},
             "footprint": pack(footprint),
             "common": pack(common),
             "voids": pack(voids),

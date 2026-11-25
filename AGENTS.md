@@ -1,0 +1,12 @@
+﻿# Vice Bloxy
+
+Vice Bloxy is an original open-world Roblox life simulator set in Toronto. Build a believable, walkable city where players can ride transit, explore interiors, work, study, find housing, and build social and economic lives. Toronto is the approved map direction. The existing Manhattan-style and Miami-inspired districts are legacy content.
+
+- Read [Game Vision](docs/GAME_VISION.md) for design intent and [Current State](docs/CURRENT_STATE.md) for the audited implementation. Check current source before relying on the snapshot or the older README.
+- Prioritize downtown Toronto, pedestrian circulation, the Eaton Centre and its station connections, then transit reliability. Expand society systems once the map supports them.
+- Use the existing Luau and Rojo structure. Keep server logic in `src/server`, client input and presentation in `src/client`, and shared configuration and catalogs in `src/shared`. Reuse existing world builders, services, and configuration. Keep gameplay balance in shared configuration and enforce it on the server.
+- Treat all remote payloads as untrusted. Validate types, permissions, eligibility, applicable proximity, and repeat requests on the server. The server controls transactions, rewards, progression, and ownership. Preserve compatibility with existing player profiles and session locks.
+- Inspect relevant code and Git status before editing. Preserve existing work and make targeted changes. Get approval before deleting assets or systems, or changing the map scale or coordinate system. Explain significant spatial changes before implementing them.
+- Keep Toronto geography and architecture grounded in authoritative references. For mall or station elevation work, inspect generated geometry, entrances, street elevations, and passages first. Record a route and cross-section or elevation table, distinguish mall labels from station levels, and flag uncertain details before changing geometry.
+- Preserve district layout/build order, underground cutouts and safe zones, and streaming behavior. Measure startup time, part counts, replication, and client performance when changing large areas. Prefer reusable geometry and selective interiors.
+- Use original game assets and fictional tenant branding where the existing catalog does. Test through normal Roblox Studio entry points when available. Report files changed, checks run, and any runtime or visual checks still pending.

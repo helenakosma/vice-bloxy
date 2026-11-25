@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out")
 DEST = os.path.join(HERE, "..", "..", "src", "shared", "Catalog", "EatonTenants.lua")
 
-LEVELS = {"concourse": 0, "L1": 1, "L2": 2, "L3": 3}
+LEVELS = {"concourse": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 
 # Units the current directory lists under a new number: the plan unit -> the
 # directory's unit. Simons took over the former Nordstrom floor (Y002A on the

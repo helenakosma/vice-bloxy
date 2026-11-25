@@ -211,12 +211,47 @@ def main(pdf):
     import pymupdf as fitz
 
     doc = fitz.open(pdf)
-    levels = {k: json.load(open(os.path.join(OUT, k + ".json"))) for k in ("L1", "L2", "L3", "concourse")}
+    levels = {k: json.load(open(os.path.join(OUT, k + ".json"))) for k in ("L1", "L2", "L3", "L4", "concourse")}
     # Where the concourse lies under Level 1, Level 1's floor openings are real
     # (escalators and light wells down to the Urban Eatery); elsewhere Level 1
     # sits on solid ground.
     under = raster(levels["concourse"]["footprint"])
+
+    # Level 4's sheet has a heavy border frame, so its traced footprint is the
+    # whole clip window. The sheet shows Level 4 across the building's full width
+    # from u 429 north (parking along Yonge, then Indigo, Zara, Simons, BMO,
+    # Uniqlo), so it takes Level 3's outline there, except the strip along Yonge
+    # at the corner (u > 1276, v < 22) where the drum and the anchor's block are
+    # three storeys tall.
+    def l4_footprint():
+        m = raster(levels["L3"]["footprint"]).copy()
+        uu = U0 + (np.arange(m.shape[1]) + 0.5) * G
+        vv = V1 - (np.arange(m.shape[0]) + 0.5) * G
+        m[:, uu < 429] = False
+        m[np.ix_(vv < 22, uu > 1276)] = False
+        return m
+    L4_FOOT = l4_footprint()
+
+    # The dig: how far the three levels below the street (concourse, Levels 1-2)
+    # reach. Street-level caps cover it wherever Level 3 doesn't (entrance courts,
+    # recesses, the sidewalk strip past the walls).
+    below = raster(levels["L1"]["footprint"]) | raster(levels["L2"]["footprint"])
+    c0 = raster(levels["concourse"]["footprint"]).copy()
+    c0[int(V1 / G) + 1:, :] = False  # the concourse stops at the Yonge wall
+    below |= c0
+    rows, cols = np.nonzero(below)
+    dig = [round(U0 + cols.min() * G, 1), round(max(0.0, V1 - (rows.max() + 1) * G), 1),
+           round(U0 + (cols.max() + 1) * G, 1), round(V1 - rows.min() * G, 1)]
+    foot3 = raster(levels["L3"]["footprint"])
+    box = np.zeros_like(foot3)
+    r_lo, r_hi = int((V1 - dig[3]) / G), int((V1 - dig[1]) / G)
+    c_lo, c_hi = int((dig[0] - U0) / G), int((dig[2] - U0) / G)
+    box[r_lo:r_hi, c_lo:c_hi] = True
+    cap_mask = box & ~foot3
+    caps = rects(cap_mask)
+
     summary = []
+    summary.append(f"dig {dig}, {len(caps)} street caps")
 
     # Columns: from Level 1 (they run through every floor), kept where they
     # stand in public space on some level (corridors, courts, openings).
@@ -249,8 +284,8 @@ def main(pdf):
     banks = []
     for m in _re.finditer(r"\{ from = (\d), to = (\d), u = ([-\d.]+), v = ([-\d.]+), axis = \{ ([-\d.]+), ([-\d.]+) \}, length = ([-\d.]+)", circ_src):
         banks.append(dict(zip(("from", "to", "u", "v", "au", "av", "length"), (int(m.group(1)), int(m.group(2)), *map(float, m.group(3, 4, 5, 6, 7))))))
-    level_names = {0: "concourse", 1: "L1", 2: "L2", 3: "L3"}
-    level_y = {0: -17.0, 1: 0.75, 2: 20.75, 3: 40.75}
+    level_names = {0: "concourse", 1: "L1", 2: "L2", 3: "L3", 4: "L4"}
+    level_y = {0: -54.75, 1: -37.0, 2: -17.0, 3: 0.75, 4: 20.75}
     STUDS_PER_FT = 1.0  # TorontoLayout.EATON_SCALE (true scale)
     PAIR_HALF_FT = 13 / 2 / STUDS_PER_FT + 1  # an up/down pair is 13 studs wide, plus a margin
     HEADROOM_FT = 20  # floor can stay over the lowest 20 ft of the run
@@ -311,7 +346,7 @@ def main(pdf):
     columns = [c for c in columns if not any(at(pm, *c) for lst in esc_paths.values() for pm in lst)]
 
     for name, d in levels.items():
-        foot = raster(d["footprint"])
+        foot = raster(d["footprint"]) if name != "L4" else L4_FOOT.copy()
         if name == "concourse":
             # The concourse plan runs on under the Yonge St roadway; the building's
             # concourse stops at the Yonge wall (v = 0), clear of the subway tunnel.
@@ -349,8 +384,13 @@ def main(pdf):
                     u, v = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
                     # An entrance: corridor just inside the wall, next to one of the
                     # plan's entrance arrows.
-                    flags.append(name == "L1" and at(common, u - nx * 4, v - ny * 4)
-                                 and any(math.hypot(u - au, v - av) < 35 for au, av in arrows[name]))
+                    inside_common = at(common, u - nx * 4, v - ny * 4)
+                    near = any(math.hypot(u - au, v - av) < 35 for au, av in arrows[name])
+                    # Level 3 (street): also where its corridor meets a street cap
+                    # that the plan's arrow leads into (an entrance court).
+                    court = (name == "L3" and at(cap_mask, u + nx * 4, v + ny * 4)
+                             and any(math.hypot(u - au, v - av) < 80 for au, av in arrows[name]))
+                    flags.append(name in ("L1", "L2", "L3") and inside_common and (near or court))
                 # Door runs as t-intervals, widened to at least 16 ft (8 studs).
                 doors, k = [], 0
                 while k <= steps:
@@ -507,6 +547,8 @@ def main(pdf):
         # galleria from storefront line to storefront line, not just the opening
         # traced on the roof plan, so each slice is widened across it.
         public3 = raster(levels["L3"]["common"]) | raster(levels["L3"]["voids"])
+        foot4 = L4_FOOT
+        void4 = raster(levels["L4"]["voids"])
         WIDEN_MAX = 34  # ft per side, so side corridors don't pull the vault off
         step = 8
         for u in range(int(U0), int(U1), step):
@@ -538,22 +580,47 @@ def main(pdf):
             pad = int(1 / G)
             r0 = min(r0, a + pad) if a < r0 else r0
             r1 = max(r1, b - pad) if b > r1 else r1
-            vault.append((u, u + step, round(V1 - (r1 + 1) * G, 1), round(V1 - r0 * G, 1)))
+            hi = 0
+            if foot4[r0:r1 + 1, c0:c1].any():
+                # Level 4 here: fit the vault to Level 4's opening across this slice.
+                hi = 1
+                open4 = void4[:, c0:c1].all(axis=1)
+                runs4, k = [], 0
+                while k < len(open4):
+                    if open4[k]:
+                        j = k
+                        while j + 1 < len(open4) and open4[j + 1]:
+                            j += 1
+                        runs4.append((k, j))
+                        k = j + 1
+                    else:
+                        k += 1
+                over = [(a_, b_) for a_, b_ in runs4 if b_ >= r0 and a_ <= r1 and (b_ - a_) * G >= 12]
+                if over:
+                    r0, r1 = max(over, key=lambda r: min(r[1], r1) - max(r[0], r0))
+            vault.append((u, u + step, round(V1 - (r1 + 1) * G, 1), round(V1 - r0 * G, 1), hi))
     # Roof: Level 3's footprint, solid except over the skylight (vault) and over
     # Level 3's floor openings (flat glass where the vault doesn't reach).
     foot3 = raster(levels["L3"]["footprint"])
     vmask = np.zeros_like(foot3)
-    for u0, u1, va, vb in vault:
+    for u0, u1, va, vb, _ in vault:
         c0, c1 = int((u0 - U0) / G), int((u1 - U0) / G)
         r0, r1 = int((V1 - vb) / G), int((V1 - va) / G)
         vmask[r0:r1 + 1, c0:c1] = True
     open3 = raster(levels["L3"]["voids"])
-    roof = rects(foot3 & ~vmask & ~open3)
-    glass = rects(open3 & ~vmask & foot3)
-    summary.append(f"roof: {len(roof)} solid pieces, {len(glass)} flat skylights")
+    foot4 = L4_FOOT & foot3
+    open4 = raster(levels["L4"]["voids"])
+    # Level 3's roof where Level 4 doesn't stand on it; Level 4's own roof above.
+    roof = rects(foot3 & ~foot4 & ~vmask & ~open3)
+    glass = rects(open3 & ~foot4 & ~vmask & foot3)
+    roof4 = rects(foot4 & ~vmask & ~open4)
+    glass4 = rects(open4 & ~vmask & foot4)
+    summary.append(f"roof: {len(roof)} + {len(roof4)} (Level 4) solid pieces, {len(glass)} + {len(glass4)} flat skylights")
 
     shared = ["-- Generated by tools/eaton/to_lua.py. Columns (from Level 1, public spaces only)",
-              "-- and the galleria skylight strips {u0, u1, v0, v1}, in plan feet.",
+              "-- and the galleria skylight strips {u0, u1, v0, v1, hi}, in plan feet (hi = 1:",
+              "-- Level 4 runs alongside, the vault covers its opening and springs above it).",
+              "-- roof/skylights sit on Level 3, roof4/skylights4 on Level 4.",
               "return {", "\tcolumns = {"]
     shared += [f"\t\t{lua_value(c)}," for c in columns]
     shared += ["\t},", "\tvault = {"]
@@ -564,6 +631,12 @@ def main(pdf):
     shared += [f"\t\t{lua_value(e)}," for e in esc_list]
     shared += ["\t},", "\tskylights = {"]
     shared += [f"\t\t{lua_value(r)}," for r in glass]
+    shared += ["\t},", f"\tdig = {lua_value(dig)},", "\tcaps = {"]
+    shared += [f"\t\t{lua_value(r)}," for r in caps]
+    shared += ["\t},", "\troof4 = {"]
+    shared += [f"\t\t{lua_value(r)}," for r in roof4]
+    shared += ["\t},", "\tskylights4 = {"]
+    shared += [f"\t\t{lua_value(r)}," for r in glass4]
     shared += ["\t},", "}", ""]
     with open(os.path.join(DEST, "Shared.lua"), "w", encoding="utf-8") as f:
         f.write("\n".join(shared))
