@@ -21,6 +21,7 @@ local Util = require(script.Parent.Util)
 local Kit = require(script.Parent.StationKit)
 local Workplaces = require(script.Parent.Workplaces)
 local TorontoLayout = require(script.Parent.TorontoLayout)
+local Exterior = require(script.Exterior)
 
 local DATA = script.Data
 local LEVEL_DATA = {
@@ -99,9 +100,9 @@ local V3 = Vector3.new
 local M = Enum.Material
 local C = Color3.fromRGB
 
-local FLOOR = C(224, 220, 212)
+local FLOOR = C(226, 214, 196) -- beige stone tile (galleria photos)
 local PLASTER = C(236, 234, 228)
-local FASCIA = C(206, 206, 210) -- storefront bulkhead (sign bands come with the storefront phase)
+local FASCIA = C(246, 246, 244) -- white storefront bulkheads, as in the real galleria
 local FACADE = C(168, 160, 150)
 local FACADE_DARK = C(92, 96, 104)
 local STEEL = C(196, 198, 202)
@@ -120,17 +121,18 @@ local function storeSign(part, face, name, colour, bandH)
 	band.AnchorPoint = Vector2.new(0, 1)
 	band.Position = UDim2.fromScale(0, 1)
 	band.Size = UDim2.new(1, 0, 0, bandH * 24)
-	band.BackgroundColor3 = colour
+	band.BackgroundTransparency = 1
 	band.BorderSizePixel = 0
 	band.Parent = gui
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
 	label.AnchorPoint = Vector2.new(0.5, 0.5)
 	label.Position = UDim2.fromScale(0.5, 0.5)
-	label.Size = UDim2.fromScale(0.9, 0.7)
+	label.Size = UDim2.fromScale(0.7, 0.62)
 	label.Font = Enum.Font.GothamBold
 	label.TextScaled = true
-	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextColor3 = colour
+	label.TextStrokeTransparency = 0.85
 	label.Text = string.upper(name)
 	label.Parent = band
 	gui.Parent = part
@@ -220,7 +222,8 @@ function EatonCentre.build(root, rect)
 		levels[i] = { folder = f, y = y }
 
 		for _, r in ipairs(L.data.slabs) do
-			local p = plate(arch, r, y, SLAB, FLOOR, M.Marble)
+			local p = plate(arch, r, y, SLAB, FLOOR, M.CeramicTiles)
+			p.Reflectance = 0.08
 			p.Name = "Floor"
 			-- A plain ceiling under the floors above people's heads (Levels 2-3, and
 			-- Level 1 where the concourse is below).
@@ -246,6 +249,9 @@ function EatonCentre.build(root, rect)
 		local top = (i == 3) and (roofY - y) or (i == 0 and (base - SLAB - y) or (LEVEL_H - SLAB))
 		for wi, w in ipairs(L.data.walls) do
 			local a, b, kind = { w[1], w[2] }, { w[3], w[4] }, w[5]
+			if (kind == 3 or kind == 4) and i >= 1 and Exterior.replaces((a[1] + b[1]) / 2, (a[2] + b[2]) / 2, i) then
+				continue
+			end
 			if kind == 1 then
 				panel(retail, a, b, y, top, 0.5, PLASTER, M.SmoothPlastic)
 			elseif kind == 2 then
@@ -336,6 +342,10 @@ function EatonCentre.build(root, rect)
 				g.Name = "Balustrade"
 			end
 			panel(atrium, { r[1], r[2] }, { r[3], r[4] }, y + 3.6, 0.3, 0.45, STEEL, M.Metal)
+			local fascia = panel(atrium, { r[1], r[2] }, { r[3], r[4] }, y - SLAB - 1.4, 1.4 + SLAB, 0.5, C(250, 250, 248), M.SmoothPlastic, false)
+			if fascia then
+				fascia.Name = "BalconyFascia"
+			end
 		end
 	end
 
@@ -464,18 +474,40 @@ function EatonCentre.build(root, rect)
 			end
 		end
 	end
+	-- As in the real galleria: the vault springs from a clerestory storey (white
+	-- walls with a row of office windows) above Level 3, and is a tall, near
+	-- semicircular arch of small panes on white cross ribs.
 	local vault = folderIn(mall, "Galleria_Vault")
-	local PANES = 10
+	local PANES = 16
+	local CLER = 14 -- clerestory height above the roof line
+	local RIB_EVERY = 10 -- studs between cross ribs
 	local RIB = C(246, 246, 244)
+	local WIN = C(70, 84, 96)
+	local springY = roofY + CLER
+	local function clerestory(a, b, inward)
+		-- A white wall along plan segment a->b on the roof, with a window band.
+		local w = panel(vault, a, b, roofY, CLER, 0.8, RIB, M.SmoothPlastic)
+		if not w then
+			return
+		end
+		w.Name = "Clerestory"
+		local len = w.Size.Z
+		local win = Util.deco(vault, V3(0.2, 5, len - 1), w.CFrame * CFrame.new(inward * 0.5, -CLER / 2 + 7.5, 0), WIN, M.Glass)
+		win.Reflectance = 0.3
+		win.CastShadow = false
+		for z = -len / 2 + 4, len / 2 - 4, 6 do
+			Util.deco(vault, V3(0.3, 5, 0.4), w.CFrame * CFrame.new(inward * 0.6, -CLER / 2 + 7.5, z), RIB, M.SmoothPlastic)
+		end
+	end
 	for _, bay in ipairs(bays) do
 		local u0, u1, v0, v1 = bay[1], bay[2], bay[3], bay[4]
 		local span = (v1 - v0) * S
 		local radius = span / 2
-		local rise = math.min(radius * 0.6, 22)
+		local rise = math.min(radius * 0.8, 30)
 		local length = (u1 - u0) * S
-		local centre = P((u0 + u1) / 2, (v0 + v1) / 2, roofY)
+		local centre = P((u0 + u1) / 2, (v0 + v1) / 2, springY)
 		local function arc(a, z)
-			return V3(centre.X + radius * math.cos(a), roofY + rise * math.sin(a), z or centre.Z)
+			return V3(centre.X + radius * math.cos(a), springY + rise * math.sin(a), z or centre.Z)
 		end
 		for n = 0, PANES - 1 do
 			local a0, a1 = n / PANES * math.pi, (n + 1) / PANES * math.pi
@@ -484,23 +516,62 @@ function EatonCentre.build(root, rect)
 			local chord = (p1 - p0).Magnitude + 0.2
 			local tilt = math.atan2(p1.Y - p0.Y, p1.X - p0.X)
 			local pane = Util.solid(vault, V3(chord, 0.25, length), CFrame.new(mid) * CFrame.Angles(0, 0, tilt), GLASS, M.Glass)
-			pane.Transparency = 0.4
+			pane.Transparency = 0.45
 			pane.CastShadow = false
+			-- Purlins along the vault at every pane joint.
+			Util.deco(vault, V3(0.35, 0.35, length), CFrame.new(p0 + V3(0, -0.2, 0)), RIB, M.Metal)
 		end
-		for _, z in ipairs({ centre.Z - length / 2, centre.Z + length / 2 }) do
+		local nRibs = math.max(1, math.floor(length / RIB_EVERY))
+		for r = 0, nRibs do
+			local z = centre.Z - length / 2 + r * length / nRibs
 			for n = 0, PANES - 1 do
-				Util.beam(vault, arc(n / PANES * math.pi, z) + V3(0, 0.2, 0), arc((n + 1) / PANES * math.pi, z) + V3(0, 0.2, 0), 0.5, RIB, M.Metal)
+				Util.beam(vault, arc(n / PANES * math.pi, z) + V3(0, -0.25, 0), arc((n + 1) / PANES * math.pi, z) + V3(0, -0.25, 0), 0.6, RIB, M.Metal)
 			end
 		end
 		for _, side in ipairs({ -1, 1 }) do
-			Util.solid(vault, V3(1, 1.2, length), CFrame.new(centre.X + side * radius, roofY + 0.6, centre.Z), RIB, M.Metal)
+			Util.solid(vault, V3(1.4, 1.2, length), CFrame.new(centre.X + side * radius, springY + 0.6, centre.Z), RIB, M.Metal)
+		end
+		-- Clerestory walls along both sides (v0 is the east side: larger X).
+		clerestory({ u0, v0 }, { u1, v0 }, -1)
+		clerestory({ u0, v1 }, { u1, v1 }, 1)
+		-- A white cross band at each end of the bay (closes the clerestory).
+		for _, ue in ipairs({ u0, u1 }) do
+			panel(vault, { ue, v0 }, { ue, v1 }, roofY, CLER + 1.2, 0.8, RIB, M.SmoothPlastic)
 		end
 	end
 	for _, st in ipairs(flats) do
-		local g = plate(vault, { st[1], st[3], st[2], st[4] }, roofY + 1.2, 0.3, GLASS, M.Glass)
+		local g = plate(vault, { st[1], st[3], st[2], st[4] }, springY + 1.2, 0.3, GLASS, M.Glass)
 		g.Transparency = 0.4
 		g.CastShadow = false
-		plate(vault, { st[1], st[3], st[1] + 0.8, st[4] }, roofY + 1.6, 0.8, RIB, M.Metal)
+		plate(vault, { st[1], st[3], st[1] + 0.8, st[4] }, springY + 1.6, 0.8, RIB, M.Metal)
+		clerestory({ st[1], st[3] }, { st[2], st[3] }, -1)
+		clerestory({ st[1], st[4] }, { st[2], st[4] }, 1)
+	end
+
+	---------------------------------------------------------------------------
+	-- The Yonge & Dundas corner: rounded glass pavilion, screen tower, the white
+	-- blocks on Yonge and on Dundas (Exterior.lua). Its floors fill the quarter
+	-- circle on each level (just under the plan's own floor, so no z-fighting).
+	---------------------------------------------------------------------------
+	do
+		local K = Exterior.CORNER
+		for i = 1, 3 do
+			local fl = folderIn(levels[i].folder, "CornerFloor")
+			for u = K.u - 6, K.u + K.r - 2, 4 do
+				local um = math.min(u + 4, K.u + K.r)
+				-- Inside the arc: west of v = K.v - sqrt(r^2 - du^2) at this band's far edge.
+				local du = math.min(math.max(0, um - K.u), K.r)
+				local vmin = math.max(0, K.v - math.sqrt(K.r ^ 2 - du ^ 2) + 1)
+				local p = plate(fl, { u, vmin, um, K.v + 18 }, levelY(i) - 0.04, SLAB, FLOOR, M.CeramicTiles)
+				p.Reflectance = 0.08
+			end
+		end
+		local yongeAnchor = TENANTS["1:B212"] or TENANTS["2:B212"]
+		local dundasAnchor = TENANTS["3:C301B"]
+		Exterior.build(mall, P, S, base, roofY, Random.new(1977), {
+			yonge = yongeAnchor and yongeAnchor.name,
+			dundas = dundasAnchor and dundasAnchor.name,
+		})
 	end
 
 	---------------------------------------------------------------------------
@@ -816,6 +887,94 @@ function EatonCentre.build(root, rect)
 			placed.grind = cafe.u.unit
 		end
 	end
+	---------------------------------------------------------------------------
+	-- Interiors: every open shop fitted out for its category, and the Urban
+	-- Eatery's tables and chairs where the concourse plan draws them.
+	---------------------------------------------------------------------------
+	---------------------------------------------------------------------------
+	-- Corridor lighting and furniture (from the walkway areas on the plans):
+	-- recessed downlights on a ~22 ft spacing (every third casts light), and
+	-- benches with planters where a walkway is at least 21 ft wide.
+	---------------------------------------------------------------------------
+	local GREEN = { C(70, 120, 60), C(90, 140, 70), C(60, 104, 56) }
+	for _, L in ipairs(LEVEL_DATA) do
+		local i = L.idx
+		local y = levelY(i)
+		local ceilingY = (i == 3) and roofY or (i == 0 and base - SLAB or levelY(i + 1) - SLAB)
+		local fx = folderIn(levels[i].folder, "Lighting")
+		for k, pt in ipairs(L.data.lights or {}) do
+			local p = P(pt[1], pt[2], ceilingY - 0.15)
+			local disc = Util.cylinder(fx, 0.15, 1.6, CFrame.new(p), C(255, 250, 236), M.Neon, false)
+			disc.CastShadow = false
+			if k % 3 == 0 then
+				local light = Instance.new("PointLight")
+				light.Range = 30
+				light.Brightness = 0.9
+				light.Color = C(255, 244, 226)
+				light.Shadows = false
+				light.Parent = disc
+			end
+		end
+		local ff = folderIn(levels[i].folder, "Furniture")
+		local rngF = Random.new(i * 13 + 5)
+		for _, pt in ipairs(L.data.benches or {}) do
+			local p = P(pt[1], pt[2], y)
+			-- A round planter with a small tree, benches either side of it (along the mall).
+			Util.cylinder(ff, 2.6, 6, CFrame.new(p + V3(0, 1.3, 0)), C(236, 234, 228), M.SmoothPlastic, true)
+			Util.cylinder(ff, 0.2, 5.4, CFrame.new(p + V3(0, 2.65, 0)), C(86, 64, 44), M.Ground, false)
+			Util.deco(ff, V3(0.5, 5, 0.5), CFrame.new(p + V3(0, 5, 0)), C(96, 70, 48), M.Wood)
+			local crown = Util.deco(ff, V3(5, 4, 5), CFrame.new(p + V3(0, 8.8, 0)), GREEN[rngF:NextInteger(1, #GREEN)], M.LeafyGrass, Enum.PartType.Ball)
+			crown.CastShadow = false
+			for _, side in ipairs({ -1, 1 }) do
+				local bp = p + V3(0, 0, side * 6.5)
+				Util.solid(ff, V3(6, 0.5, 1.8), CFrame.new(bp + V3(0, 1.6, 0)), C(170, 130, 92), M.Wood)
+				Util.solid(ff, V3(6, 1.35, 1.2), CFrame.new(bp + V3(0, 0.68, 0)), C(70, 72, 78), M.Metal)
+			end
+		end
+	end
+	-- Centre court fountain, Level 1 (shown on the mall's own directory map at the
+	-- centre court; placed at the court's widest clear point, beside the escalators).
+	do
+		local p = P(490, 166, base)
+		local ff = levels[1].folder
+		Util.cylinder(ff, 1.6, 16, CFrame.new(p + V3(0, 0.8, 0)), C(238, 236, 230), M.Marble, true)
+		local water = Util.cylinder(ff, 0.3, 14.6, CFrame.new(p + V3(0, 1.45, 0)), C(90, 160, 200), M.Glass, false)
+		water.Transparency = 0.3
+		water.Name = "FountainWater"
+		Util.cylinder(ff, 3, 2.2, CFrame.new(p + V3(0, 3, 0)), C(238, 236, 230), M.Marble, true)
+		local jet = Util.deco(ff, V3(0.8, 6, 0.8), CFrame.new(p + V3(0, 7.5, 0)), C(200, 230, 250), M.Glass)
+		jet.Transparency = 0.5
+		jet.CastShadow = false
+		local spray = Instance.new("ParticleEmitter")
+		spray.Rate = 60
+		spray.Lifetime = NumberRange.new(1, 1.4)
+		spray.Speed = NumberRange.new(10, 14)
+		spray.SpreadAngle = Vector2.new(12, 12)
+		spray.Acceleration = Vector3.new(0, -30, 0)
+		spray.Size = NumberSequence.new(0.35, 0.1)
+		spray.Color = ColorSequence.new(C(220, 240, 255))
+		spray.Transparency = NumberSequence.new(0.3, 1)
+		spray.EmissionDirection = Enum.NormalId.Top
+		spray.Parent = jet
+	end
+
+	local Interiors = require(script.Interiors)
+	local skip = {}
+	if placed.threads then
+		skip[placed.threads] = true
+	end
+	if placed.grind then
+		skip[placed.grind] = true
+	end
+	local furnished = 0
+	for _, L in ipairs(LEVEL_DATA) do
+		local f = folderIn(levels[L.idx].folder, "Interiors")
+		furnished += Interiors.furnish(f, L.idx, L.data.units, P, S, levelY(L.idx), TENANTS, L.idx == 1 and skip or {}, L.idx * 101 + 7)
+	end
+	local seating = folderIn(levels[0].folder, "FoodCourt_Seating")
+	local seats = Interiors.foodCourt(seating, require(DATA.Furniture), P, S, levelY(0))
+	print(string.format("[EatonCentre] interiors: %d shops fitted out, %d food court pieces", furnished, seats))
+
 	print(string.format("[EatonCentre] built from plans: %d lifts, %d vault bays, Metro Threads in %s, Grind Coffee in %s",
 		liftCount, #bays, tostring(placed.threads), tostring(placed.grind)))
 

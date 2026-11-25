@@ -328,7 +328,7 @@ function Toronto.build(ctx)
 		warn("[EatonCentre] failed to build: " .. tostring(errEaton))
 	end
 	DowntownLandmarks.sankofaSquare(ctx.makeFolder(folder, "SankofaSquare"), T.SANKOFA, rng)
-	DowntownLandmarks.screenBuilding(ctx.makeFolder(folder, "TenDundasEast"), T.DUNDAS_NE, 74, { "south", "west" }, "10 DUNDAS EAST", rng)
+	DowntownLandmarks.screenBuilding(ctx.makeFolder(folder, "TenDundasEast"), T.DUNDAS_NE, 74, { "south", "west" }, "10 DUNDAS EAST", rng, { name = "PATTY JUNCTION", side = "sw" })
 	DowntownLandmarks.screenBuilding(ctx.makeFolder(folder, "YongeDundasNW"), T.DUNDAS_NW, 58, { "south", "east" }, nil, rng)
 	DowntownLandmarks.tmu(ctx.makeFolder(folder, "TMU"), T.TMU_SLC, T.TMU_KERR, T.TMU_SOUTH, rng)
 	DowntownLandmarks.uoft(ctx.makeFolder(folder, "UofT"), T.UOFT_SOUTH, T.UOFT_NORTH, rng)

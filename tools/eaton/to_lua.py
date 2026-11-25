@@ -164,6 +164,48 @@ def labelled(page, level, words):
     return out
 
 
+def interior_box(poly, front):
+    """The largest rectangle inside a unit, measured from its storefront: in the
+    front's frame (across the front, and inward from it). Returns
+    {cu, cv, au, av, width, depth}: the centre of the rectangle's front edge, the
+    direction along the front, and the size in feet; None if there's no room."""
+    m = raster([poly])
+    fu0, fv0, fu1, fv1, nx, ny = front
+    au, av = fu1 - fu0, fv1 - fv0
+    L = math.hypot(au, av)
+    if L < 4:
+        return None
+    au, av = au / L, av / L
+    iu, iv = -nx, -ny  # inward
+    mu, mv = (fu0 + fu1) / 2, (fv0 + fv1) / 2
+    lefts, rights = [], []
+    for d in range(1, 200):
+        cu, cv = mu + iu * d, mv + iv * d
+        if not at(m, cu, cv):
+            break
+        lo = 0
+        while lo > -300 and at(m, cu + au * (lo - 1), cv + av * (lo - 1)):
+            lo -= 1
+        hi = 0
+        while hi < 300 and at(m, cu + au * (hi + 1), cv + av * (hi + 1)):
+            hi += 1
+        lefts.append(lo)
+        rights.append(hi)
+    best = None
+    left, right = -1e9, 1e9
+    for k in range(len(lefts)):
+        left, right = max(left, lefts[k]), min(right, rights[k])
+        width, depth = right - left, k + 1
+        if width >= 6 and depth >= 6 and (best is None or width * depth > best[0]):
+            best = (width * depth, left, right, depth)
+    if not best:
+        return None
+    _, left, right, depth = best
+    c = (left + right) / 2
+    return {"cu": round(mu + au * c + iu * 0.8, 1), "cv": round(mv + av * c + iv * 0.8, 1), "au": round(au, 3), "av": round(av, 3),
+            "width": round(right - left - 1, 1), "depth": round(depth - 1.5, 1)}
+
+
 def main(pdf):
     os.makedirs(DEST, exist_ok=True)
     import pymupdf as fitz
@@ -352,6 +394,7 @@ def main(pdf):
                        "vmin": round(min(y for _, y in pts), 1), "vmax": round(max(y for _, y in pts), 1),
                        "inferred": bool(un.get("inferred")), "front": None}
                 units.append(rec)
+                rec["_poly"] = p
                 best_front = 0
                 for a, b, L, (nx, ny) in edges(p):
                     mu, mv = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
@@ -359,8 +402,20 @@ def main(pdf):
                     if not at(foot, ou, ov):
                         continue  # the exterior wall covers it
                     kind = 2 if (at(common, ou, ov) or at(voids, ou, ov)) else 1
-                    if kind == 2 and L > best_front:
-                        best_front = L
+                    # How much open floor lies in front of this edge (up to 30 ft)?
+                    # Shops don't front narrow service passages: under 10 ft it's a wall.
+                    depth = 0
+                    if kind == 2:
+                        for dd in range(3, 33):
+                            if at(common, mu + nx * dd, mv + ny * dd) or at(voids, mu + nx * dd, mv + ny * dd):
+                                depth = dd
+                            else:
+                                break
+                        if depth < 10:
+                            kind = 1
+                    score = L * min(1.0, depth / 20.0)
+                    if kind == 2 and score > best_front:
+                        best_front = score
                         rec["front"] = [round(a[0], 1), round(a[1], 1), round(b[0], 1), round(b[1], 1), round(nx, 2), round(ny, 2)]
                     # Pull unit walls in a little so neighbours' walls don't overlap.
                     pull = 0.4
@@ -374,6 +429,11 @@ def main(pdf):
             mu, mv = (w[0] + w[2]) / 2, (w[1] + w[3]) / 2
             return any(at(pm, mu, mv) for pm in esc_paths[name])
         walls = [w for w in walls if not in_path(w)]
+
+        # Furnishing room inside each shop (for the interior templates).
+        for rec in units:
+            poly = rec.pop("_poly", None)
+            rec["box"] = interior_box(poly, rec["front"]) if poly and rec.get("front") else None
 
         rails = []
         if name != "concourse":
@@ -411,7 +471,25 @@ def main(pdf):
         body += [f"\t\t{lua_value(u)}," for u in units]
         body += ["\t},", f"\tentranceArrows = {lua_value([[round(a, 1), round(b, 1)] for a, b in arrows[name]])},"]
         washrooms = [list(p) for p in labelled(doc[d["page"] - 1], d, ("WASHROOM", "WASHROOMS"))]
+        # Downlights over the walkways (a 28 ft grid, at least 4 ft from any wall
+        # or opening), and benches with planters where a walkway is at least 28 ft
+        # wide (so they never pinch it).
+        walk = (common & ~voids).astype(np.uint8)
+        inner = cv2.erode(walk, np.ones((int(7 / G), int(7 / G)), np.uint8)).astype(bool)
+        wide = cv2.erode(walk, np.ones((int(21 / G), int(21 / G)), np.uint8)).astype(bool)
+
+        def spaced(mask, step, gap):
+            pts = []
+            for uu in range(int(U0) + 4, int(U1), step):
+                for vv in range(int(V0) + 4, int(V1), step):
+                    if at(mask, uu, vv) and all((uu - a) ** 2 + (vv - b) ** 2 >= gap * gap for a, b in pts):
+                        pts.append([uu, vv])
+            return pts
+
+        lights = spaced(inner, 6, 22)
+        seats = spaced(wide, 8, 45)
         body += [f"\twashrooms = {lua_value(washrooms)},"]
+        body += [f"\tlights = {lua_value(lights)},", f"\tbenches = {lua_value(seats)},"]
         body += [f"\tlifts = {lua_value(lifts)},", f"\tescalators = {lua_value(escalators)},", "}", ""]
         with open(os.path.join(DEST, name + ".lua"), "w", encoding="utf-8") as f:
             f.write("\n".join(body))
@@ -425,6 +503,11 @@ def main(pdf):
         d5 = json.load(open(l5))
         sky = raster([v for v in d5["voids"] if abs(v["outer"][0][0]) < 2000])
         sky &= raster(levels["L3"]["footprint"])
+        # Level 3's public area (walkways and openings): the real vault spans the
+        # galleria from storefront line to storefront line, not just the opening
+        # traced on the roof plan, so each slice is widened across it.
+        public3 = raster(levels["L3"]["common"]) | raster(levels["L3"]["voids"])
+        WIDEN_MAX = 34  # ft per side, so side corridors don't pull the vault off
         step = 8
         for u in range(int(U0), int(U1), step):
             c0, c1 = int((u - U0) / G), int((u + step - U0) / G)
@@ -442,6 +525,19 @@ def main(pdf):
             r0, r1 = max(runs, key=lambda r: r[1] - r[0])
             if (r1 - r0) * G < 12:
                 continue
+            # Grow outwards while the whole slice is public on Level 3.
+            full = public3[:, c0:c1].all(axis=1)
+            lim = int(WIDEN_MAX / G)
+            a = r0
+            while a - 1 >= 0 and r0 - (a - 1) <= lim and full[a - 1]:
+                a -= 1
+            b = r1
+            while b + 1 < len(full) and (b + 1) - r1 <= lim and full[b + 1]:
+                b += 1
+            # Stop a little short of the storefronts (the clerestory sits on them).
+            pad = int(1 / G)
+            r0 = min(r0, a + pad) if a < r0 else r0
+            r1 = max(r1, b - pad) if b > r1 else r1
             vault.append((u, u + step, round(V1 - (r1 + 1) * G, 1), round(V1 - r0 * G, 1)))
     # Roof: Level 3's footprint, solid except over the skylight (vault) and over
     # Level 3's floor openings (flat glass where the vault doesn't reach).

@@ -159,7 +159,7 @@ end
 ---------------------------------------------------------------------------
 -- A commercial block whose `faces` ("north", "south", "east", "west") are covered
 -- in giant screens above lit shopfronts.
-function Landmarks.screenBuilding(folder, rect, height, faces, name, rng)
+function Landmarks.screenBuilding(folder, rect, height, faces, name, rng, corner)
 	local x0, x1, z0, z1 = rect.minX, rect.maxX, rect.minZ, rect.maxZ
 	local cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
 	local W, L = x1 - x0 - 2, z1 - z0 - 2
@@ -187,6 +187,11 @@ function Landmarks.screenBuilding(folder, rect, height, faces, name, rng)
 		local shopsN = math.max(2, math.floor(len / 24))
 		for k = 0, shopsN - 1 do
 			local u = -len / 2 + (k + 0.5) * len / shopsN
+			-- Leave out the shops the corner restaurant covers (sw corner: the west
+			-- end of the south face, the south end of the west face).
+			if corner and ((f == "south" and u < -len / 2 + 36) or (f == "west" and u > len / 2 - 32)) then
+				continue
+			end
 			local front = deco(folder, V3(len / shopsN - 2, 10, 0.3), at(u, KERB + 5.5) * CFrame.new(0, 0, -0.2), C(255, 236, 200), M.Glass)
 			front.Transparency = 0.2
 			Util.nightWindow(front, 0.6)
@@ -202,6 +207,42 @@ function Landmarks.screenBuilding(folder, rect, height, faces, name, rng)
 	end
 	if name then
 		sign(folder, CFrame.lookAt(V3(cx, height + 6, z1 - 6), V3(cx, height + 6, z1 + 4)), V3(math.min(W - 10, 60), 6, 0.6), name, C(20, 20, 24), C(255, 255, 255))
+	end
+	-- A corner restaurant: a two-storey glass box wrapping the corner that faces
+	-- the intersection (corner = { name, side = "sw" | "se" }).
+	if corner then
+		local sx = corner.side == "se" and 1 or -1
+		local ex = sx > 0 and x1 - 1 or x0 + 1 -- the building's outer edge (x)
+		local ez = z1 - 1 -- south face
+		local w, d, h = 34, 30, 24
+		local bx, bz = ex - sx * w / 2, ez - d / 2
+		-- Warm-lit glazing (plastic reads better than Glass at night) with black
+		-- mullions every 5 studs on both street faces.
+		local shell = deco(folder, V3(w + 1.2, h, d + 1.2), V3(bx, KERB + h / 2, bz), C(255, 226, 178), M.SmoothPlastic)
+		shell.Transparency = 0.12
+		shell.CastShadow = false
+		local light = Instance.new("PointLight")
+		light.Range = 30
+		light.Brightness = 1.2
+		light.Color = C(255, 214, 160)
+		light.Parent = shell
+		for t = 5, w - 1, 5 do
+			deco(folder, V3(0.5, h, 0.4), V3(ex - sx * t, KERB + h / 2, ez + 0.9), C(22, 22, 24), M.Metal)
+		end
+		for t = 5, d - 1, 5 do
+			deco(folder, V3(0.4, h, 0.5), V3(ex + sx * 0.9, KERB + h / 2, ez - t), C(22, 22, 24), M.Metal)
+		end
+		-- Black frame: corner post, floor band, cornice.
+		deco(folder, V3(1.4, h + 2, 1.4), V3(ex + sx * 0.7, KERB + (h + 2) / 2, ez + 0.7), C(22, 22, 24), M.Metal)
+		deco(folder, V3(w + 1.6, 1, d + 1.6), V3(bx, KERB + 12, bz), C(22, 22, 24), M.Metal)
+		deco(folder, V3(w + 2, 2, d + 2), V3(bx, KERB + h + 1, bz), C(22, 22, 24), M.Metal)
+		-- Name signs on both street faces, lit.
+		local red = C(196, 44, 36)
+		sign(folder, CFrame.lookAt(V3(bx, KERB + h - 4, ez + 1.2), V3(bx, KERB + h - 4, ez + 10)), V3(w - 6, 4, 0.4), corner.name, red, C(255, 248, 232))
+		local fx = ex + sx * 1.2
+		sign(folder, CFrame.lookAt(V3(fx, KERB + h - 4, bz), V3(fx + sx * 10, KERB + h - 4, bz)), V3(d - 6, 4, 0.4), corner.name, red, C(255, 248, 232))
+		-- Awning over the corner door.
+		deco(folder, V3(10, 0.5, 4), V3(ex - sx * 6, KERB + 10.5, ez + 2.6), red, M.Fabric)
 	end
 	CollectionService:AddTag(folder, "BillboardCanyon")
 end
