@@ -273,18 +273,37 @@ function Props.placeStreetFurniture(folder, rng, roads, opts)
 end
 
 -- Parked cars along kerbs of side streets.
-function Props.placeParkedCars(folder, rng, Cars, roads)
-	local count = 0
+-- Kerbside spots along roads: free stretches of road edge (no junction within
+-- 9 studs), facing with traffic on that side (drive on the right).
+--   opts: kinds = { street = true, ... } (default: streets), cap, chance (0..1 per
+--   step), gap = { min, max } studs between tries, avoid = { Vector2 } spots taken
+-- Returns { { p = Vector2, facing = Vector2 } }.
+function Props.kerbSpots(rng, roads, opts)
+	opts = opts or {}
+	local kinds = opts.kinds or { street = true }
+	local cap = opts.cap or 120
+	local chance = opts.chance or 0.5
+	local gap = opts.gap or { 20, 45 }
+	local taken = opts.avoid or {}
+	local spots = {}
+	local function clear(q)
+		for _, t in ipairs(taken) do
+			if (t - q).Magnitude < 18 then
+				return false
+			end
+		end
+		return true
+	end
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
-		if road.kind ~= "street" then
+		if not kinds[road.kind] then
 			return
 		end
 		local t = rng:NextNumber(10, 30)
-		while t < length - 10 and count < 120 do
-			if rng:NextNumber() < 0.5 then
+		while t < length - 10 and #spots < cap do
+			if rng:NextNumber() < chance then
 				local side = rng:NextNumber() < 0.5 and 1 or -1
 				local p = a + dir * t + normal * side * (road.width / 2 - 4)
-				local ok = true
+				local ok = clear(p)
 				for _, off in ipairs({ -9, 0, 9 }) do
 					local q = p + dir * off
 					if Util.isJunction(q.X, q.Y) or Util.get(q.X, q.Y) ~= Util.ROAD then
@@ -292,16 +311,24 @@ function Props.placeParkedCars(folder, rng, Cars, roads)
 					end
 				end
 				if ok then
-					-- Facing with traffic on that side (drive on the right).
-					local facing = side == 1 and dir or dir * -1
-					local car = Cars.spawnParked(Util.groundCF(p, facing, 0.3), folder, rng)
-					Util.tick(#car:GetChildren())
-					count = count + 1
+					table.insert(spots, { p = p, facing = side == 1 and dir or dir * -1 })
+					table.insert(taken, p)
 				end
 			end
-			t = t + rng:NextNumber(20, 45)
+			t = t + rng:NextNumber(gap[1], gap[2])
 		end
 	end, roads)
+	return spots
+end
+
+-- Parked cars along the kerbs (cheap, anchored). opts as for Props.kerbSpots.
+function Props.placeParkedCars(folder, rng, Cars, roads, opts)
+	local count = 0
+	for _, s in ipairs(Props.kerbSpots(rng, roads, opts)) do
+		local car = Cars.spawnParked(Util.groundCF(s.p, s.facing, 0.3), folder, rng)
+		Util.tick(#car:GetChildren())
+		count = count + 1
+	end
 	return count
 end
 

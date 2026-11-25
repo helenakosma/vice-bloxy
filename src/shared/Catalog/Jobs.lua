@@ -28,7 +28,8 @@ Jobs.EMPLOYERS = {
 		industry = "food",
 		track = "cafe",
 		workplace = "GRIND_EATON",
-		where = "Eaton Centre food court, Yonge & Dundas",
+		location = "eaton.grind", -- Shared/Catalog/Locations
+		where = "Eaton Centre, Level 1 · TMU / Dundas station",
 		hours = { 6, 24 }, -- open (in-game clock)
 		weights = { degree = 0.05, experience = 0.35, skills = 0.25, previous = 0.15, suitability = 0.2 },
 		about = "A busy espresso bar in the Eaton Centre food court. Fast, friendly, caffeinated.",
@@ -38,7 +39,8 @@ Jobs.EMPLOYERS = {
 		industry = "retail",
 		track = "retail",
 		workplace = "THREADS_EATON",
-		where = "Eaton Centre, ground floor",
+		location = "eaton.threads", -- Shared/Catalog/Locations
+		where = "Eaton Centre, Level 1 · TMU / Dundas station",
 		hours = { 8, 23 },
 		weights = { degree = 0.05, experience = 0.35, skills = 0.25, previous = 0.15, suitability = 0.2 },
 		about = "Streetwear and basics. Keep the racks full, the tables folded and the line moving.",

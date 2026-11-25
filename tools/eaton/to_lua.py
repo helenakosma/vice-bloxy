@@ -82,6 +82,46 @@ def rects(mask, cell=2):
     return out
 
 
+def unit_floor(poly, cell=2):
+    """A store's floor as rectangles {u0, v0, u1, v1} (plan feet): the traced unit,
+    cropped to its own bounds first so it stays quick."""
+    m = raster([poly])
+    rows, cols = np.nonzero(m)
+    if len(rows) == 0:
+        return []
+    r0, r1 = rows.min(), rows.max() + 1
+    c0, c1 = cols.min(), cols.max() + 1
+    sub = m[r0:r1, c0:c1]
+    h, w = sub.shape
+    hh, ww = max(1, h // cell), max(1, w // cell)
+    sub = sub[: hh * cell, : ww * cell]
+    if sub.size == 0:
+        return []
+    g = sub.reshape(hh, cell, ww, cell).mean(axis=(1, 3)) >= 0.5
+    used = np.zeros_like(g)
+    out = []
+    for r in range(hh):
+        c = 0
+        while c < ww:
+            if not g[r, c] or used[r, c]:
+                c += 1
+                continue
+            ce = c
+            while ce + 1 < ww and g[r, ce + 1] and not used[r, ce + 1]:
+                ce += 1
+            re_ = r
+            while re_ + 1 < hh and g[re_ + 1, c:ce + 1].all() and not used[re_ + 1, c:ce + 1].any():
+                re_ += 1
+            used[r:re_ + 1, c:ce + 1] = True
+            u0 = U0 + (c0 + c * cell) * G
+            u1 = U0 + (c0 + (ce + 1) * cell) * G
+            va = V1 - (r0 + (re_ + 1) * cell) * G
+            vb = V1 - (r0 + r * cell) * G
+            out.append([round(u0, 1), round(va, 1), round(u1, 1), round(vb, 1)])
+            c = ce + 1
+    return out
+
+
 def edges(poly):
     pts = poly["outer"]
     n = len(pts)
@@ -531,6 +571,8 @@ def main(pdf):
             rec["box"] = interior_box(poly, rec["front"]) if poly and rec.get("front") else None
             if poly:
                 rec["fillAxis"], rec["fill"] = fill_points(poly, rec["front"], rec["box"], esc_paths[name])
+                # The whole floor of the store (for its floor finish and ceiling).
+                rec["floor"] = unit_floor(poly)
             shelves = rec.pop("_shelves", [])
             rec["shelves"] = [w for w in shelves if not any(at(pm, (w[0] + w[2]) / 2, (w[1] + w[3]) / 2) for pm in esc_paths[name])]
 
@@ -690,7 +732,28 @@ def main(pdf):
     shared += [f"\t\t{lua_value(e)}," for e in esc_list]
     shared += ["\t},", "\tskylights = {"]
     shared += [f"\t\t{lua_value(r)}," for r in glass]
-    shared += ["\t},", f"\tdig = {lua_value(dig)},", "\tcaps = {"]
+    # The courts: where Level 1's floor lies open to the floors above (under Level
+    # 2's openings), the points farthest from any edge, for the ring-pattern
+    # floor inlays the galleria's courts have. Up to 5, 120 ft apart.
+    medallions = []
+    try:
+        open1 = raster(levels["L1"]["common"]) & raster(levels["L2"]["voids"])
+        dist = cv2.distanceTransform(open1.astype(np.uint8), cv2.DIST_L2, 5) * G
+        work = dist.copy()
+        rr, cc = np.ogrid[: work.shape[0], : work.shape[1]]
+        while len(medallions) < 5:
+            r_, c_ = np.unravel_index(np.argmax(work), work.shape)
+            radius = float(work[r_, c_])
+            if radius < 9:
+                break
+            u_, v_ = U0 + (c_ + 0.5) * G, V1 - (r_ + 0.5) * G
+            medallions.append([round(float(u_), 1), round(float(v_), 1), round(min(radius - 1.5, 22), 1)])
+            work[(rr - r_) ** 2 + (cc - c_) ** 2 <= int(120 / G) ** 2] = 0
+    except Exception as e:  # keep the build going without them
+        summary.append(f"courts: skipped ({e})")
+    summary.append(f"courts: {medallions}")
+    shared += ["\t},", f"\tmedallions = {lua_value(medallions)},"]
+    shared += [f"\tdig = {lua_value(dig)},", "\tcaps = {"]
     shared += [f"\t\t{lua_value(r)}," for r in caps]
     shared += ["\t},", "\troof4 = {"]
     shared += [f"\t\t{lua_value(r)}," for r in roof4]

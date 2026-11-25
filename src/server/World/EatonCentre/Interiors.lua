@@ -11,6 +11,9 @@
 -- them (Data/Furniture.lua). The food hall (the old Richtree unit) has no stall
 -- plan, so its stall ring is laid out to fill the unit (inferred).
 local Util = require(script.Parent.Parent.Util)
+-- Detailed store designs (one per kind of real store); the simple fixtures below
+-- remain as the fallback if a design fails.
+local Stores = require(script.Parent.Stores)
 
 local Interiors = {}
 
@@ -297,8 +300,13 @@ function Interiors.furnish(folder, levelIdx, units, P, S, y, tenants, skip, seed
 			if u.unit == "FA100" then
 				foodHall(shop, at, W, D, rng)
 			else
-				local template = TEMPLATES[t.category] or TEMPLATES.fashion
-				pcall(template, shop, at, W, D, rng, accent)
+				local key = levelIdx .. ":" .. u.unit
+				local ok, err = pcall(Stores.front, shop, at, W, D, rng, Stores.design(t), key, t)
+				if not ok then
+					warn("[Interiors] " .. key .. " design failed: " .. tostring(err))
+					local template = TEMPLATES[t.category] or TEMPLATES.fashion
+					pcall(template, shop, at, W, D, rng, accent)
+				end
 			end
 			count += 1
 		end
@@ -396,9 +404,24 @@ function Interiors.fill(folder, levelIdx, units, P, S, y, tenants, skip, seed)
 			local origin = P(0, 0, y)
 			local inward = (P(axis[3], axis[4], y) - origin)
 			inward = V3(inward.X, 0, inward.Z).Unit
+			local design = Stores.design(t)
+			local key = levelIdx .. ":" .. u.unit
+			-- The flagship (the H&M stand-in) gets its own hand-planned floor.
+			if Stores.isFlagship(design) then
+				local okF, res = pcall(Stores.flagship, shop, u, P, S, y, design, key, rng)
+				if okF then
+					placed += res
+					continue
+				end
+				warn("[Interiors] " .. key .. " flagship failed: " .. tostring(res))
+			end
 			for k, pt in ipairs(spots) do
 				local p = P(pt[1], pt[2], y)
-				local ok = pcall(fixture, shop, CFrame.lookAt(p, p + inward), rng, k)
+				local cf = CFrame.lookAt(p, p + inward)
+				local ok = pcall(Stores.field, shop, cf, rng, k, design, key)
+				if not ok then
+					ok = pcall(fixture, shop, cf, rng, k)
+				end
 				if ok then
 					placed += 1
 				end
@@ -428,7 +451,7 @@ function Interiors.walls(folder, levelIdx, units, P, S, y, tenants, skip, seed)
 	local runs = 0
 	for _, u in ipairs(units) do
 		local t = tenants[levelIdx .. ":" .. u.unit]
-		if t and t.status == "open" and u.shelves and not skip[u.unit] and u.unit ~= "FA100" then
+		if t and t.status == "open" and (u.shelves or u.floor) and not skip[u.unit] and u.unit ~= "FA100" then
 			local spec = WALL[t.category] or WALL.fashion
 			local shop = folder:FindFirstChild(u.unit)
 			if not shop then
@@ -436,10 +459,53 @@ function Interiors.walls(folder, levelIdx, units, P, S, y, tenants, skip, seed)
 				shop.Name = u.unit
 				shop.Parent = folder
 			end
-			for _, w in ipairs(u.shelves) do
+			local design = Stores.design(t)
+			local key = levelIdx .. ":" .. u.unit
+			-- The store's shell first (floor, ceiling, wall finishes, lighting): its
+			-- inner walls are the wall runs' line moved back 1.4 ft to the wall.
+			local wallLines = {}
+			for _, w in ipairs(u.shelves or {}) do
+				local inward = P(w[5], w[6], y) - P(0, 0, y)
+				inward = V3(inward.X, 0, inward.Z).Unit
+				table.insert(wallLines, { a = P(w[1], w[2], y) - inward * 1.4 * S, b = P(w[3], w[4], y) - inward * 1.4 * S, inward = inward })
+			end
+			local okS, errS = pcall(Stores.shell, shop, u, P, S, y, design, key, wallLines, rng)
+			if not okS then
+				warn("[Interiors] " .. key .. " shell failed: " .. tostring(errS))
+			end
+			-- The flagship's longest wall is a red slatted feature wall.
+			local slatRun = nil
+			if Stores.isFlagship(design) then
+				local best = 30
+				for wi, w in ipairs(u.shelves or {}) do
+					local l = (P(w[3], w[4], y) - P(w[1], w[2], y)).Magnitude
+					if l > best then
+						best, slatRun = l, wi
+					end
+				end
+			end
+			for wi, w in ipairs(u.shelves or {}) do
 				local a, b = P(w[1], w[2], y), P(w[3], w[4], y)
 				local len = (b - a).Magnitude - 2
+				local detailed = false
+				if wi == slatRun then
+					local inward = P(w[5], w[6], y) - P(0, 0, y)
+					inward = V3(inward.X, 0, inward.Z).Unit
+					local okW = pcall(Stores.slatWall, shop, (a + b) / 2, (b - a).Unit, inward, len, rng)
+					if okW then
+						runs += 1
+						continue
+					end
+				end
 				if len >= 4 then
+					local inward = P(w[5], w[6], y) - P(0, 0, y)
+					inward = V3(inward.X, 0, inward.Z).Unit
+					local okD, res = pcall(Stores.wall, shop, (a + b) / 2, (b - a).Unit, inward, len, rng, design, key)
+					detailed = okD and res
+				end
+				if len >= 4 and detailed then
+					runs += 1
+				elseif len >= 4 then
 					local inward = P(w[5], w[6], y) - P(0, 0, y)
 					inward = V3(inward.X, 0, inward.Z).Unit
 					local mid = (a + b) / 2 + inward * (spec.d / 2)

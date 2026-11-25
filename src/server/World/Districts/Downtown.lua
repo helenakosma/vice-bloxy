@@ -78,7 +78,7 @@ function Downtown.build(ctx)
 		hero.streetscape(ctx.makeFolder(folder, "HeroBlock"))
 	end
 	Props.startSignals()
-	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars, roads)
+	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars, roads, { kinds = { street = true, avenue = true }, cap = 260, chance = 0.6 })
 	print(string.format("[Downtown] %d frontage buildings, %d filler, %d parked cars", placed, filled, parked))
 
 	-- Driveable cars: a few by the player spawn plus some along the avenues.
@@ -91,7 +91,7 @@ function Downtown.build(ctx)
 		end
 	end
 	Roads.eachSegment(function(road, a, _, dir, normal, length)
-		if #carSpawns < 16 and road.kind == "avenue" and length > 60 and rng:NextNumber() < 0.08 then
+		if #carSpawns < 30 and road.kind == "avenue" and length > 60 and rng:NextNumber() < 0.16 then
 			local p = a + dir * (length / 2) + normal * (road.width / 2 - 5)
 			if not Util.isJunction(p.X, p.Y) then
 				table.insert(carSpawns, { cframe = Util.groundCF(p, dir, 0.3), taxi = rng:NextNumber() < 0.3 })

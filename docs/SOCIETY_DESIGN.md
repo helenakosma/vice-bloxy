@@ -31,9 +31,9 @@ It is a loop, not a storyline. Players can change direction at any point, for ex
 _Partly exists._ A new player gets a profile, a starting balance and a phone. They are free to explore immediately: no permanent career choice and no long tutorial.
 
 _Planned:_
+- Arrival at Union Station.
 - A light set of optional first objectives: find a place to stay, apply for a first job, ride the subway, visit the Eaton Centre.
 - Surfaced through the phone, never blocking play.
-- Arrival in Toronto, not the legacy Downtown district (see open questions).
 
 ### Employment and careers
 
@@ -155,12 +155,18 @@ The phases are provisional and will be refined after review.
 | 5 | Player businesses, player hiring, property investment | Planned |
 | 6 | Entertainment, events, more careers | Planned |
 
-## Open design questions (for review)
+## Decisions (2026-11-25)
 
-1. **Spawn and arrival.** Players currently spawn in the legacy Manhattan-style Downtown district. Should arrival move to Toronto (for example Union Station or Yonge & Dundas)? And should Downtown, Industrial and Suburbs also be retired from the playable world?
-2. **The polished first career.** Café (Grind Coffee) or retail (Metro Threads)? Both exist. The proposal recommends the café: its loop (order → make → serve → tip) is the most legible.
-3. **The time scale.** One in-game hour equals one real minute now, so a full shift is 8 minutes. Is that the target?
-4. **Offline obligations.** Should rent accrue only for time played (the current design note) or on real calendar time?
-5. **Cash.** Bank balance only, or a separate cash balance as well? A cash balance would matter for theft or crime systems, which aren't planned.
-6. **Global state.** Which things are limited across all servers (property units, business slots, job openings) and which are per-server? This decides the shared-state design.
-7. **All balance numbers** are left open: starting balance, wages, rent, tuition and progression rates.
+| Question | Decision |
+| --- | --- |
+| Arrival | New players arrive in Toronto at **Union Station**, one subway ride from the Eaton Centre jobs. |
+| First polished career | **Café** (Grind Coffee): order → make → hand over → tips. |
+| Time scale | **1 in-game hour = 1 real minute** (a full shift is 8 minutes, a day 24 minutes). |
+| Recurring costs | Rent and similar costs run on **time played**, per in-game week of the player's own time online, never while offline. |
+| Money | **Bank balance only.** No separate cash; everything is paid by card. |
+| Limited across all servers | **Business ownership** (one owner per business unit) and **job openings** (fixed positions where a listing says so; NPCs fill the rest). Properties and rentals are **not** global: homes are instanced, so any number of players can rent or own the same home type. |
+| Legacy districts | Downtown (Manhattan-style), Industrial and Suburbs **stay for now**, until the map team replaces them. They stop being the arrival point. |
+
+## Still open
+
+- **All balance numbers:** starting balance, wages, rent, tuition, prices and progression rates. These are decided later as part of overall balancing. The values in `src/shared/Economy.lua` remain temporary test values.

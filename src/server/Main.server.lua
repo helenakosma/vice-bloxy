@@ -23,6 +23,45 @@ end)
 if not workOk then
 	warn("[Work] failed to start: " .. tostring(workErr))
 end
+
+-- Places by id (Services/Locations), and where new players arrive (Catalog/Locations
+-- ARRIVAL: Yonge & Dundas for now).
+-- The world's own spawn point (the first district that offers one) is moved there,
+-- so respawns land there too; anyone who already spawned at the old point while
+-- the world was building is brought over.
+local locOk, locErr = pcall(function()
+	local Locations = require(Services.Locations)
+	Locations.start()
+	local arrival = Locations.arrival()
+	local spawn = workspace:FindFirstChild("Spawn")
+	if arrival and spawn and spawn:IsA("SpawnLocation") then
+		local old = spawn.Position
+		spawn.CFrame = arrival + Vector3.new(0, 0.5, 0)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if root and (root.Position - old).Magnitude < 80 then
+				player.Character:PivotTo(arrival + Vector3.new(0, 3, 0))
+			end
+		end
+		print(string.format("[Locations] new players arrive at (%.0f, %.0f, %.0f)", arrival.X, arrival.Y, arrival.Z))
+	elseif not arrival then
+		warn("[Locations] no arrival point; players keep the district spawn")
+	end
+end)
+if not locOk then
+	warn("[Locations] failed to start: " .. tostring(locErr))
+end
+
+-- Shopping in the Eaton Centre's stores (prompts on the displays and tills the
+-- world just built), and the cashiers and shoppers near players.
+for _, name in ipairs({ "Shopping", "ShopNPCs" }) do
+	local ok, err = pcall(function()
+		require(Services[name]).start()
+	end)
+	if not ok then
+		warn("[" .. name .. "] failed to start: " .. tostring(err))
+	end
+end
 require(script.Parent.World.Atmosphere).startCycle()
 
 for _, spawn in ipairs(info.carSpawns) do

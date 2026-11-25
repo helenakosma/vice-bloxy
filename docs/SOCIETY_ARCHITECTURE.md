@@ -127,10 +127,11 @@ World (map team)                builds geometry; tags anchors with a LocationId
 
 ### 3.4 Shared state (proposed, Phase 3–5; not in the first slice)
 
-Things that are limited across all servers (property units, business ownership, unique job openings) need one source of truth:
+Decided: **business ownership** and **limited job openings** are game-wide. Homes (rented or owned) are instanced per player, so housing needs no global availability, only per-player records in the profile. The game-wide things need one source of truth:
 
-- **Ownership records:** DataStore keys like `Property/<id>` and `Business/<id>`, written with `UpdateAsync` and checked against a version number. These are the authority.
-- **Short-lived claims:** MemoryStore (`SortedMap` with a TTL), for example "this unit is being viewed or applied for".
+- **Ownership records:** DataStore keys like `Business/<id>`, written with `UpdateAsync` and checked against a version number. These are the authority.
+- **Job openings:** a listing with a fixed number of positions keeps its filled count under `Openings/<listing>` (`UpdateAsync`). A hire claims a seat, and quitting or leaving the job frees it. Listings without a limit stay unlimited.
+- **Short-lived claims:** MemoryStore (`SortedMap` with a TTL), for example "this business unit or opening is mid-application".
 - **Two-party money:** a `Transfers` service.
   - It debits the payer through `Economy` with transaction id `T`, records a pending credit `T` in the payee's mailbox key (DataStore), and the payee's server applies it with the same id.
   - Ids make every step idempotent, so a crash between steps can't duplicate or lose money.
@@ -158,11 +159,11 @@ Proposed, in order:
 
 ## 4. First vertical slice (proposed, Phase 2)
 
-Most of this loop exists (Milestone 2). The slice is about making it complete, reliable and pleasant for one career, not adding more careers. The recommended career is the café (Grind Coffee). It's an open question in the design doc.
+Most of this loop exists (Milestone 2). The slice is about making it complete, reliable and pleasant for one career, not adding more careers. The career is the café (Grind Coffee) (decided).
 
 | Step | Today | Work in the slice |
 | --- | --- | --- |
-| 1. Join | Profile loads (or guest). Spawn is in legacy Downtown. | Arrival in Toronto (decision needed). A welcome notification. |
+| 1. Join | Profile loads (or guest). Spawn is in legacy Downtown. | Arrival at Union Station (decided). A welcome notification. |
 | 2. Profile | v1 schema, session lock | Profile-size check; migration test from v1 saves |
 | 3. Phone | Opens; Home, Bank and Jobs work | **Today** app: 3 optional first objectives (no forced tutorial) |
 | 4. Browse jobs | Listings with requirements and pay | Listing shows the location by id, with distance and nearest station |
@@ -249,8 +250,15 @@ Most of this loop exists (Milestone 2). The slice is about making it complete, r
 
 ## 9. Proposed implementation sequence (after review)
 
-1. **Decisions:** arrival point, polished career, time scale, cash vs bank-only, which state is global.
-2. **Location registry and anchor contract:** agreed with Codex. Tag the two Eaton workplaces and Dundas station first.
+1. **Decisions (made 2026-11-25):**
+   - Arrival at Union Station.
+   - Café first.
+   - 1 game hour = 1 real minute.
+   - Recurring costs on time played.
+   - Bank only.
+   - Business ownership and limited job openings are game-wide; homes are instanced.
+   - Legacy districts stay for now.
+2. **Location registry and anchor contract:** agreed with Codex. Tag Union Station (the arrival point), the two Eaton workplaces and Dundas station first. Arrival moves from Downtown's spawn to Union Station's anchor. This is a spawn override in the society code, so the district build order doesn't change.
 3. **Clock service:** move employer hours to it.
 4. **Navigate and Today:** Jobs shows the location; waypoint and minimap marker; first objectives.
 5. **Café polish and payslips:** shift summary, ledger memo lines.

@@ -79,4 +79,16 @@ return {
 	-- Education (Milestone 3).
 	TuitionPerCourse = 120,
 	CoursesPerDegree = 24,
+
+	-- Shopping (Eaton Centre stores; Services/Shopping, Catalog/Products).
+	-- TEMPORARY TEST VALUES: not balanced against wages or rent yet.
+	Shopping = {
+		Prices = { tiny = 5, small = 15, medium = 40, large = 90, premium = 240, luxury = 900 },
+		BasketMax = 6, -- items you can carry to the till at once
+		ReachStuds = 12, -- how close you must be to pick something up or pay
+		LeaveStuds = 70, -- walk this far from the store with an unpaid basket and it's put back
+		InventoryMax = 120, -- different items kept in your inventory (oldest dropped)
+		TreatSeconds = 90, -- how long you hold a drink or a snack
+		BagSeconds = 240, -- how long you carry a shopping bag
+	},
 }

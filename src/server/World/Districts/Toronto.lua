@@ -363,6 +363,35 @@ function Toronto.build(ctx)
 		local p = Vector2.new(T.YONGE_X + yonge.width / 2 - 6, T.FRONT_Z - 80 - i * 40)
 		table.insert(carSpawns, { cframe = Util.groundCF(p, Vector2.new(0, -1), 0.3) })
 	end
+
+	-- Cars along the kerbs everywhere: drivable ones first (clustered round Yonge &
+	-- Dundas, where players arrive, then across the city), then parked ones.
+	local taken = {}
+	local dundasZ = T.FRONT_Z
+	for _, s in ipairs(T.STATIONS) do
+		if s.name == "DUNDAS" then
+			dundasZ = s.z
+		end
+	end
+	local yd = Vector2.new(T.YONGE_X, dundasZ)
+	local near = Props.kerbSpots(rng, roads, { kinds = { street = true, avenue = true, arterial = true, yonge = true }, cap = 400, chance = 0.9, gap = { 16, 28 }, avoid = taken })
+	table.sort(near, function(a, b)
+		return (a.p - yd).Magnitude < (b.p - yd).Magnitude
+	end)
+	local driveable = 0
+	for i, spot in ipairs(near) do
+		local close = (spot.p - yd).Magnitude < 420
+		if (close and driveable < 10) or (not close and i % 9 == 0 and driveable < 44) then
+			table.insert(carSpawns, { cframe = Util.groundCF(spot.p, spot.facing, 0.3), taxi = rng:NextNumber() < 0.25 })
+			driveable += 1
+		end
+	end
+	taken = {}
+	for _, c in ipairs(carSpawns) do
+		table.insert(taken, Vector2.new(c.cframe.X, c.cframe.Z))
+	end
+	local parked = Props.placeParkedCars(ctx.makeFolder(folder, "ParkedCars"), rng, ctx.Cars, roads, { kinds = { street = true, avenue = true, arterial = true }, cap = 600, chance = 0.55, avoid = taken })
+	print(string.format("[Toronto] %d driveable cars, %d parked cars", #carSpawns, parked))
 	return { carSpawns = carSpawns }
 end
 
