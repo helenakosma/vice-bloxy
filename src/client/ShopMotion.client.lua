@@ -14,9 +14,9 @@ local Workspace = game:GetService("Workspace")
 
 local SPIN_NEAR = 160
 local SWAY_NEAR = 45
-local SWAY_MAX = 140
+local SWAY_MAX = 60
 local FOLD_NEAR = 90
-local SWAY_HZ = 1 / 20
+local SWAY_HZ = 1 / 15
 
 local base = {} -- instance -> original pivot / cframe
 local size = {} -- fold part -> original size
@@ -48,13 +48,15 @@ end
 
 -- Which swaying garments are near (recomputed twice a second).
 local near = {}
-local function refresh(camPos)
+local function refresh(camPos, camLook)
 	local list = {}
 	for _, m in ipairs(CollectionService:GetTagged("Sway")) do
 		if m:IsA("Model") and m.Parent then
 			local p = remember(m).Position
-			local d = (p - camPos).Magnitude
-			if d < SWAY_NEAR then
+			local off = p - camPos
+			local d = off.Magnitude
+			-- only garments in front of the camera (nothing behind you moves)
+			if d < SWAY_NEAR and (d < 6 or off.Unit:Dot(camLook) > 0.35) then
 				table.insert(list, { m = m, d = d })
 			end
 		end
@@ -155,7 +157,7 @@ RunService.RenderStepped:Connect(function(dt)
 	refreshAcc += dt
 	if refreshAcc > 0.5 then
 		refreshAcc = 0
-		refresh(camPos)
+		refresh(camPos, cam.CFrame.LookVector)
 	end
 	acc += dt
 	if acc < SWAY_HZ then

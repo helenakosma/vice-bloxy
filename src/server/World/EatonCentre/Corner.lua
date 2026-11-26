@@ -4,6 +4,12 @@
 -- sidewalk outside gets planters, bike posts, newspaper boxes, an A-frame sign
 -- and a hot-dog cart with its vendor.
 --
+-- At street level the whole block is the store (as at the real corner): the
+-- corner doors open straight into it, a wall with a store front closes it off
+-- from the mall's own entrance (the drum on Yonge), and its floor runs on into
+-- the anchor's unit behind (B212, whose front on to the old corner hall
+-- init.lua leaves out).
+--
 -- The window bays follow Exterior.lua's outline of the block (plan feet; kept
 -- in step with its BOX_* / KC* constants by hand).
 --
@@ -32,12 +38,12 @@ local DUNDAS_FACE, DUNDAS_V1 = 1393.5, 200
 
 local PAL = { fixture = C(242, 238, 232), metal = C(196, 196, 200) }
 local CAMPAIGN = {
-	{ wall = C(232, 196, 168), text = "AUTUMN EDIT", ink = C(120, 52, 36) },
+	{ wall = C(232, 196, 168), text = "AUTUMN EDIT", ink = C(120, 52, 36), poster = "mall_poster_autumn" },
 	{ wall = C(196, 92, 64), text = "NEW IN", ink = C(255, 246, 236) },
 	{ wall = C(240, 234, 224), text = "KNITWEAR", ink = C(150, 70, 50) },
 	{ wall = C(168, 186, 160), text = "ESSENTIALS", ink = C(40, 56, 40) },
-	{ wall = C(40, 40, 44), text = "THE DENIM SHOP", ink = C(236, 236, 232) },
-	{ wall = C(214, 20, 30), text = "UP TO 50% OFF", ink = C(255, 255, 255) },
+	{ wall = C(40, 40, 44), text = "THE DENIM SHOP", ink = C(236, 236, 232), poster = "mall_poster_denim" },
+	{ wall = C(214, 20, 30), text = "UP TO 50% OFF", ink = C(255, 255, 255), poster = "mall_poster_sale" },
 }
 local OUTFITS = {
 	{ C(120, 52, 36), C(220, 200, 170) },
@@ -53,8 +59,23 @@ local function deco(f, size, cf, colour, material)
 	p.CastShadow = false
 	return p
 end
+-- Light sources: long strips and panels are matte (a lit diffuser, no bloom);
+-- only small bulbs and lenses are neon, and toned down, so the mall doesn't glow.
+local function softLight(p, colour)
+	local s = p.Size
+	if math.max(s.X, s.Y, s.Z) >= 2.5 then
+		p.Material = Enum.Material.SmoothPlastic
+		p.Color = colour
+	else
+		p.Material = Enum.Material.Neon
+		p.Color = colour:Lerp(Color3.fromRGB(128, 118, 108), 0.35)
+	end
+	p.CastShadow = false
+	return p
+end
 local function glow(f, size, cf, colour)
-	return deco(f, size, cf, colour or C(255, 238, 214), M.Neon)
+	colour = colour or C(255, 238, 214)
+	return softLight(deco(f, size, cf, colour, M.Neon), colour)
 end
 local function cylinder(f, h, dia, cf, colour, material)
 	local p = deco(f, V3(h, dia, dia), cf * CFrame.Angles(0, 0, rad(90)), colour, material)
@@ -96,21 +117,30 @@ local function window(f, cf, w, depth, k, rng, opts)
 	-- platform, back wall with the campaign, light strip and a spot
 	deco(f, V3(w - 0.4, 0.8, depth), cf * CF(0, 0.4, zc), C(244, 240, 234), M.SmoothPlastic)
 	deco(f, V3(w - 0.4, 0.1, 0.2), cf * CF(0, 0.82, d0 + 0.1), C(196, 92, 64), M.SmoothPlastic)
-	local back = deco(f, V3(w - 0.2, 13.5, 0.3), cf * CF(0, 7.55, d0 + depth + 0.15), camp.wall, M.SmoothPlastic)
-	back.Name = "WindowBack"
+	local back = deco(f, V3(w - 0.6, 5.6, 0.2), cf * CF(0, 11.3, d0 + depth + 0.1), camp.wall, M.SmoothPlastic)
+	back.Name = "WindowBanner"
+	for _, s in ipairs({ -1, 1 }) do
+		deco(f, V3(0.05, 0.8, 0.05), cf * CF(s * (w / 2 - 0.8), 14.5, d0 + depth + 0.1), C(60, 60, 60), M.Metal)
+	end
 	local poster = deco(f, V3(math.min(w - 2, 7), 2.4, 0.05), cf * CF(0, 10.6, d0 + depth - 0.05), camp.wall, M.SmoothPlastic)
 	poster.Transparency = 1
 	textOn(poster, Enum.NormalId.Front, camp.text, camp.ink, Enum.Font.GothamBlack)
 	local small = deco(f, V3(3.4, 0.7, 0.05), cf * CF(0, 9.1, d0 + depth - 0.05), camp.wall, M.SmoothPlastic)
 	small.Transparency = 1
 	textOn(small, Enum.NormalId.Front, opts.brand, camp.ink, Enum.Font.Bodoni)
+	-- the campaign's poster image on the banner, once imported (it carries its
+	-- own headline, so the drawn text goes)
+	if camp.poster and Util.decal(back, Enum.NormalId.Front, camp.poster) then
+		poster:Destroy()
+		small:Destroy()
+	end
 	glow(f, V3(w - 0.6, 0.12, 0.25), cf * CF(0, 14.1, d0 + 0.3))
 	local lamp = deco(f, V3(0.6, 0.3, 0.6), cf * CF(0, 14, zc), C(30, 30, 32), M.Metal)
 	local spot = Instance.new("SpotLight")
 	spot.Face = Enum.NormalId.Bottom
 	spot.Angle = 80
 	spot.Range = 16
-	spot.Brightness = 2.2
+	spot.Brightness = 1.3
 	spot.Color = C(255, 236, 210)
 	spot.Shadows = false
 	spot.Parent = lamp
@@ -260,17 +290,153 @@ local function hotDogCart(f, cf, key)
 	CollectionService:AddTag(spot, "ShopCashier")
 end
 
+
+---------------------------------------------------------------------------
+-- The store in the corner: floor and lit ceiling (Stores.shell), the flagship
+-- fit-out on a grid with an aisle straight in from the corner doors, the wall
+-- to the mall's entrance with a store front on its far side, and a cash desk.
+---------------------------------------------------------------------------
+local PARTITION_U = BOX_U0 -- the drum's north end
+local B212_FRONT_V = 54.4
+
+local function cornerStore(parent, P, base, tenant, rng)
+	local design = Stores.design(tenant)
+	local key = "3:CORNER"
+	local f = Instance.new("Folder")
+	f.Name = "CornerStore"
+	f.Parent = parent
+	-- the floor, in plan rects: the block's main square, the strip by the short
+	-- Dundas face, and the rounded corner in 2 ft strips
+	local rects = {
+		{ PARTITION_U, BOX_YV, KCU, B212_FRONT_V },
+		{ KCU, KCV, BOX_DU, B212_FRONT_V },
+	}
+	for u = KCU, BOX_DU - 2, 2 do
+		local du = u + 2 - KCU
+		local vmin = KCV - math.sqrt(math.max(0, KR * KR - du * du))
+		table.insert(rects, { u, vmin, u + 2, KCV })
+	end
+	local towardStore = (P(PARTITION_U + 1, 0, 0) - P(PARTITION_U, 0, 0)).Unit
+	local wallA, wallB = P(PARTITION_U + 0.6, BOX_YV, base), P(PARTITION_U + 0.6, B212_FRONT_V, base)
+	local unit = { floor = rects }
+	-- (no wall cladding on the dividing wall: it has the store's windows and door)
+	local ok, err = pcall(Stores.shell, f, unit, P, 1, base, design, key, {}, rng)
+	if not ok then
+		warn("[Corner] shell: " .. tostring(err))
+	end
+
+	-- The wall to the mall entrance: solid where it isn't glass; on its far
+	-- side a store front with windows, a doorway and the name.
+	local h = 20
+	local function wallPiece(v0, v1, y0, y1, colour, material)
+		local a, b = P(PARTITION_U, v0, base), P(PARTITION_U, v1, base)
+		local mid = (a + b) / 2 + V3(0, (y0 + y1) / 2, 0)
+		return Util.solid(f, V3(0.8, y1 - y0, (b - a).Magnitude), CFrame.lookAt(mid, mid + (b - a)), colour, material or M.SmoothPlastic)
+	end
+	local door0, door1 = 18, 34
+	wallPiece(BOX_YV, door0, 13, h, C(244, 242, 238))
+	wallPiece(door0, door1, 13, h, C(244, 242, 238))
+	wallPiece(door1, B212_FRONT_V, 13, h, C(244, 242, 238))
+	wallPiece(BOX_YV, BOX_YV + 2, 0, 13, C(244, 242, 238))
+	wallPiece(B212_FRONT_V - 2, B212_FRONT_V, 0, 13, C(244, 242, 238))
+	for _, seg in ipairs({ { BOX_YV + 2, door0 }, { door1, B212_FRONT_V - 2 } }) do
+		local a, b = P(PARTITION_U, seg[1], base), P(PARTITION_U, seg[2], base)
+		local mid = (a + b) / 2 + V3(0, 6.5, 0)
+		local g = Util.solid(f, V3(0.3, 13, (b - a).Magnitude), CFrame.lookAt(mid, mid + (b - a)), C(210, 226, 234), M.Glass)
+		g.Transparency = 0.7
+		g.CastShadow = false
+		g.Name = "ShopWindow"
+		for v = seg[1], seg[2], 8 do
+			deco(f, V3(0.5, 13, 0.5), CF(P(PARTITION_U, v, base + 6.5)), C(200, 200, 204), M.Metal)
+		end
+	end
+	-- the dressed store front on the mall side (Stores.storefront: piers,
+	-- sign band and lettering, blade sign, display plinths, mat)
+	do
+		local out = -towardStore
+		local okF, errF = pcall(Stores.storefront, f, P(PARTITION_U - 0.4, BOX_YV + 1, base), P(PARTITION_U - 0.4, B212_FRONT_V - 1, base), out, base, h, 13, design, tenant.name, true, true)
+		if not okF then
+			warn("[Corner] front: " .. tostring(errF))
+		end
+	end
+
+	-- The cash desk against the wall near the back, a terracotta wall with the
+	-- name lit up behind it.
+	do
+		local p = P(PARTITION_U + 5.5, 44, base)
+		local cf = CFrame.lookAt(p, p - towardStore) -- the cashier stands on the wall side
+		Stores.cashWrap(f, cf, 9, { fixture = Stores.FLAG.terrazzo, accent = Stores.FLAG.terracotta }, key, Stores.FLAG.terracotta)
+		local wp = P(PARTITION_U + 0.75, 44, base + 7)
+		local wcf = CFrame.lookAt(wp, wp + towardStore)
+		deco(f, V3(16, 12, 0.3), wcf, Stores.FLAG.terracotta, M.SmoothPlastic)
+		for x = -7.5, 7.5, 1.5 do
+			deco(f, V3(0.5, 12, 0.2), wcf * CF(x, 0, -0.2), Stores.FLAG.terracotta:Lerp(C(0, 0, 0), 0.1), M.Wood)
+		end
+		local sign = deco(f, V3(7, 2.2, 0.1), wcf * CF(0, 2.6, -0.4), C(255, 255, 255))
+		sign.Transparency = 1
+		textOn(sign, Enum.NormalId.Front, string.lower(string.split(tenant.name, " ")[1] or tenant.name), C(255, 246, 236), Enum.Font.GothamBold)
+		glow(f, V3(7.5, 0.1, 0.1), wcf * CF(0, 1.2, -0.4), C(255, 238, 220))
+	end
+
+	-- The fit-out: a 9 ft grid over the floor, clear of the windows, the wall,
+	-- the cash desk and the rounded corner's doors, with the aisle running
+	-- straight in from the corner doors toward the back.
+	local doorU, doorV = KCU + KR * math.cos(math.rad(45)), KCV - KR * math.sin(math.rad(45))
+	local inU, inV = -math.sqrt(0.5), math.sqrt(0.5)
+	local spots = {}
+	for u = PARTITION_U + 8, BOX_DU - 7, 9 do
+		for v = BOX_YV + 8, B212_FRONT_V + 30, 9 do
+			local ok = true
+			if u > KCU and v < KCV then
+				local du, dv = u - KCU, v - KCV
+				ok = math.sqrt(du * du + dv * dv) < KR - 8
+			end
+			if v > B212_FRONT_V - 1 and u > 1384 then
+				ok = false -- the unit behind is narrower than the block
+			end
+			if u < PARTITION_U + 16 and v > 34 and v < 54 then
+				ok = false -- the cash desk
+			end
+			if u > BOX_DU - 8 then
+				ok = false
+			end
+			if ok then
+				table.insert(spots, { u, v })
+			end
+		end
+	end
+	local fitted = {
+		fill = spots,
+		fillAxis = { -inV, inU, inU, inV },
+		aisle = { doorU, doorV, inU, inV, 5.5 },
+	}
+	local okF, errF = pcall(Stores.flagship, f, fitted, P, 1, base, design, key, rng)
+	if not okF then
+		warn("[Corner] fit-out: " .. tostring(errF))
+	end
+	local c = P((PARTITION_U + BOX_DU) / 2, (BOX_YV + B212_FRONT_V) / 2, base)
+	Stores.registry[key] = { name = tenant.name, colour = design.pal.accent, centre = c, radius = 48, arch = "fashion" }
+	return f
+end
+
 ---------------------------------------------------------------------------
 -- Build. P(u, v, y) -> world; base = street level; brand = the anchor's
--- made-up name; corner = Exterior's YongeDundasCorner folder (its ShopWindow
+-- tenant record (its made-up name; real one for the look); corner = Exterior's YongeDundasCorner folder (its ShopWindow
 -- glass is made clearer so the displays read from the street).
 ---------------------------------------------------------------------------
-function Corner.build(parent, P, base, brand, corner)
+function Corner.build(parent, P, base, tenant, corner)
 	local f = Instance.new("Folder")
 	f.Name = "CornerWindows"
 	f.Parent = parent
 	local rng = Random.new(2412)
-	brand = brand or "Sorrel Studio"
+	local brand = tenant and tenant.name or "Sorrel Studio"
+	Stores.useBrand(tenant and tenant.real) -- the windows' clothes in the store's style
+	if tenant then
+		local ok, err = pcall(cornerStore, parent, P, base, tenant, rng)
+		if not ok then
+			warn("[Corner] store: " .. tostring(err))
+		end
+	end
 
 	if corner then
 		for _, p in ipairs(corner:GetDescendants()) do

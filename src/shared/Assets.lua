@@ -35,6 +35,24 @@ local IDS = {
 	billboard_burger = 91739838983443,
 	-- Night
 	night_windows = 88258553581733,
+	-- Eaton Centre interiors (assets/textures/mall/, made by tools/make_mall_textures.py).
+	-- Mostly greyscale: the game tints them per store. Imported 2026-11-25.
+	mall_floor_tile = 99620511361025,
+	mall_wood = 103195645776518,
+	mall_marble = 128882940913269,
+	mall_terrazzo = 104448834517585,
+	mall_concrete = 80946384632357,
+	mall_carpet = 121284183731856,
+	mall_subway_tile = 139171673441954,
+	mall_slatwall = 107862762018217,
+	mall_brushed_metal = 94246350032083,
+	mall_fabric = 80330465127185,
+	mall_ceiling_tile = 82635432722479,
+	mall_wood_slats = 137995904784694,
+	mall_poster_autumn = 130220131500612,
+	mall_poster_denim = 94539280786874,
+	mall_poster_sport = 94127485011875,
+	mall_poster_sale = 100758536662389,
 }
 
 local Assets = {}

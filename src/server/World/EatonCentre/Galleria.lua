@@ -12,6 +12,7 @@
 --     lettering) and the H&M stand-in (white band, red lettering). Names are
 --     the made-up ones from Catalog/EatonTenants; no logos.
 local Util = require(script.Parent.Parent.Util)
+local Billboards = require(script.Parent.Parent.Billboards)
 
 local Galleria = {}
 
@@ -20,19 +21,31 @@ local CF = CFrame.new
 local M = Enum.Material
 local C = Color3.fromRGB
 
-local PIER = C(234, 232, 227)
+local PIER = C(200, 204, 208) -- light grey frames, as in the photos (not white)
 local OFFICE_GLASS = C(62, 76, 90)
-local BAND = C(196, 199, 204) -- balcony fascia: brushed silver-grey
+local BAND = C(172, 177, 183) -- balcony fascia: brushed silver-grey (photos)
 local REVEAL = C(70, 72, 78)
 local STRIPE = C(92, 94, 100)
 local GLOW_WARM = C(255, 236, 206)
 local PANEL_GREY = C(186, 196, 202)
 local JOINT = C(150, 154, 160)
 
-local function glow(parent, size, cf, colour)
-	local p = Util.deco(parent, size, cf, colour or GLOW_WARM, M.Neon)
+-- Light sources: long strips and panels are matte (a lit diffuser, no bloom);
+-- only small bulbs and lenses are neon, and toned down, so the mall doesn't glow.
+local function softLight(p, colour)
+	local s = p.Size
+	if math.max(s.X, s.Y, s.Z) >= 2.5 then
+		p.Material = Enum.Material.SmoothPlastic
+		p.Color = colour
+	else
+		p.Material = Enum.Material.Neon
+		p.Color = colour:Lerp(Color3.fromRGB(128, 118, 108), 0.35)
+	end
 	p.CastShadow = false
 	return p
+end
+local function glow(parent, size, cf, colour)
+	return softLight(Util.deco(parent, size, cf, colour or GLOW_WARM, M.Neon), colour or GLOW_WARM)
 end
 
 ---------------------------------------------------------------------------
@@ -41,9 +54,11 @@ end
 ---------------------------------------------------------------------------
 function Galleria.officeFacade(parent, w, inward, rng)
 	local H, len = w.Size.Y, w.Size.Z
+	-- Opaque, not Glass: Roblox glass shows the sky through it, which made the
+	-- piers and bands look like frames floating in mid-air at night.
 	w.Color = OFFICE_GLASS
-	w.Material = M.Glass
-	w.Reflectance = 0.35
+	w.Material = M.SmoothPlastic
+	w.Reflectance = 0.18
 	local rows = math.max(1, math.floor(H / 9 + 0.5))
 	local rowH = H / rows
 	-- Floor bands (spandrels) at each floor line, top and bottom.
@@ -68,7 +83,17 @@ function Galleria.officeFacade(parent, w, inward, rng)
 					glow(parent, V3(0.1, 0.22, bayW - 2.4), w.CFrame * CF(inward * 0.45, top, zc), C(236, 242, 252))
 				end
 			end
-			if rows >= 2 and j % 4 == 2 then
+			-- now and then a big lit ad panel across two bays (as on the real upper
+			-- walls), hung off the piers
+			if j % 7 == 4 and j + 1 < bays and rows >= 2 then
+				local adH = math.min(H - 3, rowH * 1.7)
+				local ad = Util.deco(parent, V3(0.4, adH, bayW * 2 - 1.2), w.CFrame * CF(inward * 1.9, 0, z + bayW), C(20, 20, 24), M.SmoothPlastic)
+				ad.Name = "WallAd"
+				Util.deco(parent, V3(0.5, adH + 0.6, bayW * 2 - 0.6), w.CFrame * CF(inward * 1.75, 0, z + bayW), C(40, 42, 46), M.Metal)
+				pcall(function()
+					Billboards.face(ad, inward > 0 and Enum.NormalId.Right or Enum.NormalId.Left, Billboards.pick(rng), true)
+				end)
+			elseif rows >= 2 and j % 4 == 2 then
 				local yb = -H / 2 + rowH
 				Util.deco(parent, V3(3, 0.45, bayW - 1.6), w.CFrame * CF(inward * 2.2, yb, zc), PIER, M.SmoothPlastic)
 				local g = Util.deco(parent, V3(0.15, 3.2, bayW - 1.6), w.CFrame * CF(inward * 3.6, yb + 1.8, zc), C(200, 222, 232), M.Glass)
@@ -114,6 +139,12 @@ function Galleria.balcony(parent, ctx, idx, r, y, slab)
 	Util.deco(parent, V3(0.6, 0.3, len + 0.3), at(bandTop - bandH - 0.15, 0), REVEAL, M.Metal)
 	if s ~= 0 and len >= 3 then
 		glow(parent, V3(0.35, 0.08, len - 0.6), at(y - slab - 0.3, 0.9))
+		-- A tall palm planter midway along longer edges.
+		ctx.planters = ctx.planters or { n = 0, max = 60, rng = Random.new(31) }
+		if len >= 30 and ctx.planters.n < ctx.planters.max then
+			ctx.planters.n += 1
+			Galleria.tallPlanter(parent, at(y, 2.3 * S), ctx.planters.rng)
+		end
 		-- Floor border stripe, 4 ft in from the edge.
 		local stripe = Util.deco(parent, V3(1.0 * S, 0.05, math.max(0.5, len - 3)), at(y + 0.03, 4 * S), STRIPE, M.Slate)
 		stripe.Name = "FloorStripe"
@@ -130,13 +161,134 @@ function Galleria.balcony(parent, ctx, idx, r, y, slab)
 				l.Face = Enum.NormalId.Left -- the cylinder's axis turned down: Left = -Y after the turn
 				l.Angle = 100
 				l.Range = 20
-				l.Brightness = 1.4
+				l.Brightness = 0.7
 				l.Color = C(255, 232, 200)
 				l.Shadows = false
 				l.Parent = disc
 			end
 		end
 	end
+end
+
+
+---------------------------------------------------------------------------
+-- Planters (photos): tall grey cylinders with spiky palms on the bridges and
+-- balconies; low round white planters of flowers round the courts below.
+---------------------------------------------------------------------------
+local function cyl(parent, h, dia, cf, colour, material, collide)
+	return Util.cylinder(parent, h, dia, cf, colour, material, collide)
+end
+
+function Galleria.tallPlanter(parent, cf, rng)
+	cyl(parent, 3.4, 2.8, cf * CF(0, 1.7, 0), C(150, 156, 160), M.Concrete, true)
+	cyl(parent, 0.1, 2.5, cf * CF(0, 3.42, 0), C(60, 46, 36), M.Ground, false)
+	local trunk = cyl(parent, 2.4, 0.35, cf * CF(0, 4.6, 0), C(110, 90, 64), M.Wood, false)
+	trunk.CastShadow = false
+	for k = 0, 9 do
+		local a = k / 10 * math.pi * 2 + rng:NextNumber(0, 0.3)
+		local tilt = math.rad(35 + (k % 3) * 15)
+		local leaf = Util.deco(parent, V3(0.12, 2.8, 0.45), cf * CF(0, 5.8, 0) * CFrame.Angles(0, a, 0) * CFrame.Angles(tilt, 0, 0) * CF(0, 1.3, 0), C(64, 110, 60):Lerp(C(110, 150, 80), rng:NextNumber()), M.Grass)
+		leaf.CastShadow = false
+	end
+end
+
+function Galleria.flowerPlanter(parent, cf, rng)
+	cyl(parent, 1.8, 5, cf * CF(0, 0.9, 0), C(226, 224, 220), M.Concrete, true)
+	cyl(parent, 0.1, 4.6, cf * CF(0, 1.82, 0), C(60, 46, 36), M.Ground, false)
+	local shrub = Util.deco(parent, V3(2.2, 1.8, 2.2), cf * CF(0, 2.6, 0), C(70, 112, 60), M.Grass)
+	shrub.Shape = Enum.PartType.Ball
+	local tones = { C(214, 40, 70), C(240, 200, 60), C(240, 240, 236), C(200, 90, 160), C(230, 120, 60) }
+	local tone = tones[rng:NextInteger(1, #tones)]
+	for k = 0, 11 do
+		local a = k / 12 * math.pi * 2
+		local fl = Util.deco(parent, V3(0.6, 0.6, 0.6), cf * CF(math.cos(a) * 1.75, 2.05 + (k % 2) * 0.2, math.sin(a) * 1.75), k % 3 == 0 and C(70, 112, 60) or tone, M.Fabric)
+		fl.Shape = Enum.PartType.Ball
+		fl.CastShadow = false
+	end
+end
+
+
+---------------------------------------------------------------------------
+-- A hallway kiosk (plan units Z...): a waist-high counter round a small
+-- island, glass display tops, a slim canopy on four posts with the name on
+-- both long sides, stock on the shelves, a stool for the attendant. ATMs get
+-- a pair of machines in a branded surround instead. Sized well inside the
+-- plan's box, so the corridor stays wide.
+---------------------------------------------------------------------------
+function Galleria.kiosk(parent, P, y, u, tenant, design)
+	local f = Instance.new("Model")
+	f.Name = "Kiosk_" .. u.unit
+	f.Parent = parent
+	local pal = design.pal
+	local accent = pal.accent
+	local cu, cv = (u.umin + u.umax) / 2, (u.vmin + u.vmax) / 2
+	local du, dv = (u.umax - u.umin), (u.vmax - u.vmin)
+	local centre = P(cu, cv, y)
+	-- long axis along the corridor's longer plan direction
+	local alongU = du >= dv
+	local L = math.max(5, math.min(9, (alongU and du or dv) - 3))
+	local W = math.max(3.5, math.min(5.5, (alongU and dv or du) - 3))
+	local dir = alongU and (P(cu + 1, cv, y) - P(cu, cv, y)).Unit or (P(cu, cv + 1, y) - P(cu, cv, y)).Unit
+	local cf = CFrame.lookAt(centre, centre + V3(-dir.Z, 0, dir.X)) * CFrame.Angles(0, 0, 0) -- X along the long side
+	local real = string.lower(tenant.real or "")
+	if real:find("atm", 1, true) then
+		-- two ATMs back to back in a slim branded pod
+		Util.solid(f, V3(3.2, 7, 2.6), cf * CF(0, 3.5, 0), accent:Lerp(C(30, 30, 32), 0.2), M.SmoothPlastic)
+		for _, s in ipairs({ -1, 1 }) do
+			local face = cf * CFrame.Angles(0, s > 0 and 0 or math.pi, 0)
+			Util.deco(f, V3(2.4, 3.2, 0.5), face * CF(0, 3.4, -1.45), C(48, 50, 56), M.Metal)
+			local scr = Util.deco(f, V3(1.2, 0.9, 0.05), face * CF(0, 4.3, -1.72), C(60, 140, 200), M.Neon)
+			scr.Color = C(70, 120, 160)
+			Util.deco(f, V3(1.4, 0.6, 0.4), face * CF(0, 3.2, -1.85), C(40, 40, 44), M.Metal)
+		end
+		local top = Util.deco(f, V3(3.4, 1, 2.8), cf * CF(0, 7.5, 0), accent, M.SmoothPlastic)
+		for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+			local g = Util.sign(top, face, tenant.name, C(255, 255, 255), Enum.Font.GothamBold)
+			g.LightInfluence = 0
+		end
+		return f
+	end
+	local body = pal.fixture
+	-- counter: a ring of four sides with a gap at one end for the attendant
+	local h = 3.4
+	Util.solid(f, V3(L, h, 0.8), cf * CF(0, h / 2, -W / 2 + 0.4), body, M.SmoothPlastic)
+	Util.solid(f, V3(L, h, 0.8), cf * CF(0, h / 2, W / 2 - 0.4), body, M.SmoothPlastic)
+	Util.solid(f, V3(0.8, h, W - 1.6), cf * CF(-L / 2 + 0.4, h / 2, 0), body, M.SmoothPlastic)
+	Util.solid(f, V3(0.8, h, W / 2 - 1.2), cf * CF(L / 2 - 0.4, h / 2, -W / 4 - 0.2), body, M.SmoothPlastic)
+	-- accent kick strip and glass display tops with stock under the glass
+	for _, z in ipairs({ -W / 2 + 0.4, W / 2 - 0.4 }) do
+		Util.deco(f, V3(L + 0.05, 0.35, 0.85), cf * CF(0, 0.18, z), accent, M.SmoothPlastic)
+		local g = Util.deco(f, V3(L - 0.4, 0.5, 0.7), cf * CF(0, h + 0.25, z), C(210, 226, 234), M.Glass)
+		g.Transparency = 0.6
+		for x = -L / 2 + 0.8, L / 2 - 0.8, 0.9 do
+			Util.deco(f, V3(0.4, 0.15, 0.25), cf * CF(x, h + 0.08, z), (math.floor(x * 3) % 2 == 0) and C(30, 30, 34) or accent:Lerp(C(255, 255, 255), 0.4), M.SmoothPlastic)
+		end
+	end
+	-- posts and canopy with the name on both long sides
+	local ch = 8.6
+	for _, sx in ipairs({ -1, 1 }) do
+		for _, sz in ipairs({ -1, 1 }) do
+			Util.deco(f, V3(0.18, ch - h, 0.18), cf * CF(sx * (L / 2 - 0.3), h + (ch - h) / 2, sz * (W / 2 - 0.3)), C(60, 62, 68), M.Metal)
+		end
+	end
+	local canopy = Util.deco(f, V3(L + 0.4, 1.2, W + 0.4), cf * CF(0, ch + 0.6, 0), accent, M.SmoothPlastic)
+	canopy.Name = "KioskCanopy"
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local g = Util.sign(canopy, face, string.upper(tenant.name), C(255, 255, 255), Enum.Font.GothamBold)
+		g.LightInfluence = 0
+	end
+	glow(f, V3(L - 0.4, 0.08, W - 0.6), cf * CF(0, ch - 0.02, 0), C(255, 244, 228))
+	-- a slatwall of stock in the middle, a stool, a card reader
+	Util.deco(f, V3(L * 0.5, 3.4, 0.25), cf * CF(-L * 0.12, h + 1.7, 0), body:Lerp(C(0, 0, 0), 0.08), M.SmoothPlastic)
+	for x = -L * 0.32, L * 0.08, 0.6 do
+		for yy = h + 0.6, h + 3, 0.8 do
+			Util.deco(f, V3(0.35, 0.5, 0.15), cf * CF(x, yy, 0.2), (math.floor((x + yy) * 2) % 3 == 0) and accent or C(30, 30, 34), M.SmoothPlastic)
+		end
+	end
+	local stool = Util.cylinder(f, 2.4, 1.1, cf * CF(L * 0.25, 1.2, 0), C(40, 40, 44), M.Metal, false)
+	stool.Name = "Stool"
+	Util.deco(f, V3(0.4, 0.15, 0.6), cf * CF(L * 0.3, h + 0.08, W / 2 - 0.4), C(30, 30, 34), M.Metal)
+	return f
 end
 
 ---------------------------------------------------------------------------
@@ -159,6 +311,14 @@ function Galleria.medallions(parent, ctx, list, y)
 			ring.Reflectance = 0.06
 			k += 1
 			rad -= (k % 2 == 1) and 0.8 or 2.6 -- thin dark lines between wide bands
+		end
+		-- low flower planters round the court, where there's floor
+		local prng = Random.new(math.floor(m[1] + m[2]))
+		for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+			local pu, pv = m[1] + o[1] * (m[3] + 6), m[2] + o[2] * (m[3] + 6)
+			if ctx.onSlab and ctx.onSlab(1, pu, pv) and ctx.onSlab(1, pu + o[1] * 3, pv + o[2] * 3) then
+				Galleria.flowerPlanter(f, CF(P(pu, pv, y)), prng)
+			end
 		end
 		local hub = Util.deco(f, V3(0.05, 2.4, 2.4), CF(centre + V3(0, 0.03 + k * 0.012, 0)) * CFrame.Angles(0, 0, math.rad(90)), C(60, 58, 56), M.Marble)
 		hub.Shape = Enum.PartType.Cylinder
@@ -209,7 +369,7 @@ local function soffit(f, cf, len, hY, depth)
 				lit += 1
 				local l = Instance.new("PointLight")
 				l.Range = 18
-				l.Brightness = 1.2
+				l.Brightness = 0.7
 				l.Color = C(255, 238, 214)
 				l.Shadows = false
 				l.Parent = d
@@ -281,7 +441,7 @@ function STYLES.display(f, cf, len, top, header, name, isReturn)
 	end
 	local lit = Instance.new("PointLight")
 	lit.Range = 22
-	lit.Brightness = 1.2
+	lit.Brightness = 0.7
 	lit.Color = C(255, 232, 204)
 	lit.Shadows = false
 	lit.Parent = back
@@ -296,10 +456,25 @@ function STYLES.display(f, cf, len, top, header, name, isReturn)
 end
 
 -- The Simons stand-in: a dark band with glowing green lettering over a wide
--- open front, grey panels above.
+-- open front, and above it the store's green glass wall with vertical fins
+-- and the name again, large (as in the 2026 photos of the north atrium).
 function STYLES.greenband(f, cf, len, top, header, name)
 	local d = 0.9
-	cladding(f, cf, len, header + 3, top - 0.1, d)
+	local y0, y1 = header + 3, top - 0.1
+	if y1 - y0 > 1 then
+		local h = y1 - y0
+		local glass = Util.deco(f, V3(len, h, 0.3), cf * CF(0, y0 + h / 2, -d + 0.2), C(34, 84, 58), M.Glass)
+		glass.Reflectance = 0.2
+		glass.CastShadow = false
+		local n = math.min(90, math.floor(len / 1.3))
+		for k = 0, n do
+			Util.deco(f, V3(0.15, h, 0.7), cf * CF(-len / 2 + k * len / n, y0 + h / 2, -d - 0.25), C(56, 112, 78), M.Metal).CastShadow = false
+		end
+		Util.deco(f, V3(len, 0.4, 0.9), cf * CF(0, y1 - 0.2, -d - 0.2), C(40, 70, 52), M.Metal)
+		local big = Util.deco(f, V3(math.min(len * 0.5, 34), math.min(h * 0.55, 5), 0.1), cf * CF(-len * 0.12, y0 + h * 0.55, -d - 0.7), C(34, 84, 58), M.SmoothPlastic)
+		big.Transparency = 1
+		textOn(big, string.lower(name), C(150, 230, 160), Enum.Font.GothamMedium)
+	end
 	local band = Util.deco(f, V3(len, 4.5, 0.6), cf * CF(0, header + 0.75, -d), C(30, 32, 36), M.SmoothPlastic)
 	band.Name = "NameBand"
 	local plate = Util.deco(f, V3(math.min(len * 0.45, 30), 2.8, 0.1), cf * CF(-len * 0.18, header + 0.75, -d - 0.35), C(30, 32, 36), M.SmoothPlastic)

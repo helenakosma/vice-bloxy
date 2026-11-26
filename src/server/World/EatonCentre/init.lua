@@ -22,6 +22,7 @@ local Workplaces = require(script.Parent.Workplaces)
 local TorontoLayout = require(script.Parent.TorontoLayout)
 local Exterior = require(script.Exterior)
 local Galleria = require(script.Galleria)
+local Stores = require(script.Stores)
 
 local DATA = script.Data
 local LEVEL_DATA = {
@@ -118,14 +119,14 @@ local V3 = Vector3.new
 local M = Enum.Material
 local C = Color3.fromRGB
 
-local FLOOR = C(225, 220, 210) -- pale limestone tone beside the darker court inlays
-local PLASTER = C(212, 212, 210) -- light grey panels (galleria photos)
-local FASCIA = C(226, 224, 218) -- storefront bulkheads, warm off-white
+local FLOOR = C(210, 203, 192) -- warm light-grey limestone (photos), beside the darker court inlays
+local PLASTER = C(204, 196, 184) -- warm greige panels (not clinical white)
+local FASCIA = C(216, 208, 196) -- storefront bulkheads, warm stone
 local FACADE = C(168, 160, 150)
 local FACADE_DARK = C(92, 96, 104)
 local STEEL = C(196, 198, 202)
 local GLASS = C(196, 222, 232)
-local CEILING = C(233, 231, 225)
+local CEILING = C(222, 214, 202) -- warm, so the soffits don't read clinical
 local DOOR_W = 7 -- the opening in a shop's glass front (studs)
 
 -- Finishes on the traced public frontages. Keep the catalog name on the sign.
@@ -287,13 +288,30 @@ function EatonCentre.build(root, rect)
 	---------------------------------------------------------------------------
 	local escPlans = {}
 	for _, e in ipairs(SHARED.escalators) do
+		local top, bottom = e.top, e.bottom
+		-- The Yonge & Dundas entrance hall's escalator (Level 2 up to the street):
+		-- turned round so you step off at its west end, into the hall, rather
+		-- than facing the wall of the store in the corner.
+		if e.from == 2 and e.to == 3 and math.abs(top[1] - 1332.8) < 1 and math.abs(top[2] - 42.3) < 1 then
+			top, bottom = e.bottom, e.top
+		end
+		table.insert(escPlans, { bank = e, top = top, bottom = bottom, dTop = 0, dBottom = 0 })
+	end
+	-- Sorrel Studio (unit B212) is three storeys, street Level 3 down to Level 1,
+	-- with its own pair of escalators side by side in a well through its floors
+	-- (Stores.WELLS cuts the floors; balustrades round the cuts below).
+	for _, e in ipairs(Stores.STORE_ESCALATORS) do
+		table.insert(escPlans, { bank = e, top = e.top, bottom = e.bottom, dTop = 0, dBottom = 0, store = true })
+	end
+	for _, e in ipairs(Stores.MALL_ESCALATORS) do
 		table.insert(escPlans, { bank = e, top = e.top, bottom = e.bottom, dTop = 0, dBottom = 0 })
 	end
 	for _, e in ipairs(Exterior.escalators()) do
 		table.insert(escPlans, { bank = e, top = e.top, bottom = e.bottom, dTop = 0, dBottom = 0 })
 	end
-	local function railCut()
-		return false
+	-- The plan's own railings that now stand inside one of the added wells go.
+	local function railCut(i, a, b)
+		return Stores.inWell(i, a[1], a[2], 0.6) and Stores.inWell(i, b[1], b[2], 0.6)
 	end
 	-- The opening in the concourse wall for the passage to the subway (Transit).
 	local link = TorontoLayout.EATON_LINK
@@ -320,10 +338,12 @@ function EatonCentre.build(root, rect)
 		for _, r in ipairs(Exterior.fill(i, L.data.slabs)) do
 			table.insert(slabs, r)
 		end
+		slabs = Stores.clipWells(slabs, i)
 		for _, r in ipairs(slabs) do
 			local p = plate(arch, r, y, SLAB, FLOOR, M.CeramicTiles)
 			p.Reflectance = 0.08
 			p.Name = "Floor"
+			Stores.skin(p, "mall_floor_tile", 16, FLOOR)
 			-- A plain ceiling under the floors above people's heads (Levels 2-3, and
 			-- Level 1 where the concourse is below).
 			if i >= 2 or (i == 1 and onSlab(0, (r[1] + r[3]) / 2, (r[2] + r[4]) / 2)) then
@@ -346,9 +366,43 @@ function EatonCentre.build(root, rect)
 		end
 
 		local top = (i >= 3) and (levelY(i + 1) - y) or (levelY(i + 1) - SLAB - y)
+		-- The hallway kiosks (plan units Z...): the plan draws them as little
+		-- rooms, walls to the ceiling; they're built as low open kiosks instead
+		-- (Galleria.kiosk), so their walls are left out here.
+		local kiosks = {}
+		for _, u in ipairs(L.data.units or {}) do
+			if string.sub(u.unit, 1, 1) == "Z" and u.umin then
+				table.insert(kiosks, u)
+			end
+		end
+		local function inKiosk(p)
+			for _, u in ipairs(kiosks) do
+				if p[1] >= u.umin - 0.6 and p[1] <= u.umax + 0.6 and p[2] >= u.vmin - 0.6 and p[2] <= u.vmax + 0.6 then
+					return true
+				end
+			end
+			return false
+		end
+		for _, u in ipairs(kiosks) do
+			local t = TENANTS[i .. ":" .. u.unit]
+			if t and t.status == "open" then
+				local ok, err = pcall(Galleria.kiosk, retail, P, y, u, t, Stores.design(t))
+				if not ok then
+					warn("[EatonCentre] kiosk " .. u.unit .. ": " .. tostring(err))
+				end
+			end
+		end
 		for wi, w in ipairs(L.data.walls) do
 			local a, b, kind = { w[1], w[2] }, { w[3], w[4] }, w[5]
+			if (w[6] and string.sub(w[6], 1, 1) == "Z") or (#kiosks > 0 and inKiosk(a) and inKiosk(b)) then
+				continue
+			end
 			local mode = i >= 1 and Exterior.wallMode(kind, a, b, i) or nil
+			-- The anchor's front on to the old corner hall: at street level the
+			-- whole corner is the store now (Corner.lua), so its floor runs on.
+			if i == 3 and math.min(a[1], b[1]) >= 1336 and math.max(a[1], b[1]) <= 1389 and math.min(a[2], b[2]) >= 53 and math.max(a[2], b[2]) <= 58 then
+				continue
+			end
 			if mode == "skip" then
 				continue
 			elseif mode == "rail" then
@@ -411,6 +465,23 @@ function EatonCentre.build(root, rect)
 					local finish = COURT_FRONTS[tenant.real]
 					local colour = finish and finish.ink or CATEGORY_COLOUR[tenant.category] or FASCIA
 					local h = panel(retail, a, b, y + HEADER, top - HEADER, 0.6, finish and finish.panel or FASCIA, M.SmoothPlastic)
+					-- Every other front is dressed by Stores.storefront (piers, sign band
+					-- with lettering, blade sign, mullions, plinths); the big anchors by
+					-- the Yonge & Dundas entrance get Galleria.anchorFronts instead.
+					local dressed = false
+					local real = string.lower(tenant.real or "")
+					if not finish and real ~= "uniqlo" and real ~= "simons" and real ~= "h m" and real ~= "h & m" then
+						local out = V3(-(w[8] or 0), 0, -(w[7] or 0))
+						if out.Magnitude > 0.5 then
+							local design = Stores.design(tenant)
+							-- the Urban Eatery's counters on the concourse get its own look
+							if i == 0 and (tenant.category == "food" or tenant.category == "cafe") then
+								design.eatery = true
+							end
+							local okF, res = pcall(Stores.storefront, retail, P(a[1], a[2], y), P(b[1], b[2], y), out.Unit, y, top, HEADER, design, tenant.name, isSign and len >= 5, len >= 12 and tenant.category ~= "department")
+							dressed = okF and res
+						end
+					end
 					if h then
 						h.Name = "Storefront"
 						h:SetAttribute("Unit", tenant.unit)
@@ -430,7 +501,7 @@ function EatonCentre.build(root, rect)
 								end
 							end
 						end
-						if isSign and len >= 5 then
+						if isSign and len >= 5 and not dressed then
 							storeSign(h, outFace(h), tenant.name, colour, 3.5, finish)
 						end
 					end
@@ -536,7 +607,23 @@ function EatonCentre.build(root, rect)
 			end
 		end
 
-		-- Glass balustrades with a steel handrail round every floor opening.
+		-- Glass balustrades with a steel handrail round every floor opening (and
+		-- round the store's escalator wells, and across the old top of the
+		-- entrance hall's escalator now it runs the other way).
+		local extraRails = Stores.wellRails(i)
+		if i == 3 then
+			table.insert(extraRails, { 1326, 40, 1335, 48.5 })
+		end
+		for _, r in ipairs(extraRails) do
+			local g = panel(atrium, { r[1], r[2] }, { r[3], r[4] }, y, 3.6, 0.25, GLASS, M.Glass)
+			if g then
+				g.Transparency = 0.55
+				g.CastShadow = false
+				g.Name = "Balustrade"
+			end
+			panel(atrium, { r[1], r[2] }, { r[3], r[4] }, y + 3.6, 0.3, 0.45, STEEL, M.Metal)
+			panel(atrium, { r[1], r[2] }, { r[3], r[4] }, y - SLAB - 1.6, 1.6 + SLAB, 0.6, C(172, 177, 183), M.Metal, false)
+		end
 		for _, r in ipairs(L.data.rails) do
 			if railCut(i, { r[1], r[2] }, { r[3], r[4] }) then
 				continue
@@ -637,6 +724,36 @@ function EatonCentre.build(root, rect)
 		end
 	end
 
+	-- Stairs beside the added escalators: solid steps, stone treads with a
+	-- dark nosing, glass balustrades with a steel handrail either side.
+	for _, sp in ipairs(Stores.MALL_STAIRS) do
+		local yb, yt = levelY(sp.from), levelY(sp.to)
+		local pb, pt = P(sp.bottom[1], sp.bottom[2], yb), P(sp.top[1], sp.top[2], yt)
+		local flat = V3(pt.X - pb.X, 0, pt.Z - pb.Z)
+		local run, rise = flat.Magnitude, yt - yb
+		local dir = flat.Unit
+		local n = math.ceil(rise / 0.7)
+		local tread, riser = run / n, rise / n
+		local W = sp.width * S
+		local stairCF = CFrame.lookAt(pb, pb + dir) -- -Z up the stairs
+		for k = 1, n do
+			local h = k * riser
+			local cf = stairCF * CFrame.new(0, h / 2, -(k - 0.5) * tread)
+			Util.solid(escFolder, V3(W, h, tread + 0.02), cf, C(206, 200, 190), M.Limestone).Name = "Step"
+			Util.deco(escFolder, V3(W, 0.06, 0.25), stairCF * CFrame.new(0, h + 0.02, -(k - 1) * tread - 0.13), C(70, 72, 78), M.Metal)
+		end
+		local slope = (pt - pb)
+		local mid = (pb + pt) / 2
+		local scf = CFrame.lookAt(mid, pt)
+		for _, edge in ipairs({ -1, 1 }) do
+			local g = Util.solid(escFolder, V3(0.25, 3.4, slope.Magnitude), scf * CFrame.new(edge * (W / 2 + 0.15), 1.9, 0), GLASS, M.Glass)
+			g.Transparency = 0.55
+			g.CastShadow = false
+			Util.deco(escFolder, V3(0.3, 0.3, slope.Magnitude + 0.5), scf * CFrame.new(edge * (W / 2 + 0.15), 3.65, 0), STEEL, M.Metal)
+			Util.deco(escFolder, V3(0.5, 1.6, slope.Magnitude), scf * CFrame.new(edge * (W / 2 + 0.3), -0.6, 0), C(186, 188, 192), M.Metal)
+		end
+	end
+
 	---------------------------------------------------------------------------
 	-- Columns (public spaces), floor to roof, with a soft light on each level.
 	---------------------------------------------------------------------------
@@ -645,14 +762,29 @@ function EatonCentre.build(root, rect)
 		local p = P(c[1], c[2], 0)
 		local foot = onSlab(0, c[1], c[2]) and CONCOURSE_Y or levelY(1)
 		local height = (onSlab(4, c[1], c[2]) and roof4Y or roofY) - foot
-		Util.cylinder(structure, height, 2.6, CFrame.new(p.X, foot + height / 2, p.Z), C(244, 244, 240), M.SmoothPlastic, true)
+		Util.cylinder(structure, height, 2.6, CFrame.new(p.X, foot + height / 2, p.Z), C(216, 213, 208), M.SmoothPlastic, true)
+		-- every third column wears a coloured ad sleeve at eye level on each
+		-- floor, with chrome rings (colour down in the walkways)
+		if k % 3 == 0 then
+			local SLEEVES = { C(214, 86, 70), C(30, 138, 148), C(228, 178, 60), C(52, 92, 184), C(214, 116, 156), C(96, 150, 84) }
+			for i = 1, 3 do
+				local fy = levelY(i)
+				if fy >= foot - 0.5 and fy + 9 <= foot + height then
+					local colour = SLEEVES[(k + i) % #SLEEVES + 1]
+					Util.cylinder(structure, 7, 2.85, CFrame.new(p.X, fy + 4.5, p.Z), colour, M.SmoothPlastic, false).CastShadow = false
+					for _, yy in ipairs({ fy + 1, fy + 8 }) do
+						Util.cylinder(structure, 0.2, 2.95, CFrame.new(p.X, yy, p.Z), C(200, 202, 206), M.Metal, false).CastShadow = false
+					end
+				end
+			end
+		end
 		if k % 2 == 0 then
 			for i = (foot == CONCOURSE_Y) and 0 or 1, 3 do
 				local holder = Util.deco(structure, V3(0.2, 0.2, 0.2), CFrame.new(p.X, levelY(i + 1) - 3, p.Z), C(255, 255, 255), M.Neon)
 				holder.Transparency = 1
 				local light = Instance.new("PointLight")
-				light.Range = 26
-				light.Brightness = 0.9
+				light.Range = 22
+				light.Brightness = 0.45
 				light.Color = C(255, 240, 220)
 				light.Shadows = false
 				light.Parent = holder
@@ -718,7 +850,7 @@ function EatonCentre.build(root, rect)
 	local PANES = 16
 	local CLER = roof4Y - roofY -- clerestory: up to Level 4's roof line
 	local RIB_EVERY = 10 -- studs between cross ribs
-	local RIB = C(246, 246, 244)
+	local RIB = C(222, 224, 226) -- vault ribs: pale steel grey, not pure white
 	local springY = roofY + CLER
 	local officeRng = Random.new(1977)
 	local function clerestory(a, b, inward)
@@ -764,8 +896,9 @@ function EatonCentre.build(root, rect)
 			Util.solid(vault, V3(1.4, 1.2, length), CFrame.new(centre.X + side * radius, springY + 0.6, centre.Z), RIB, M.Metal)
 		end
 		-- Long fabric banners hanging down the middle of the bay.
-		local BANNERS = { C(196, 40, 52), C(236, 232, 222), C(40, 70, 120) }
-		local nB = math.floor(length / 40)
+		-- (a fuller set of colours, closer together: the mall reads less clinical)
+		local BANNERS = { C(214, 86, 70), C(30, 138, 148), C(228, 178, 60), C(186, 40, 56), C(52, 92, 184), C(214, 116, 156) }
+		local nB = math.floor(length / 26)
 		for k = 1, nB do
 			local z = centre.Z - length / 2 + k * length / (nB + 1)
 			local b = Util.deco(vault, V3(0.15, 14, 3.5), CFrame.new(centre.X, springY - 6, z), BANNERS[(k % #BANNERS) + 1], M.Fabric)
@@ -812,7 +945,7 @@ function EatonCentre.build(root, rect)
 		})
 		-- Its shop windows, the live window and the sidewalk (Corner.lua).
 		local ok, err = pcall(function()
-			require(script.Corner).build(mall, P, base, dundasAnchor and dundasAnchor.name, mall:FindFirstChild("YongeDundasCorner", true))
+			require(script.Corner).build(mall, P, base, TENANTS["3:B212"] or dundasAnchor, mall:FindFirstChild("YongeDundasCorner", true))
 		end)
 		if not ok then
 			warn("[EatonCentre] corner: " .. tostring(err))
@@ -864,7 +997,7 @@ function EatonCentre.build(root, rect)
 				local cab = {}
 				-- Floor plate, glass sides, steel roof; open on all sides at floor level.
 				Util.solid(liftFolder, V3(w, 0.3, d), CFrame.new(p + V3(0, 0.15, 0)), C(70, 72, 78), M.Metal)
-				local roof = Util.solid(liftFolder, V3(w, 0.4, d), CFrame.new(p + V3(0, 9, 0)), STEEL, M.Metal)
+				local roof = Util.solid(liftFolder, V3(w, 0.4, d), CFrame.new(p + V3(0, 9, 0)), C(30, 30, 32), M.Metal)
 				Kit.light(roof, Enum.NormalId.Bottom, 12, 1, C(255, 246, 230))
 				for _, sx in ipairs({ -1, 1 }) do
 					local g = Util.solid(liftFolder, V3(0.2, 8.6, d), CFrame.new(p + V3(sx * w / 2, 4.6, 0)), GLASS, M.Glass)
@@ -875,6 +1008,28 @@ function EatonCentre.build(root, rect)
 				cab.panel = panelPart
 				cab.level = i
 				cabs[i] = cab
+			end
+			-- The shaft's black steel frame, as on the real glass lifts: corner posts
+			-- the full height and a ring of beams at every stop.
+			do
+				local base0 = P(s.u, s.v, levelY(stops[1]))
+				local yTop = levelY(stops[#stops]) + 9.4
+				local hgt = yTop - base0.Y
+				local BLACK = C(26, 26, 28)
+				for _, sx in ipairs({ -1, 1 }) do
+					for _, sz in ipairs({ -1, 1 }) do
+						Util.deco(liftFolder, V3(0.45, hgt, 0.45), CFrame.new(base0 + V3(sx * (w / 2 + 0.25), hgt / 2, sz * (d / 2 + 0.25))), BLACK, M.Metal)
+					end
+				end
+				for _, i in ipairs(stops) do
+					local yy = levelY(i) + 9.4 - base0.Y
+					for _, sz in ipairs({ -1, 1 }) do
+						Util.deco(liftFolder, V3(w + 0.9, 0.4, 0.3), CFrame.new(base0 + V3(0, yy, sz * (d / 2 + 0.25))), BLACK, M.Metal)
+					end
+					for _, sx in ipairs({ -1, 1 }) do
+						Util.deco(liftFolder, V3(0.3, 0.4, d + 0.9), CFrame.new(base0 + V3(sx * (w / 2 + 0.25), yy, 0)), BLACK, M.Metal)
+					end
+				end
 			end
 			for _, i in ipairs(stops) do
 				local cab = cabs[i]
@@ -1058,8 +1213,10 @@ function EatonCentre.build(root, rect)
 		-- Tucked against the escalator's side (inside its footprint), so they never
 		-- stand out in a walkway.
 		local tuck = ESC_W + 2.5
-		directory(plan.bank.from, bottom + dir * 4 + side * tuck, side)
-		directory(plan.bank.to, top + dir * 4 + side * tuck, side)
+		if not plan.store then
+			directory(plan.bank.from, bottom + dir * 4 + side * tuck, side)
+			directory(plan.bank.to, top + dir * 4 + side * tuck, side)
+		end
 	end
 
 	-- Tell clients where "indoors" is (map tags and the subway pill hide there).
@@ -1152,13 +1309,17 @@ function EatonCentre.build(root, rect)
 		local ceilingY = (i == 4) and roof4Y or ((i == 3) and roofY or levelY(i + 1) - SLAB)
 		local fx = folderIn(levels[i].folder, "Lighting")
 		for k, pt in ipairs(L.data.lights or {}) do
+			-- none where the floor above has been opened up for an added escalator
+			if Stores.inWell(i + 1, pt[1], pt[2], 1) then
+				continue
+			end
 			local p = P(pt[1], pt[2], ceilingY - 0.15)
-			local disc = Util.cylinder(fx, 0.15, 1.6, CFrame.new(p), C(255, 250, 236), M.Neon, false)
+			local disc = Util.cylinder(fx, 0.15, 1.6, CFrame.new(p), C(226, 218, 204), M.Neon, false)
 			disc.CastShadow = false
 			if k % 3 == 0 then
 				local light = Instance.new("PointLight")
-				light.Range = 30
-				light.Brightness = 0.9
+				light.Range = 26
+				light.Brightness = 0.5
 				light.Color = C(255, 244, 226)
 				light.Shadows = false
 				light.Parent = disc
@@ -1167,6 +1328,9 @@ function EatonCentre.build(root, rect)
 		local ff = folderIn(levels[i].folder, "Furniture")
 		local rngF = Random.new(i * 13 + 5)
 		for _, pt in ipairs(L.data.benches or {}) do
+			if Stores.inWell(i, pt[1], pt[2], 6) or Stores.inWell(i + 1, pt[1], pt[2], 2) then
+				continue -- in or under an added escalator well
+			end
 			-- Keep the full bench assembly and walking space clear of the seating rim.
 			if i == 1 and overlapsFountain(pt[1], pt[2], 11 / S) then
 				continue
@@ -1234,7 +1398,63 @@ function EatonCentre.build(root, rect)
 		wallRuns += Interiors.walls(f, L.idx, L.data.units, P, S, levelY(L.idx), TENANTS, L.idx == 1 and skip or {}, L.idx * 151 + 9)
 	end
 	local seating = folderIn(levels[0].folder, "FoodCourt_Seating")
-	local seats = Interiors.foodCourt(seating, require(DATA.Furniture), P, S, levelY(0))
+	local furniture = {}
+	for _, item in ipairs(require(DATA.Furniture)) do
+		if not Stores.inWell(1, item.u, item.v, 3) then
+			table.insert(furniture, item)
+		end
+	end
+	local seats = Interiors.foodCourt(seating, furniture, P, S, levelY(0))
+	-- The Urban Eatery's warm wood-slat ceiling over its seating (photos): the
+	-- seating's 12 ft cells, slats running along each row of cells.
+	do
+		local CELL = 12
+		local cells = {}
+		for _, item in ipairs(furniture) do
+			local cu, cv = math.floor(item.u / CELL), math.floor(item.v / CELL)
+			cells[cu] = cells[cu] or {}
+			cells[cu][cv] = true
+		end
+		local slats = folderIn(seating, "SlatCeiling")
+		local cy = levelY(1) - SLAB - 1.2
+		for cu, row in pairs(cells) do
+			local vs = {}
+			for cv in pairs(row) do
+				table.insert(vs, cv)
+			end
+			table.sort(vs)
+			local i = 1
+			while i <= #vs do
+				local j = i
+				while j < #vs and vs[j + 1] == vs[j] + 1 do
+					j += 1
+				end
+				-- a run of cells from vs[i] to vs[j] in this u row
+				local v0, v1 = vs[i] * CELL, (vs[j] + 1) * CELL
+				local u0 = cu * CELL
+				for k = 0.75, CELL - 0.75, 1.5 do
+					local a, b = P(u0 + k, v0, cy), P(u0 + k, v1, cy)
+					local mid = (a + b) / 2
+					Util.deco(slats, V3(math.abs(b.X - a.X) + 0.1, 0.9, 0.45), CFrame.new(mid), C(196, 146, 96), M.Wood).CastShadow = false
+				end
+				-- warm downlights through the slats (the concourse is underground)
+				if cu % 2 == 0 then
+					for cv2 = vs[i], vs[j], 2 do
+						local lp = P(u0 + CELL / 2, (cv2 + 0.5) * CELL, cy - 0.6)
+						local holder = Util.deco(slats, V3(0.8, 0.2, 0.8), CFrame.new(lp), C(255, 236, 206), M.Neon)
+						holder.CastShadow = false
+						local l = Instance.new("PointLight")
+						l.Range = 24
+						l.Brightness = 0.9
+						l.Color = C(255, 226, 190)
+						l.Shadows = false
+						l.Parent = holder
+					end
+				end
+				i = j + 1
+			end
+		end
+	end
 	print(string.format("[EatonCentre] interiors: %d shops fitted out, %d floor fixtures, %d wall displays, %d food court pieces", furnished, fieldFixtures, wallRuns, seats))
 
 	print(string.format("[EatonCentre] built from plans: %d lifts, %d vault bays, Metro Threads in %s, Grind Coffee in %s",

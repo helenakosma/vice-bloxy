@@ -6,7 +6,7 @@
 return {
 	{ unit = "SC001", level = 0, area = 15163, status = "open", category = "sports", name = "Northbound Athletics", real = "Sport Chek", source = "directory" },
 	{ unit = "RR11B", level = 0, area = 4217, status = "back", category = "services", name = nil, real = "Cadillac Fairview Corp. Ltd.", source = "plan" },
-	{ unit = "J003A", level = 0, area = 2500, status = "open", category = "fashion", name = "Kensal Atelier", real = "Chick Fil A", source = "directory" },
+	{ unit = "J003A", level = 0, area = 2500, status = "open", category = "food", name = "Golden Coop Chicken", real = "Chick Fil A", source = "directory" },
 	{ unit = "J002", level = 0, area = 2382, status = "open", category = "food", name = "Queen's Shawarma", real = "Mcdonalds", source = "directory" },
 	{ unit = "RR11A", level = 0, area = 1927, status = "back", category = "services", name = nil, real = "Adidas", source = "plan" },
 	{ unit = "STO27", level = 0, area = 1334, status = "back", category = "services", name = nil, real = nil, source = "plan" },

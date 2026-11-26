@@ -1,4 +1,15 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Nobody gets a character until the world is built and the spawn point is at
+-- the arrival place (Yonge & Dundas for now); otherwise players appear at the
+-- first district's spawn and are then moved. The client shows a loading
+-- screen until WorldReady is set (Client/Loading).
+Players.CharacterAutoLoads = false
+local worldReady = Instance.new("BoolValue")
+worldReady.Name = "WorldReady"
+worldReady.Value = false
+worldReady.Parent = ReplicatedStorage
 
 local Remotes = require(script.Parent.Remotes)
 require(script.Parent.Fares) -- transit card, fare gates, bus fares
@@ -52,8 +63,31 @@ if not locOk then
 	warn("[Locations] failed to start: " .. tostring(locErr))
 end
 
+-- The spawn point is where it belongs: characters load now, and respawns use
+-- it from here on.
+Players.CharacterAutoLoads = true
+worldReady.Value = true
+for _, player in ipairs(Players:GetPlayers()) do
+	if not player.Character then
+		task.spawn(function()
+			pcall(function()
+				player:LoadCharacter()
+			end)
+		end)
+	end
+end
+
 -- Shopping in the Eaton Centre's stores (prompts on the displays and tills the
 -- world just built), and the cashiers and shoppers near players.
+-- Store contents are built only where players are (World/EatonCentre/Lazy).
+do
+	local ok, err = pcall(function()
+		require(script.Parent.World.EatonCentre.Lazy).start()
+	end)
+	if not ok then
+		warn("[Lazy] failed to start: " .. tostring(err))
+	end
+end
 for _, name in ipairs({ "Shopping", "ShopNPCs" }) do
 	local ok, err = pcall(function()
 		require(Services[name]).start()

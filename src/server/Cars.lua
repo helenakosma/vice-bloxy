@@ -246,6 +246,7 @@ function Cars.spawn(cframe, options)
 	}
 	cars[model] = car
 	carsBySeat[seat] = car
+	car.lastActive = os.clock()
 
 	prompt.Triggered:Connect(function(player)
 		Cars.requestEnter(player, car)
@@ -253,7 +254,9 @@ function Cars.spawn(cframe, options)
 
 	seat:GetPropertyChangedSignal("Occupant"):Connect(function()
 		local humanoid = seat.Occupant
+		car.lastActive = os.clock()
 		if humanoid then
+			Cars.wake(car)
 			local player = Players:GetPlayerFromCharacter(humanoid.Parent)
 			if player then
 				pcall(function()
@@ -320,7 +323,41 @@ function Cars.spawnParked(cframe, parent, rng)
 	return model
 end
 
+-- A parked car with nobody in it is put to sleep: its parts are anchored, so
+-- neither the server nor the clients simulate it (dozens of idle cars were
+-- several ms of physics a frame). It wakes the moment someone gets in.
+function Cars.sleep(car)
+	if car.asleep then
+		return
+	end
+	car.asleep = {}
+	for _, p in ipairs(car.model:GetDescendants()) do
+		if p:IsA("BasePart") and not p.Anchored then
+			p.Anchored = true
+			table.insert(car.asleep, p)
+		end
+	end
+end
+
+function Cars.wake(car)
+	local parts = car.asleep
+	if not parts then
+		return
+	end
+	car.asleep = nil
+	for _, p in ipairs(parts) do
+		if p.Parent then
+			p.Anchored = false
+		end
+	end
+	car.lastActive = os.clock()
+	pcall(function()
+		car.chassis:SetNetworkOwner(nil)
+	end)
+end
+
 function Cars.requestEnter(player, car)
+	Cars.wake(car)
 	if car.busy or car.seat.Occupant or pendingEnter[player] then
 		return
 	end
@@ -419,8 +456,26 @@ function Cars.init()
 	local parkedInput = { throttle = 0, steer = 0, handbrake = true }
 	RunService.PreSimulation:Connect(function(dt)
 		for _, car in pairs(cars) do
-			if car.model:GetAttribute("DriverId") == nil then
+			if not car.asleep and car.model:GetAttribute("DriverId") == nil then
 				VehiclePhysics.step(car.state, parkedInput, dt, false)
+			end
+		end
+	end)
+
+	-- Put settled, empty cars to sleep (see Cars.sleep).
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local now = os.clock()
+			for _, car in pairs(cars) do
+				if not car.asleep and not car.busy and car.seat.Occupant == nil and now - (car.lastActive or 0) > 6 then
+					local ok, speed = pcall(function()
+						return car.chassis.AssemblyLinearVelocity.Magnitude
+					end)
+					if ok and speed < 0.4 then
+						Cars.sleep(car)
+					end
+				end
 			end
 		end
 	end)

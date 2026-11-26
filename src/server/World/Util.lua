@@ -202,7 +202,24 @@ function Util.totalParts()
 	return created
 end
 
+-- While a store's contents are built on demand (EatonCentre/Lazy), the builder
+-- runs in its own thread and gives up the frame every YIELD_EVERY parts, so
+-- the server and the clients take a big store in small pieces, not one burst.
+Util.yieldThread = nil
+Util.yieldEvery = 100
+local yieldCount = 0
+local function maybeYield()
+	if Util.yieldThread and coroutine.running() == Util.yieldThread then
+		yieldCount += 1
+		if yieldCount >= Util.yieldEvery then
+			yieldCount = 0
+			task.wait()
+		end
+	end
+end
+
 local function makePart(parent, size, cf, color, material, collide, shape)
+	maybeYield()
 	local p = Instance.new("Part")
 	p.Anchored = true
 	p.Size = size

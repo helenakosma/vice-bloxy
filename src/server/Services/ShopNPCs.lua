@@ -20,8 +20,8 @@ local Stores = require(script.Parent.Parent.World.EatonCentre.Stores)
 
 local ShopNPCs = {}
 
-local ACTIVE = 110 -- a player this close to a store wakes it up
-local DESPAWN = 170 -- nobody this close: its NPCs go
+local ACTIVE = 85 -- a player this close to a store wakes it up
+local DESPAWN = 135 -- nobody this close: its NPCs go
 local MAX_CASHIERS = 24
 local MAX_SHOPPERS = 28
 local SHOPPERS_PER_STORE = 2
@@ -88,6 +88,12 @@ local function newRig(name)
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	humanoid.WalkSpeed = 6
+	-- they only walk and stand: skip the physics states they never use
+	for _, st in ipairs({ Enum.HumanoidStateType.Climbing, Enum.HumanoidStateType.Swimming, Enum.HumanoidStateType.FallingDown, Enum.HumanoidStateType.Ragdoll, Enum.HumanoidStateType.Flying, Enum.HumanoidStateType.Seated, Enum.HumanoidStateType.PlatformStanding, Enum.HumanoidStateType.StrafingNoPhysics }) do
+		pcall(function()
+			humanoid:SetStateEnabled(st, false)
+		end)
+	end
 	if not humanoid:FindFirstChildOfClass("Animator") then
 		Instance.new("Animator").Parent = humanoid
 	end
@@ -287,7 +293,21 @@ end
 ---------------------------------------------------------------------------
 -- The manager: wake stores near players, put the rest to sleep
 ---------------------------------------------------------------------------
+-- Browse spots by store, from whatever stores are built right now (their
+-- contents come and go with players: World/EatonCentre/Lazy).
+local function refreshSpots()
+	table.clear(storeSpots)
+	for _, p in ipairs(CollectionService:GetTagged("ShopSpot")) do
+		local key = p:GetAttribute("Store")
+		if key and p:IsDescendantOf(Workspace) then
+			storeSpots[key] = storeSpots[key] or {}
+			table.insert(storeSpots[key], p)
+		end
+	end
+end
+
 local function tick()
+	refreshSpots()
 	-- cashiers
 	for _, spotPart in ipairs(CollectionService:GetTagged("ShopCashier")) do
 		local have = cashiers[spotPart]

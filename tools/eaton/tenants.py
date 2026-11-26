@@ -29,7 +29,10 @@ LEVELS = {"concourse": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
 RENUMBERED = {"Y002A": "Y005A"}
 
 # Our own businesses already placed in the mall (Services/Work).
-OURS = {"D106": ("Grind Coffee", "cafe"), "N132A": ("Metro Threads", "fashion")}
+OURS = {"D106": ("Grind Coffee", "cafe"), "N132A": ("Metro Threads", "fashion"),
+        # the Urban Eatery's fried-chicken counter (the directory writes the real one
+        # "Chick Fil A", which the keyword list missed)
+        "J003A": ("Golden Coop Chicken", "food")}
 
 # Category by keywords in the real tenant's name (first match wins).
 CATEGORIES = [
